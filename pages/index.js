@@ -40,20 +40,34 @@ export default function Home() {
 
     try {
       await fetchBTCPrice();
+
       const res = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Payment failed');
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const fallback = await res.text();
+        throw new Error(`Invalid JSON: ${fallback}`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Payment request failed');
+      }
+
       const btc = btcRate ? (parseFloat(form.amount) / btcRate).toFixed(8) : null;
+
       setOrder({ ...data, ...form, created: new Date().toISOString(), btc });
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(err.message || 'Payment error');
     } finally {
       setLoading(false);
     }
@@ -63,9 +77,8 @@ export default function Home() {
     if (!order || status !== 'pending') return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/orders');
-        const all = await res.json();
-        const upd = all.find(o => o.orderId === order.orderId);
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
+        const upd = await res.json();
         if (upd?.status === 'paid') {
           setStatus('paid');
           setOrder(prev => ({ ...prev, status: 'paid' }));
@@ -146,7 +159,9 @@ export default function Home() {
               <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
             </div>
 
-            <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Generating…' : 'Generate Invoice'}</button>
+            <button className="btn btn-primary" type="submit" disabled={loading}>
+              {loading ? 'Generating…' : 'Generate Invoice'}
+            </button>
           </form>
 
           {error && <div className="alert alert-danger mt-md">{error}</div>}
@@ -164,7 +179,9 @@ export default function Home() {
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
             <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
             <div className="scroll-box">{order.invoice || order.address}</div>
-            <button className="btn btn-success mt-md" onClick={copyToClipboard}>{copied ? 'Copied!' : 'Copy Invoice'}</button>
+            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
+              {copied ? 'Copied!' : 'Copy Invoice'}
+            </button>
           </div>
         </div>
       )}
