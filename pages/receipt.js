@@ -1,48 +1,54 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
-export default function Receipt() {
+export default function ReceiptPage() {
   const router = useRouter();
   const { id } = router.query;
-  const [receipt, setReceipt] = useState(null);
+
+  const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/check-status?id=${id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data?.status === 'paid') setReceipt(data);
-        else setError('Payment not confirmed or expired.');
-      })
-      .catch(() => setError('Failed to fetch receipt.'))
-      .finally(() => setLoading(false));
+
+    const fetchOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders?id=${id}`);
+        const data = await res.json();
+
+        if (!res.ok || !data || !data.status) {
+          throw new Error(data?.message || 'Order not found');
+        }
+
+        if (data.status !== 'paid') {
+          setError('Payment is still pending. Please refresh once paid.');
+        } else {
+          setOrder(data);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrder();
   }, [id]);
 
-  if (loading) return <p className="text-center mt-lg">Loading receipt...</p>;
-  if (error) return <div className="alert alert-danger mt-lg text-center">{error}</div>;
+  if (loading) return <p>Loading receipt…</p>;
+  if (error) return <div className="alert">{error}</div>;
 
   return (
-    <div className="container mt-lg">
-      <div className="card">
-        <h1 className="card-header text-center">Payment Receipt</h1>
-        <div className="card-body">
-          <p><strong>Order ID:</strong> {receipt.orderId}</p>
-          <p><strong>Username:</strong> {receipt.username}</p>
-          <p><strong>Game:</strong> {receipt.game}</p>
-          <p><strong>USD Paid:</strong> ${receipt.amount}</p>
-          <p><strong>BTC:</strong> {receipt.btc}</p>
-          <p><strong>Short Invoice:</strong></p>
-          <div className="scroll-box">
-            {receipt.invoice
-              ? `${receipt.invoice.slice(0, 12)}...${receipt.invoice.slice(-12)}`
-              : `${receipt.address.slice(0, 12)}...${receipt.address.slice(-12)}`}
-          </div>
-          <p className="text-center mt-md">
-            <button className="btn btn-primary" onClick={() => router.push('/')}>Back to Home</button>
-          </p>
-        </div>
+    <div className="receipt-page">
+      <h1>✅ Payment Received</h1>
+      <div className="receipt-box">
+        <p><strong>Username:</strong> {order.username}</p>
+        <p><strong>Game:</strong> {order.game}</p>
+        <p><strong>Amount:</strong> ${order.amount}</p>
+        <p><strong>BTC:</strong> {order.btc}</p>
+        <p><strong>Order ID:</strong> {order.orderId}</p>
+        <p><strong>Paid Manually:</strong> {order.paidManually ? 'Yes' : 'No'}</p>
       </div>
     </div>
   );
