@@ -47,13 +47,7 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        const fallback = await res.text();
-        throw new Error(`Invalid JSON: ${fallback}`);
-      }
+      const data = await res.json();
 
       if (!res.ok) {
         throw new Error(data.message || 'Payment request failed');
@@ -61,7 +55,7 @@ export default function Home() {
 
       const btc = btcRate ? (parseFloat(form.amount) / btcRate).toFixed(8) : null;
 
-      setOrder({ ...data, ...form, created: new Date().toISOString(), btc });
+      setOrder({ ...data, ...form, created: new Date().toISOString(), btc, orderId: data.orderId });
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
@@ -212,6 +206,14 @@ export default function Home() {
               <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
+            <a
+              href={`/receipt?id=${order.orderId}`}
+              className="btn btn-outline mt-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View Full Receipt
+            </a>
           </div>
         </div>
       )}
