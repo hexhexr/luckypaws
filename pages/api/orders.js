@@ -10,12 +10,11 @@ export default async function handler(req, res) {
       return res.status(200).json(doc.data());
     }
 
-    // If no id, return all orders (admin view)
     const snapshot = await db.collection('orders').get();
     const orders = snapshot.docs.map(doc => doc.data());
     return res.status(200).json(orders);
   } catch (err) {
     console.error('Order fetch error:', err);
-    res.status(500).json({ message: 'Failed to fetch orders' });
+    res.status(500).json({ message: 'Failed to fetch order(s)' });
   }
 }
