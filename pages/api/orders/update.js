@@ -7,9 +7,13 @@ export default async function handler(req, res) {
   if (!orderId || !status) return res.status(400).json({ message: 'Missing orderId or status' });
 
   try {
-    await db.collection('orders').doc(orderId).update({ status });
-    res.status(200).json({ success: true });
+    const updateFields = { status };
+    if (status === 'paid') updateFields.paidManually = true;
+
+    await db.collection('orders').doc(orderId).update(updateFields);
+    return res.status(200).json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: 'Update failed' });
+    console.error('Update error:', err);
+    return res.status(500).json({ message: 'Update failed' });
   }
 }

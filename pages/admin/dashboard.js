@@ -15,8 +15,29 @@ export default function AdminDashboard() {
   const fetchOrders = async () => {
     try {
       const res = await fetch('/api/orders');
-      const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
+      let ordersList = await res.json();
+      if (!Array.isArray(ordersList)) ordersList = [];
+
+      // Check live status from Speed API for each pending
+      const checkedOrders = await Promise.all(
+        ordersList.map(async (order) => {
+          if (order.status !== 'pending') return order;
+
+          try {
+            const checkRes = await fetch(`/api/check-payment-status?id=${order.orderId}`);
+            const checkData = await checkRes.json();
+            if (checkData?.status === 'paid') {
+              return { ...order, status: 'paid' };
+            }
+          } catch (err) {
+            console.error(`Speed check failed for ${order.orderId}`, err);
+          }
+
+          return order;
+        })
+      );
+
+      setOrders(checkedOrders);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
     }
@@ -62,6 +83,7 @@ export default function AdminDashboard() {
     { label: 'BTC', key: 'btc' },
     { label: 'Method', key: 'method' },
     { label: 'Status', key: 'status' },
+    { label: 'Manual', key: 'paidManually' },
     { label: 'Date', key: 'created' },
   ];
 
@@ -79,9 +101,7 @@ export default function AdminDashboard() {
       });
 
       const result = await res.json();
-      if (!res.ok) {
-        console.error('API error:', result.message || 'Unknown error');
-      }
+      if (!res.ok) console.error('API error:', result.message || 'Unknown error');
     } catch (err) {
       console.error('Fetch error:', err);
     }
@@ -127,9 +147,7 @@ export default function AdminDashboard() {
                 {columns.map(col => (
                   <th key={col.key} onClick={() => toggleSort(col.key)}>
                     {col.label}
-                    {sortKey === col.key && (
-                      <span className="sort-arrow">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span>
-                    )}
+                    {sortKey === col.key && <span className="sort-arrow">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span>}
                   </th>
                 ))}
                 <th>Actions</th>
@@ -147,6 +165,11 @@ export default function AdminDashboard() {
                     <td>{o.btc || '—'}</td>
                     <td>{o.method}</td>
                     <td><span className={`status-tag ${o.status}`}>{o.status}</span></td>
+                    <td>
+                      <span className={`badge ${o.paidManually ? 'badge-green' : 'badge-gray'}`}>
+                        {o.paidManually ? 'Yes' : 'No'}
+                      </span>
+                    </td>
                     <td>{date.toLocaleDateString()}<br />{date.toLocaleTimeString()}</td>
                     <td>
                       {o.status !== 'paid' && (
