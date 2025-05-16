@@ -12,40 +12,39 @@ export default function ReceiptPage() {
   useEffect(() => {
     if (!id) return;
 
-    const fetchOrder = async () => {
+    const loadReceipt = async () => {
       try {
-        // Step 1: Load order from Firebase
+        // Step 1: Fetch from Firebase
         const res = await fetch(`/api/orders?id=${id}`);
         const data = await res.json();
 
-        if (!res.ok || !data?.status) {
-          throw new Error(data.message || 'Order not found');
+        if (!res.ok || !data?.orderId) throw new Error('Order not found');
+        if (data.status === 'paid') {
+          setOrder(data);
+          setLoading(false);
+          return;
         }
 
-        // Step 2: If not paid, check Speed API to sync
-        if (data.status !== 'paid') {
-          const check = await fetch(`/api/check-payment-status?id=${id}`);
-          const checkRes = await check.json();
+        // Step 2: Try syncing from Speed API
+        const checkRes = await fetch(`/api/check-payment-status?id=${id}`);
+        const checkData = await checkRes.json();
 
-          if (checkRes.status === 'paid') {
-            // Re-fetch updated order
-            const updated = await fetch(`/api/orders?id=${id}`);
-            const updatedData = await updated.json();
-            setOrder(updatedData);
-          } else {
-            throw new Error('⏳ Payment not received yet. Please wait or refresh.');
-          }
+        if (checkData.status === 'paid') {
+          // Re-fetch updated order
+          const refetched = await fetch(`/api/orders?id=${id}`);
+          const updatedOrder = await refetched.json();
+          setOrder(updatedOrder);
         } else {
-          setOrder(data);
+          throw new Error('⏳ Payment is still pending. Please wait or refresh.');
         }
       } catch (err) {
-        setError(err.message || 'Unable to load receipt');
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrder();
+    loadReceipt();
   }, [id]);
 
   if (loading) return <p>Loading receipt...</p>;

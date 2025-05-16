@@ -7,12 +7,9 @@ export default async function handler(req, res) {
   try {
     const ref = db.collection('orders').doc(id);
     const doc = await ref.get();
-
     if (!doc.exists) return res.status(404).json({ error: 'Order not found' });
 
     const order = doc.data();
-    let finalStatus = order.status;
-
     const apiUrl = process.env.SPEED_API_BASE_URL || 'https://api.tryspeed.com';
     const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
 
@@ -31,10 +28,9 @@ export default async function handler(req, res) {
 
     if (speedStatus === 'paid' && order.status !== 'paid') {
       await ref.update({ status: 'paid', paidManually: false });
-      finalStatus = 'paid';
     }
 
-    res.status(200).json({ status: finalStatus });
+    res.status(200).json({ status: speedStatus });
   } catch (err) {
     console.error('Error in check-payment-status:', err);
     res.status(500).json({ error: 'Server error' });

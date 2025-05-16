@@ -10,11 +10,12 @@ export default async function handler(req, res) {
       return res.status(200).json(doc.data());
     }
 
+    // Default: return all orders
     const snapshot = await db.collection('orders').get();
     const orders = snapshot.docs.map(doc => doc.data());
     return res.status(200).json(orders);
   } catch (err) {
-    console.error('Order fetch error:', err);
+    console.error('Fetch order error:', err);
     res.status(500).json({ message: 'Failed to fetch order(s)' });
   }
 }
