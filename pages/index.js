@@ -10,7 +10,7 @@ export default function Home() {
   const [status, setStatus] = useState('pending');
   const [btc, setBtc] = useState('');
   const [copied, setCopied] = useState(false);
-  const [timer, setTimer] = useState(600); // 10 minutes
+  const [timer, setTimer] = useState(600);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
@@ -137,15 +137,11 @@ export default function Home() {
           <div className="modal">
             <h3 className="text-center">💸 Complete Your Payment</h3>
             <p><strong>Amount:</strong> ${form.amount} | {btc} BTC</p>
+
             <div className="text-center mt-sm">
               <QRCode value={getPaymentString()} size={180} />
-              <p className="mt-sm" style={{ fontSize: '0.85rem', wordBreak: 'break-word' }}>
-                {getPaymentString()}
-              </p>
-              <button
-                className="btn btn-secondary btn-sm mt-sm"
-                onClick={() => handleCopy(getPaymentString())}
-              >
+              <p className="mt-sm scroll-box">{getPaymentString()}</p>
+              <button className="btn btn-secondary btn-sm mt-sm" onClick={() => handleCopy(getPaymentString())}>
                 📋 {copied ? 'Copied!' : 'Copy'}
               </button>
               <div className="mt-sm" style={{ fontSize: '0.9rem', color: '#666' }}>
