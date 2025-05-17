@@ -8,15 +8,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  // Pick up the API key from either env var
-  const apiKey = process.env.SPEED_SECRET_KEY || process.env.SPEED_API_KEY;
+  const apiKey = process.env.SPEED_SECRET_KEY;
   if (!apiKey) {
-    console.error('No Speed API key found in SPEED_SECRET_KEY or SPEED_API_KEY');
+    console.error('⚠️ No SPEED_SECRET_KEY in env');
     return res.status(500).json({ message: 'Server misconfiguration' });
   }
 
+  const authHeader = 'Basic ' + Buffer.from(`${apiKey}:`).toString('base64');
+  console.log('⏱️ Auth header:', authHeader);
+
   try {
-    const authHeader = 'Basic ' + Buffer.from(`${apiKey}:`).toString('base64');
     const speedRes = await fetch('https://api.tryspeed.com/invoice', {
       method: 'POST',
       headers: {
@@ -34,19 +35,21 @@ export default async function handler(req, res) {
     });
 
     const speedData = await speedRes.json();
-    if (!speedRes.ok || !speedData?.id) {
-      console.error('Speed API Error:', speedData);
+    console.log('⏱️ Speed API response:', JSON.stringify(speedData));
+
+    if (!speedRes.ok || !speedData.id) {
+      console.error('❌ Speed API Error Payload:', speedData);
       return res.status(500).json({ message: speedData.errors?.[0]?.message || 'Invoice creation failed' });
     }
 
     let btc = '0.00000000';
     try {
       const btcRes = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
-      const { bpi } = await btcRes.json();
-      const rate = parseFloat(bpi.USD.rate.replace(/,/g, ''));
+      const btcData = await btcRes.json();
+      const rate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
       if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
     } catch (e) {
-      console.error('BTC fetch error:', e);
+      console.error('🔗 BTC fetch error:', e);
     }
 
     await db.collection('orders').doc(speedData.id).set({
@@ -69,9 +72,8 @@ export default async function handler(req, res) {
       address: speedData.address || null,
       btc,
     });
-
   } catch (err) {
-    console.error('Create Payment Error:', err);
+    console.error('🔥 Create Payment Error:', err);
     return res.status(500).json({ message: 'Internal server error' });
   }
 }
