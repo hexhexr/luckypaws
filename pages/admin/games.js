@@ -1,80 +1,82 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebaseClient';
-import Link from 'next/link';
 
-export default function GameManagementPage() {
+export default function AdminGames() {
   const [games, setGames] = useState([]);
   const [newGame, setNewGame] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const fetchGames = async () => {
-    const snapshot = await db.collection('games').orderBy('name').get();
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setGames(data);
-  };
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchGames();
+    const loadGames = async () => {
+      try {
+        const snap = await db.collection('games').orderBy('name').get();
+        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setGames(list);
+      } catch (err) {
+        setError('Failed to load games');
+      }
+    };
+    loadGames();
   }, []);
 
-  const handleAddGame = async e => {
+  const handleAddGame = async (e) => {
     e.preventDefault();
+    setError('');
     if (!newGame.trim()) return;
-    setLoading(true);
-    await db.collection('games').add({ name: newGame.trim() });
-    setNewGame('');
-    await fetchGames();
-    setLoading(false);
+
+    try {
+      await db.collection('games').add({ name: newGame.trim() });
+      setNewGame('');
+      const snap = await db.collection('games').orderBy('name').get();
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGames(list);
+    } catch (err) {
+      setError('Error adding game');
+    }
   };
 
-  const handleDeleteGame = async id => {
-    await db.collection('games').doc(id).delete();
-    await fetchGames();
+  const handleDelete = async (id) => {
+    try {
+      await db.collection('games').doc(id).delete();
+      setGames(games.filter(g => g.id !== id));
+    } catch (err) {
+      setError('Failed to delete game');
+    }
   };
 
   return (
-    <div className="pl-section">
-      <nav className="sidebar-menu">
-        <Link href="/admin/dashboard" className="nav-btn">📊 Dashboard</Link>
-        <Link href="/admin/profit-loss" className="nav-btn">💰 Profit & Loss</Link>
-        <Link href="/admin/games" className="nav-btn active">🎮 Manage Games</Link>
-      </nav>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+      </div>
+      <div className="main-content">
+        <h2 className="text-center mt-lg">🎮 Manage Games</h2>
+        <form onSubmit={handleAddGame}>
+          <input
+            className="input"
+            placeholder="Add new game"
+            value={newGame}
+            onChange={(e) => setNewGame(e.target.value)}
+          />
+          <button className="btn btn-primary mt-md" type="submit">Add Game</button>
+        </form>
 
-      <h1>🎮 Game List</h1>
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
 
-      <form onSubmit={handleAddGame} className="entry-form">
-        <input
-          type="text"
-          placeholder="Enter new game name"
-          value={newGame}
-          onChange={e => setNewGame(e.target.value)}
-        />
-        <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Adding...' : 'Add Game'}
-        </button>
-      </form>
-
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Game Name</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {games.map(game => (
-              <tr key={game.id}>
-                <td>{game.name}</td>
-                <td>
-                  <button className="btn btn-danger" onClick={() => handleDeleteGame(game.id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
+        <div className="card mt-lg">
+          <h3>Available Games</h3>
+          <ul>
+            {games.map(g => (
+              <li key={g.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span>{g.name}</span>
+                <button className="btn btn-danger" onClick={() => handleDelete(g.id)}>Delete</button>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        </div>
       </div>
     </div>
   );

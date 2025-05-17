@@ -10,7 +10,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Create invoice from Speed API
     const speedRes = await fetch('https://api.tryspeed.com/invoice', {
       method: 'POST',
       headers: {
@@ -21,7 +20,7 @@ export default async function handler(req, res) {
         amount: parseFloat(amount),
         currency: 'USD',
         payment_method: method,
-        success_url: 'https://yourdomain.com/success', // optional
+        success_url: 'https://yourdomain.com/success',
       }),
     });
 
@@ -31,15 +30,19 @@ export default async function handler(req, res) {
       return res.status(500).json({ message: speedData.message || 'Invoice creation failed' });
     }
 
-    // 2. Fetch BTC rate
-    const btcRes = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
-    const btcData = await btcRes.json();
-    const btcRate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
+    let btc = '0.00000000';
+    try {
+      const btcRes = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
+      const btcData = await btcRes.json();
+      const btcRate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
+      if (btcRate > 0) {
+        btc = (parseFloat(amount) / btcRate).toFixed(8);
+      }
+    } catch (e) {
+      console.error('BTC fetch failed', e);
+    }
 
-    const btc = (parseFloat(amount) / btcRate).toFixed(8);
-
-    // 3. Save to Firebase
-    const docRef = await db.collection('orders').add({
+    await db.collection('orders').doc(speedData.id).set({
       username,
       game,
       amount: parseFloat(amount),
@@ -53,7 +56,6 @@ export default async function handler(req, res) {
       paidManually: false,
     });
 
-    // 4. Return response
     return res.status(200).json({
       orderId: speedData.id,
       invoice: speedData.invoice,

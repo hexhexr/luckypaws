@@ -68,6 +68,11 @@ body {
   color: white;
 }
 
+.btn-danger {
+  background-color: #e53935;
+  color: white;
+}
+
 .alert {
   padding: 1rem;
   border-radius: 8px;
@@ -207,265 +212,39 @@ body {
   color: #fff;
   border: none;
   border-radius: 6px;
-  padding: 0.6rem;
-  margin-bottom: 1rem;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+  text-align: left;
   cursor: pointer;
-  transition: background 0.3s ease;
+  transition: background 0.2s ease;
 }
 
 .nav-btn:hover {
-  background: #3c3c4f;
+  background: #3a3a50;
 }
 
 .main-content {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding: 2rem;
+  overflow-y: auto;
   background: #f9f9f9;
-  padding: 1rem;
-  color: #333;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.controls {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.controls input,
-.controls select {
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background: white;
-  color: #333;
-}
-
-.controls .btn {
-  background: #00c853;
-  color: white;
-  font-weight: 600;
-}
-
-.table-wrapper {
-  overflow-x: auto;
-}
-
-.order-table, table {
+/* Table */
+table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
+  font-size: 0.95rem;
 }
 
 th, td {
   padding: 0.75rem;
+  border: 1px solid #ccc;
   text-align: left;
-  border-bottom: 1px solid #eee;
-  font-size: 0.95rem;
 }
 
 th {
-  background: #f0f0f0;
-  font-weight: bold;
-  cursor: pointer;
-  color: #555;
-}
-
-.sort-arrow {
-  margin-left: 6px;
-  font-size: 0.8rem;
-}
-
-tr:hover {
-  background: #f9f9f9;
-}
-
-.status-tag {
-  padding: 0.3rem 0.6rem;
-  border-radius: 5px;
+  background-color: #e0f2f1;
   font-weight: 600;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-}
-
-.status-tag.paid {
-  background-color: #e0f7e9;
-  color: #00c853;
-}
-
-.status-tag.pending {
-  background-color: #fff8e1;
-  color: #ff9800;
-}
-
-.action-btn {
-  padding: 0.3rem 0.7rem;
-  margin-right: 0.4rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.action-btn.delete {
-  background: #ff5252;
-  color: white;
-}
-
-.action-btn:hover {
-  opacity: 0.85;
-}
-
-.footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.75rem;
-  background: #f1f1f1;
-  border-top: 1px solid #ddd;
-}
-
-.footer button {
-  margin: 0 1rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  background: #00c853;
-  color: white;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.footer button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-.badge {
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  display: inline-block;
-}
-.badge-green {
-  background: #d4edda;
-  color: #155724;
-}
-.badge-gray {
-  background: #f0f0f0;
-  color: #444;
-}
-.pl-section {
-  padding: 2rem;
-  font-family: sans-serif;
-  background: #f9f9f9;
-}
-
-.sidebar-menu {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.nav-btn {
-  background: #e0e0e0;
-  color: #333;
-  padding: 0.6rem 1rem;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.nav-btn.active {
-  background: #0070f3;
-  color: #fff;
-}
-
-.entry-form {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.5rem;
-}
-
-.entry-form input,
-.entry-form select {
-  padding: 0.5rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  min-width: 200px;
-}
-
-.entry-form .btn {
-  padding: 0.5rem 1rem;
-  background: #0070f3;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.entry-form .btn[disabled] {
-  background: #aaa;
-  cursor: not-allowed;
-}
-
-.search {
-  width: 100%;
-  max-width: 400px;
-  padding: 0.6rem;
-  margin-bottom: 2rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.user-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.user-card {
-  background: #fff;
-  padding: 1rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.user-card .avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 2px solid #0070f3;
-  object-fit: cover;
-}
-
-.user-card strong {
-  display: block;
-  font-size: 1.1rem;
-  margin-bottom: 0.3rem;
-}
-
-.user-card p {
-  margin: 0.2rem 0;
-}
-
-.profit {
-  color: green;
-  font-weight: bold;
-}
-
-.loss {
-  color: red;
-  font-weight: bold;
 }

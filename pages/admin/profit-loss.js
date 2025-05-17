@@ -1,197 +1,133 @@
-// pages/admin/profit-loss.js
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebaseClient';
 
-export default function ProfitLossPage() {
-  const [entries, setEntries] = useState([]);
-  const [customersMap, setCustomersMap] = useState({});
-  const [form, setForm] = useState({ facebookUrl: '', type: 'deposit', amount: '' });
+export default function ProfitLoss() {
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ fbUrl: '', type: 'deposit', amount: '' });
   const [search, setSearch] = useState('');
-  const [sortOption, setSortOption] = useState('default');
-  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  // Load PL entries and linked customers
-  const fetchData = async () => {
-    const entrySnap = await db.collection('pl_entries').orderBy('timestamp', 'desc').get();
-    const entryData = entrySnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setEntries(entryData);
-
-    const customerIds = [...new Set(entryData.map(e => e.customerId))];
-    if (customerIds.length) {
-      const batches = [];
-      while (customerIds.length) {
-        batches.push(customerIds.splice(0, 10));
-      }
-      const map = {};
-      await Promise.all(batches.map(async batchIds => {
-        const snap = await db.collection('customers')
-          .where(firebase.firestore.FieldPath.documentId(), 'in', batchIds)
-          .get();
-        snap.docs.forEach(d => map[d.id] = d.data());
-      }));
-      setCustomersMap(map);
-    }
+  const extractUsername = (url) => {
+    const match = url.match(/facebook\.com\/([^/?#]+)/i);
+    return match ? match[1] : '';
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const extractImage = (url) => {
+    const username = extractUsername(url);
+    return `https://graph.facebook.com/${username}/picture?type=large`;
+  };
 
-  const handleChange = e => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const extractFbUsername = url => {
-    const m = url.match(/facebook\.com\/(?:profile\.php\?id=)?([\w\.]+)/);
-    return m ? m[1] : url;
-  };
-
-  const handleAddEntry = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
-    try {
-      const url = form.facebookUrl.trim();
-      const username = extractFbUsername(url);
-      const avatarUrl = `https://graph.facebook.com/${username}/picture?type=large`;
+    setError('');
+    const username = extractUsername(form.fbUrl);
+    const image = extractImage(form.fbUrl);
+    if (!username || !form.amount) {
+      setError('Invalid input');
+      return;
+    }
 
-      // Upsert customer
-      const custQuery = await db.collection('customers')
-        .where('facebookUrl', '==', url)
-        .limit(1)
-        .get();
+    const ref = db.collection('pl-users').doc(username);
+    await ref.set(
+      {
+        username,
+        image,
+        fbUrl: form.fbUrl,
+        entries: [],
+      },
+      { merge: true }
+    );
 
-      let customerId;
-
-      if (!custQuery.empty) {
-        customerId = custQuery.docs[0].id;
-      } else {
-        const ref = await db.collection('customers').add({
-          facebookUrl: url,
-          displayName: username,
-          avatarUrl,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        customerId = ref.id;
-      }
-
-      // Add PL entry
-      await db.collection('pl_entries').add({
-        customerId,
+    await ref.update({
+      entries: db.FieldValue.arrayUnion({
         type: form.type,
         amount: parseFloat(form.amount),
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      setForm({ facebookUrl: '', type: 'deposit', amount: '' });
-      await fetchData();
-    } catch (err) {
-      console.error('Error adding PL entry:', err);
-    }
-    setSubmitting(false);
-  };
-
-  const users = Object.values(entries.reduce((acc, e) => {
-    const { customerId } = e;
-    if (!acc[customerId]) acc[customerId] = [];
-    acc[customerId].push(e);
-    return acc;
-  }, {})).map(group => {
-    const { customerId } = group[0];
-    const customer = customersMap[customerId] || {};
-    const deposits = group.filter(e => e.type === 'deposit').reduce((s, e) => s + e.amount, 0);
-    const cashouts = group.filter(e => e.type === 'cashout').reduce((s, e) => s + e.amount, 0);
-    return {
-      customerId,
-      displayName: customer.displayName || extractFbUsername(group[0].facebookUrl),
-      avatarUrl: customer.avatarUrl,
-      deposits,
-      cashouts,
-      net: deposits - cashouts
-    };
-  });
-
-  const filtered = users
-    .filter(u => u.displayName.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      if (sortOption === 'profit') return b.net - a.net;
-      if (sortOption === 'loss') return a.net - b.net;
-      return 0;
+        date: new Date().toISOString(),
+      }),
     });
 
+    setForm({ fbUrl: '', type: 'deposit', amount: '' });
+    loadUsers();
+  };
+
+  const loadUsers = async () => {
+    const snap = await db.collection('pl-users').get();
+    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setUsers(list);
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const getProfitLoss = (entries) => {
+    let deposits = 0, cashouts = 0;
+    entries.forEach(e => {
+      if (e.type === 'deposit') deposits += e.amount;
+      else cashouts += e.amount;
+    });
+    return deposits - cashouts;
+  };
+
+  const filtered = users.filter(u =>
+    u.username.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="pl-section">
-      <nav className="sidebar-menu">
-        <Link href="/admin/dashboard"><a className="nav-btn">📊 Dashboard</a></Link>
-        <Link href="/admin/profit-loss"><a className="nav-btn active">💰 Profit & Loss</a></Link>
-        <Link href="/admin/games"><a className="nav-btn">🎮 Manage Games</a></Link>
-      </nav>
-
-      <h1>📈 Profit & Loss Checker</h1>
-
-      <form onSubmit={handleAddEntry} className="entry-form">
-        <input
-          name="facebookUrl"
-          value={form.facebookUrl}
-          onChange={handleChange}
-          placeholder="Facebook profile URL"
-          required
-        />
-        <input
-          name="amount"
-          type="number"
-          value={form.amount}
-          onChange={handleChange}
-          placeholder="Amount"
-          required
-        />
-        <select name="type" value={form.type} onChange={handleChange}>
-          <option value="deposit">Deposit</option>
-          <option value="cashout">Cashout</option>
-        </select>
-        <button className="btn" disabled={submitting}>{submitting ? 'Saving…' : 'Add Entry'}</button>
-      </form>
-
-      <div className="search-form">
-        <input
-          className="search"
-          placeholder="Search customer..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <select value={sortOption} onChange={e => setSortOption(e.target.value)} style={{ marginLeft: '1rem' }}>
-          <option value="default">Sort: Default</option>
-          <option value="profit">Profit High → Low</option>
-          <option value="loss">Loss High → Low</option>
-        </select>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
       </div>
+      <div className="main-content">
+        <h2 className="text-center mt-lg">📊 Profit / Loss Tracker</h2>
 
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Avatar</th>
-              <th>Name</th>
-              <th>Deposits</th>
-              <th>Cashouts</th>
-              <th>Net</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(u => (
-              <tr key={u.customerId}>
-                <td><img src={u.avatarUrl} alt="" className="avatar" /></td>
-                <td>{u.displayName}</td>
-                <td>${u.deposits.toFixed(2)}</td>
-                <td>${u.cashouts.toFixed(2)}</td>
-                <td className={u.net >= 0 ? 'profit' : 'loss'}>
-                  {u.net >= 0 ? `+$${u.net.toFixed(2)}` : `-$${Math.abs(u.net).toFixed(2)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <form onSubmit={handleSubmit}>
+          <input className="input" placeholder="Facebook profile URL" name="fbUrl" value={form.fbUrl} onChange={handleChange} required />
+          <input className="input" type="number" placeholder="Amount" name="amount" value={form.amount} onChange={handleChange} required />
+          <select className="select" name="type" value={form.type} onChange={handleChange}>
+            <option value="deposit">Deposit</option>
+            <option value="cashout">Cashout</option>
+          </select>
+          <button className="btn btn-primary mt-md" type="submit">Submit</button>
+        </form>
+
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+
+        <input className="input mt-md" placeholder="Search username" value={search} onChange={e => setSearch(e.target.value)} />
+
+        <div className="card mt-lg">
+          {filtered.map(user => {
+            const total = getProfitLoss(user.entries);
+            return (
+              <div key={user.id} style={{ marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <img src={user.image} alt="dp" width="60" height="60" style={{ borderRadius: '50%' }} />
+                  <div>
+                    <strong>{user.username}</strong><br />
+                    Profit/Loss: <span style={{ color: total >= 0 ? 'green' : 'red' }}>
+                      {total >= 0 ? `+${total.toFixed(2)}` : total.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <ul style={{ marginTop: '0.5rem' }}>
+                  {user.entries.map((e, i) => (
+                    <li key={i}>
+                      {e.type.toUpperCase()}: ${e.amount} on {new Date(e.date).toLocaleString()}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-// pages/index.js
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { db } from '../lib/firebaseClient';
@@ -15,7 +14,6 @@ export default function Home() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
-  const [btcRate, setBtcRate] = useState(null);
 
   useEffect(() => {
     const loadGames = async () => {
@@ -31,17 +29,6 @@ export default function Home() {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const fetchBTCPrice = async () => {
-    try {
-      const res = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
-      const data = await res.json();
-      const rate = parseFloat(data.bpi.USD.rate.replace(/,/g, ''));
-      setBtcRate(rate);
-    } catch (err) {
-      console.error('Failed to fetch BTC rate:', err);
-    }
-  };
-
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -51,8 +38,6 @@ export default function Home() {
     setShowExpiredModal(false);
 
     try {
-      await fetchBTCPrice();
-
       const res = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,9 +56,7 @@ export default function Home() {
         throw new Error(data.message || 'Payment request failed');
       }
 
-      const btc = btcRate ? (parseFloat(form.amount) / btcRate).toFixed(8) : null;
-
-      setOrder({ ...data, ...form, created: new Date().toISOString(), btc });
+      setOrder({ ...data, ...form, created: new Date().toISOString() });
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
@@ -120,12 +103,6 @@ export default function Home() {
     }, 1000);
     return () => clearInterval(timer);
   }, [showInvoiceModal]);
-
-  useEffect(() => {
-    fetchBTCPrice();
-    const iv = setInterval(fetchBTCPrice, 60000);
-    return () => clearInterval(iv);
-  }, []);
 
   const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   const copyToClipboard = () => {
@@ -186,7 +163,7 @@ export default function Home() {
             <h2 className="receipt-header">Send Payment</h2>
             <div className="receipt-amounts">
               <p className="usd-amount">${order.amount} USD</p>
-              <p className="btc-amount">{order.btc} BTC</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
             <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
@@ -214,7 +191,7 @@ export default function Home() {
             <h2 className="receipt-header">✅ Payment Received</h2>
             <div className="receipt-amounts">
               <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
-              <p className="btc-amount">{order.btc} BTC</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <div className="receipt-details">
               <p><strong>Username:</strong> {order.username}</p>

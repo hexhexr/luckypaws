@@ -14,7 +14,6 @@ export default function ReceiptPage() {
 
     const loadReceipt = async () => {
       try {
-        // Step 1: Fetch from Firebase
         const res = await fetch(`/api/orders?id=${id}`);
         const data = await res.json();
 
@@ -25,12 +24,10 @@ export default function ReceiptPage() {
           return;
         }
 
-        // Step 2: Try syncing from Speed API
         const checkRes = await fetch(`/api/check-payment-status?id=${id}`);
         const checkData = await checkRes.json();
 
         if (checkData.status === 'paid') {
-          // Re-fetch updated order
           const refetched = await fetch(`/api/orders?id=${id}`);
           const updatedOrder = await refetched.json();
           setOrder(updatedOrder);
@@ -57,7 +54,7 @@ export default function ReceiptPage() {
         <p><strong>Username:</strong> {order.username}</p>
         <p><strong>Game:</strong> {order.game}</p>
         <p><strong>Amount (USD):</strong> ${order.amount}</p>
-        <p><strong>BTC:</strong> {order.btc}</p>
+        <p><strong>BTC:</strong> {order.btc || '0.00000000'}</p>
         <p><strong>Order ID:</strong> {order.orderId}</p>
         <p><strong>Paid Manually:</strong> {order.paidManually ? 'Yes' : 'No'}</p>
       </div>
