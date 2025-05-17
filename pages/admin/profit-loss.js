@@ -8,6 +8,7 @@ export default function ProfitLossPage() {
   const [form, setForm] = useState({ facebookUrl: '', type: 'deposit', amount: '' });
   const [search, setSearch] = useState('');
   const [filteredUsers, setFilteredUsers] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchEntries();
@@ -25,15 +26,26 @@ export default function ProfitLossPage() {
   };
 
   const extractFbUsername = url => {
-    const parts = url.split('/');
-    return parts[parts.length - 1] || parts[parts.length - 2];
+    const match = url.match(/facebook\.com\/(?:profile\.php\?id=)?([\w\.]+)/);
+    return match ? match[1] : null;
+  };
+
+  const getFbName = async username => {
+    try {
+      const res = await fetch(`https://graph.facebook.com/${username}?fields=name&access_token=undefined`);
+      const data = await res.json();
+      return data.name || username;
+    } catch {
+      return username;
+    }
   };
 
   const handleAddEntry = async e => {
     e.preventDefault();
+    setSubmitting(true);
     const username = extractFbUsername(form.facebookUrl);
     const fbImage = `https://graph.facebook.com/${username}/picture?type=large`;
-    const fbName = username;
+    const fbName = await getFbName(username);
     const payload = {
       facebookUrl: form.facebookUrl,
       fbName,
@@ -44,7 +56,8 @@ export default function ProfitLossPage() {
     };
     await db.collection('pl_entries').add(payload);
     setForm({ facebookUrl: '', type: 'deposit', amount: '' });
-    fetchEntries();
+    await fetchEntries();
+    setSubmitting(false);
   };
 
   const users = [...new Set(entries.map(e => e.facebookUrl))].map(url => {
@@ -85,7 +98,7 @@ export default function ProfitLossPage() {
           <option value="deposit">Deposit</option>
           <option value="cashout">Cashout</option>
         </select>
-        <button className="btn">Add Entry</button>
+        <button className="btn" disabled={submitting}>{submitting ? 'Saving...' : 'Add Entry'}</button>
       </form>
 
       <input className="search" placeholder="Search user by name or URL..." value={search} onChange={e => setSearch(e.target.value)} />
