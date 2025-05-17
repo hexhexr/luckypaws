@@ -19,6 +19,9 @@ export default function Home() {
       const snap = await db.collection('games').orderBy('name').get();
       const list = snap.docs.map(doc => doc.data().name);
       setGames(list);
+      if (list.length > 0) {
+        setForm(prev => ({ ...prev, game: list[0] }));
+      }
     };
     loadGames();
   }, []);
@@ -129,18 +132,21 @@ export default function Home() {
           <input className="input" name="username" value={form.username} onChange={handleChange} required />
 
           <label>Game Name</label>
-          <select
-            className="input"
-            name="game"
-            value={form.game}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Select Game</option>
-            {games.map((g, i) => (
-              <option key={i} value={g}>{g}</option>
-            ))}
-          </select>
+          {games.length > 0 ? (
+            <select
+              className="input"
+              name="game"
+              value={form.game}
+              onChange={handleChange}
+              required
+            >
+              {games.map((g, i) => (
+                <option key={i} value={g}>{g}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="alert alert-warning">⚠️ No games found. Please add some games from admin panel.</p>
+          )}
 
           <label>Amount (USD)</label>
           <input className="input" name="amount" type="number" value={form.amount} onChange={handleChange} required />

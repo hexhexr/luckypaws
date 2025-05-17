@@ -1,7 +1,221 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f7fb;
+  color: #1a1a1a;
+}
+
+.container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+  padding: 2rem;
+  border: 1px solid #eee;
+}
+
+.card-header {
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: #00b894;
+}
+
+.input, .select {
+  width: 100%;
+  padding: 0.75rem;
+  margin: 0.5rem 0 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.input:focus, .select:focus {
+  border-color: #00b894;
+  outline: none;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #00b894;
+  color: white;
+}
+
+.btn-success {
+  background-color: #0984e3;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #d63031;
+  color: white;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.alert-danger {
+  background-color: #ffeaea;
+  color: #d63031;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.4s ease-in-out;
+  text-align: center;
+}
+
+.receipt-modal {
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 16px;
+  color: #333;
+}
+
+.receipt-header {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #00b894;
+  margin-bottom: 1.5rem;
+}
+
+.receipt-amounts {
+  background: #f1fdf9;
+  border: 1px solid #c8f6e6;
+  padding: 1rem;
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.usd-amount {
+  font-size: 1.7rem;
+  font-weight: bold;
+  color: #00997c;
+}
+
+.btc-amount {
+  font-size: 1.1rem;
+  color: #555;
+}
+
+.receipt-details {
+  background: #fafafa;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid #eee;
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.receipt-details p {
+  margin: 0.4rem 0;
+  font-size: 0.95rem;
+  color: #444;
+}
+
+.scroll-box {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  font-family: monospace;
+  word-break: break-word;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.short-invoice {
+  text-align: center;
+  background: #ecf0f1;
+}
+
+.qr-container {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.text-center { text-align: center; }
+.mt-md { margin-top: 1rem; }
+.mt-lg { margin-top: 2rem; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+.loader {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -29,13 +243,23 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
-.scroll-box {
-  background: #f5f5f5;
+.input, .select {
+  width: 100%;
   padding: 0.75rem;
-  font-family: monospace;
-  word-break: break-word;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+  margin: 0.5rem 0 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.input:focus, .select:focus {
+  border-color: #00b894;
+  outline: none;
+}
+
+select.input {
+  background: white;
+  appearance: none;
+  -webkit-appearance: none;
 }
