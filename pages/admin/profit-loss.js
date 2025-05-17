@@ -1,3 +1,13 @@
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+
+useEffect(() => {
+  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+    router.replace('/admin/login');
+  }
+}, []);
+
 import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebaseClient';
 

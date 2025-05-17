@@ -44,17 +44,8 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        const fallback = await res.text();
-        throw new Error(`Invalid JSON: ${fallback}`);
-      }
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Payment request failed');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Payment request failed');
 
       setOrder({ ...data, ...form, created: new Date().toISOString() });
       setShowInvoiceModal(true);
@@ -125,42 +116,44 @@ export default function Home() {
   return (
     <div className="container mt-lg">
       <div className="card">
-        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
-        <div className="card-body">
-          <form onSubmit={handleSubmit}>
-            <label>Username</label>
-            <input className="input" name="username" value={form.username} onChange={handleChange} required placeholder="Your username" />
+        <h1 className="card-header text-center">🐾 Welcome to Lucky Paw</h1>
+        <p className="text-center" style={{ color: '#4CAF50', marginBottom: '1.5rem' }}>
+          A secure and fast way to deposit for your game. Your payment is handled safely using Bitcoin.
+        </p>
 
-            <label>Select Game</label>
-            <select className="select" name="game" value={form.game} onChange={handleChange} required>
-              <option value="" disabled>Select Game</option>
-              {games.map(g => (
-                <option key={g.id} value={g.name}>{g.name}</option>
-              ))}
-            </select>
+        <form onSubmit={handleSubmit}>
+          <label>Username</label>
+          <input className="input" name="username" value={form.username} onChange={handleChange} required placeholder="Your username" />
 
-            <label>Amount (USD)</label>
-            <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required placeholder="Amount in USD" />
+          <label>Select Game</label>
+          <select className="select" name="game" value={form.game} onChange={handleChange} required>
+            <option value="" disabled>Select Game</option>
+            {games.map(g => (
+              <option key={g.id} value={g.name}>{g.name}</option>
+            ))}
+          </select>
 
-            <label>Payment Method</label>
-            <div className="radio-group">
-              <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
-              <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
-            </div>
+          <label>Amount (USD)</label>
+          <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required placeholder="Amount in USD" />
 
-            <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? 'Generating…' : 'Generate Invoice'}
-            </button>
-          </form>
+          <label>Payment Method</label>
+          <div className="radio-group">
+            <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
+            <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
+          </div>
 
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
-        </div>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? 'Generating Invoice...' : 'Generate Invoice'}
+          </button>
+        </form>
+
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
       {showInvoiceModal && order && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2 className="receipt-header">Send Payment</h2>
+            <h2 className="receipt-header">🧾 Secure Invoice</h2>
             <div className="receipt-amounts">
               <p className="usd-amount">${order.amount} USD</p>
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
@@ -171,6 +164,9 @@ export default function Home() {
             <button className="btn btn-success mt-md" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy Invoice'}
             </button>
+            <p className="text-center mt-md" style={{ fontSize: '0.85rem', color: '#888' }}>
+              Payments are processed instantly via Speed API. Your funds are safe.
+            </p>
           </div>
         </div>
       )}
@@ -197,10 +193,13 @@ export default function Home() {
               <p><strong>Username:</strong> {order.username}</p>
               <p><strong>Game:</strong> {order.game}</p>
               <p><strong>Order ID:</strong> {order.orderId}</p>
-              <p><strong>Short Invoice:</strong></p>
+              <p><strong>Invoice:</strong></p>
               <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
+            <p className="text-center" style={{ fontSize: '0.85rem', color: '#888', marginTop: '1rem' }}>
+              Your payment has been recorded and verified. Thank you for using Lucky Paw.
+            </p>
           </div>
         </div>
       )}

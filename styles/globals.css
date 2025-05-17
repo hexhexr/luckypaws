@@ -1,10 +1,8 @@
-/* ✅ Enhanced Cash App–style Theme for Lucky Paw */
-
 body {
   margin: 0;
   font-family: 'Segoe UI', sans-serif;
-  background: #f5f6fa;
-  color: #222;
+  background: #f4f7fb;
+  color: #1a1a1a;
 }
 
 .container {
@@ -16,15 +14,16 @@ body {
 .card {
   background: #fff;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
   padding: 2rem;
+  border: 1px solid #eee;
 }
 
 .card-header {
   font-size: 1.8rem;
   font-weight: 700;
   text-align: center;
-  color: #00c853;
+  color: #00b894;
 }
 
 .input, .select {
@@ -38,7 +37,7 @@ body {
 }
 
 .input:focus, .select:focus {
-  border-color: #00c853;
+  border-color: #00b894;
   outline: none;
 }
 
@@ -59,17 +58,17 @@ body {
 }
 
 .btn-primary {
-  background-color: #00c853;
+  background-color: #00b894;
   color: white;
 }
 
 .btn-success {
-  background-color: #1de9b6;
+  background-color: #0984e3;
   color: white;
 }
 
 .btn-danger {
-  background-color: #e53935;
+  background-color: #d63031;
   color: white;
 }
 
@@ -79,11 +78,10 @@ body {
 }
 
 .alert-danger {
-  background-color: #ffebee;
-  color: #b71c1c;
+  background-color: #ffeaea;
+  color: #d63031;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -115,13 +113,13 @@ body {
 .receipt-header {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #00c853;
+  color: #00b894;
   margin-bottom: 1.5rem;
 }
 
 .receipt-amounts {
-  background: #e8f5e9;
-  border: 1px solid #c8e6c9;
+  background: #f1fdf9;
+  border: 1px solid #c8f6e6;
   padding: 1rem;
   border-radius: 12px;
   text-align: center;
@@ -131,12 +129,12 @@ body {
 .usd-amount {
   font-size: 1.7rem;
   font-weight: bold;
-  color: #1b5e20;
+  color: #00997c;
 }
 
 .btc-amount {
   font-size: 1.1rem;
-  color: #4caf50;
+  color: #555;
 }
 
 .receipt-details {
@@ -145,6 +143,7 @@ body {
   border-radius: 10px;
   border: 1px solid #eee;
   margin-bottom: 1rem;
+  text-align: left;
 }
 
 .receipt-details p {
@@ -160,11 +159,12 @@ body {
   word-break: break-word;
   border-radius: 6px;
   margin-top: 0.5rem;
+  font-size: 0.9rem;
 }
 
 .short-invoice {
   text-align: center;
-  background: #f1f8e9;
+  background: #ecf0f1;
 }
 
 .qr-container {
@@ -173,78 +173,11 @@ body {
   margin: 1rem 0;
 }
 
-/* Utility */
 .text-center { text-align: center; }
 .mt-md { margin-top: 1rem; }
 .mt-lg { margin-top: 2rem; }
 
-/* Animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
-}
-
-/* Dashboard */
-.admin-dashboard {
-  display: flex;
-  height: 100vh;
-  font-family: 'Segoe UI', sans-serif;
-}
-
-.sidebar {
-  width: 200px;
-  background: #1f1f2f;
-  color: #fff;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar h1 {
-  margin-bottom: 2rem;
-  font-size: 1.3rem;
-  color: #00c853;
-  font-weight: bold;
-}
-
-.nav-btn {
-  background: #2b2b3d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.6rem 1rem;
-  margin-bottom: 0.5rem;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.nav-btn:hover {
-  background: #3a3a50;
-}
-
-.main-content {
-  flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
-  background: #f9f9f9;
-}
-
-/* Table */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  font-size: 0.95rem;
-}
-
-th, td {
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  text-align: left;
-}
-
-th {
-  background-color: #e0f2f1;
-  font-weight: 600;
 }
