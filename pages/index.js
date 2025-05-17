@@ -6,22 +6,19 @@ export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState('idle');
-  const [error, setError] = useState('');
+  const [invoiceData, setInvoiceData] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [showExpiredModal, setShowExpiredModal] = useState(false);
-  const [countdown, setCountdown] = useState(600);
+  const [timer, setTimer] = useState(600);
+  const [status, setStatus] = useState('idle');
+  const [modal, setModal] = useState(null); // 'invoice' | 'receipt' | 'expired'
 
   useEffect(() => {
-    const loadGames = async () => {
+    const fetchGames = async () => {
       const snap = await db.collection('games').orderBy('name').get();
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setGames(list);
     };
-    loadGames();
+    fetchGames();
   }, []);
 
   const handleChange = e => {
@@ -32,10 +29,10 @@ export default function Home() {
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    setShowInvoiceModal(false);
-    setShowReceiptModal(false);
-    setShowExpiredModal(false);
+    setCopied(false);
+    setStatus('pending');
+    setTimer(600);
+    setModal(null);
 
     try {
       const res = await fetch('/api/create-payment', {
@@ -44,163 +41,150 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        const fallback = await res.text();
-        throw new Error(`Invalid JSON: ${fallback}`);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Invoice creation failed');
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Payment request failed');
-      }
+      const invoiceObj = {
+        ...data,
+        ...form,
+        created: new Date().toISOString(),
+      };
+      setInvoiceData(invoiceObj);
+      setModal('invoice');
 
-      setOrder({ ...data, ...form, created: new Date().toISOString() });
-      setShowInvoiceModal(true);
-      setStatus('pending');
-      setCountdown(600);
+      pollStatus(invoiceObj.orderId);
     } catch (err) {
-      console.error(err);
-      setError(err.message || 'Payment error');
+      alert(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!order || status !== 'pending') return;
+  const pollStatus = orderId => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/check-status?id=${order.orderId}`);
-        const upd = await res.json();
-        if (upd?.status === 'paid') {
+        const res = await fetch(`/api/check-status?id=${orderId}`);
+        const data = await res.json();
+        if (data?.status === 'paid') {
           setStatus('paid');
-          setOrder(prev => ({ ...prev, status: 'paid' }));
-          setShowInvoiceModal(false);
-          setShowReceiptModal(true);
           clearInterval(interval);
+          setModal('receipt');
         }
       } catch (err) {
         console.error('Polling error:', err);
       }
     }, 2000);
-    return () => clearInterval(interval);
-  }, [order, status]);
+  };
 
   useEffect(() => {
-    if (!showInvoiceModal) return;
-    const timer = setInterval(() => {
-      setCountdown(prev => {
+    if (modal !== 'invoice') return;
+    const interval = setInterval(() => {
+      setTimer(prev => {
         if (prev <= 1) {
-          clearInterval(timer);
-          setShowInvoiceModal(false);
-          setShowExpiredModal(true);
+          clearInterval(interval);
+          setModal('expired');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(timer);
-  }, [showInvoiceModal]);
+    return () => clearInterval(interval);
+  }, [modal]);
 
-  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(order.invoice || order.address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  const resetAll = () => {
+  const reset = () => {
     setForm({ username: '', game: '', amount: '', method: 'lightning' });
-    setOrder(null);
+    setInvoiceData(null);
+    setModal(null);
     setStatus('idle');
-    setError('');
-    setShowInvoiceModal(false);
-    setShowReceiptModal(false);
-    setShowExpiredModal(false);
-    setCountdown(0);
+    setTimer(600);
   };
-  const shorten = str => str ? `${str.slice(0, 8)}…${str.slice(-6)}` : '';
+
+  const copyInvoice = () => {
+    navigator.clipboard.writeText(invoiceData.invoice || invoiceData.address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const shorten = str => str ? `${str.slice(0, 8)}...${str.slice(-6)}` : '';
+  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
   return (
     <div className="container mt-lg">
       <div className="card">
-        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
-        <div className="card-body">
-          <form onSubmit={handleSubmit}>
-            <label>Username</label>
-            <input className="input" name="username" value={form.username} onChange={handleChange} required placeholder="Your username" />
+        <h2 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h2>
+        <form onSubmit={handleSubmit}>
+          <label>Username</label>
+          <input className="input" name="username" value={form.username} onChange={handleChange} required />
 
-            <label>Select Game</label>
-            <select className="select" name="game" value={form.game} onChange={handleChange} required>
-              <option value="" disabled>Select Game</option>
-              {games.map(g => (
-                <option key={g.id} value={g.name}>{g.name}</option>
-              ))}
-            </select>
+          <label>Select Game</label>
+          <select className="select" name="game" value={form.game} onChange={handleChange} required>
+            <option value="">Select Game</option>
+            {games.map(g => (
+              <option key={g.id} value={g.name}>{g.name}</option>
+            ))}
+          </select>
 
-            <label>Amount (USD)</label>
-            <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required placeholder="Amount in USD" />
+          <label>Amount (USD)</label>
+          <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required />
 
-            <label>Payment Method</label>
-            <div className="radio-group">
-              <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
-              <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
-            </div>
+          <label>Payment Method</label>
+          <div className="radio-group">
+            <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
+            <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
+          </div>
 
-            <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? 'Generating…' : 'Generate Invoice'}
-            </button>
-          </form>
-
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
-        </div>
+          <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
+            {loading ? 'Generating…' : 'Generate Invoice'}
+          </button>
+        </form>
       </div>
 
-      {showInvoiceModal && order && (
+      {modal === 'invoice' && invoiceData && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="receipt-header">Send Payment</h2>
             <div className="receipt-amounts">
-              <p className="usd-amount">${order.amount} USD</p>
-              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
+              <p className="usd-amount">${invoiceData.amount}</p>
+              <p className="btc-amount">{invoiceData.btc || '0.00000000'} BTC</p>
             </div>
-            <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-            <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
-            <div className="scroll-box">{order.invoice || order.address}</div>
-            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
-              {copied ? 'Copied!' : 'Copy Invoice'}
+            <p className="text-center">Expires in: <strong>{formatTime(timer)}</strong></p>
+            <div className="qr-container">
+              <QRCode value={invoiceData.invoice || invoiceData.address} size={140} />
+            </div>
+            <div className="scroll-box">{invoiceData.invoice || invoiceData.address}</div>
+            <button className="btn btn-success mt-md" onClick={copyInvoice}>
+              {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
         </div>
       )}
 
-      {showExpiredModal && (
+      {modal === 'expired' && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="receipt-header" style={{ color: '#d32f2f' }}>⚠️ Invoice Expired</h2>
-            <p>The invoice has expired. Please generate a new one to continue.</p>
-            <button className="btn btn-primary mt-md" onClick={resetAll}>Generate New</button>
+            <p>Your invoice expired. Please generate a new one to continue.</p>
+            <button className="btn btn-primary mt-md" onClick={reset}>Generate New</button>
           </div>
         </div>
       )}
 
-      {showReceiptModal && order && (
+      {modal === 'receipt' && invoiceData && (
         <div className="modal-overlay">
           <div className="modal receipt-modal">
             <h2 className="receipt-header">✅ Payment Received</h2>
             <div className="receipt-amounts">
-              <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
-              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
+              <p className="usd-amount"><strong>${invoiceData.amount}</strong> USD</p>
+              <p className="btc-amount">{invoiceData.btc || '0.00000000'} BTC</p>
             </div>
             <div className="receipt-details">
-              <p><strong>Username:</strong> {order.username}</p>
-              <p><strong>Game:</strong> {order.game}</p>
-              <p><strong>Order ID:</strong> {order.orderId}</p>
+              <p><strong>Username:</strong> {invoiceData.username}</p>
+              <p><strong>Game:</strong> {invoiceData.game}</p>
+              <p><strong>Order ID:</strong> {invoiceData.orderId}</p>
               <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
+              <div className="scroll-box short-invoice">{shorten(invoiceData.invoice || invoiceData.address)}</div>
             </div>
-            <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
+            <button className="btn btn-primary mt-md" onClick={reset}>Done</button>
           </div>
         </div>
       )}
