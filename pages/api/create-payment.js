@@ -20,12 +20,12 @@ export default async function handler(req, res) {
         amount: parseFloat(amount),
         currency: 'USD',
         payment_method: method,
-        success_url: 'https://yourdomain.com/success',
+        success_url: 'https://luckypaw.vercel.app/receipt', // change if needed
       }),
     });
 
     const speedData = await speedRes.json();
-    if (!speedRes.ok) {
+    if (!speedRes.ok || !speedData?.id) {
       console.error('Speed API Error:', speedData);
       return res.status(500).json({ message: speedData.message || 'Invoice creation failed' });
     }
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         btc = (parseFloat(amount) / btcRate).toFixed(8);
       }
     } catch (e) {
-      console.error('BTC fetch failed', e);
+      console.error('BTC rate fetch error:', e);
     }
 
     await db.collection('orders').doc(speedData.id).set({
@@ -58,8 +58,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       orderId: speedData.id,
-      invoice: speedData.invoice,
-      address: speedData.address,
+      invoice: speedData.invoice || null,
+      address: speedData.address || null,
       btc,
     });
 
