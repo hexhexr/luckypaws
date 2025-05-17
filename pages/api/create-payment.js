@@ -44,16 +44,9 @@ export default async function handler(req, res) {
     const invoice = payment.payment_method_options?.lightning?.payment_request || null;
     const address = payment.payment_method_options?.on_chain?.address || null;
 
-    // Step 1: Try to get sats directly
-    let sats = 0;
-    if (method === 'lightning') {
-      sats = payment.payment_method_options?.lightning?.amount || 0;
-    } else if (method === 'onchain') {
-      sats = payment.payment_method_options?.on_chain?.amount || 0;
-    }
-
-    // Step 2: Fallback to Coindesk BTC/USD
+    // ✅ Correct: read amount from `amount_in_satoshis`
     let btc = '0.00000000';
+    const sats = payment.amount_in_satoshis || 0;
     if (sats > 0) {
       btc = (sats / 100000000).toFixed(8);
     } else {
@@ -63,7 +56,7 @@ export default async function handler(req, res) {
         const rate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
         if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
       } catch (e) {
-        console.error('BTC rate fetch fallback failed:', e);
+        console.error('BTC fallback failed:', e);
       }
     }
 
