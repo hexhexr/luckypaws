@@ -10,17 +10,21 @@ export default async function handler(req, res) {
   }
 
   try {
+    const authHeader = 'Basic ' + Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
+
     const speedRes = await fetch('https://api.tryspeed.com/invoice', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.SPEED_API_KEY}`,
+        Authorization: authHeader,
         'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'speed-version': '2022-10-15',
       },
       body: JSON.stringify({
         amount: parseFloat(amount),
         currency: 'USD',
         payment_method: method,
-        success_url: 'https://luckypaw.vercel.app/receipt', // change if needed
+        success_url: 'https://luckypaw.vercel.app/receipt',
       }),
     });
 
