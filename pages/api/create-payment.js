@@ -44,19 +44,19 @@ export default async function handler(req, res) {
     const invoice = payment.payment_method_options?.lightning?.payment_request || null;
     const address = payment.payment_method_options?.on_chain?.address || null;
 
-    // ✅ Correct: read amount from `amount_in_satoshis`
     let btc = '0.00000000';
     const sats = payment.amount_in_satoshis || 0;
+
     if (sats > 0) {
       btc = (sats / 100000000).toFixed(8);
     } else {
       try {
-        const btcRes = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
+        const btcRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
         const btcData = await btcRes.json();
-        const rate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
+        const rate = btcData.bitcoin.usd;
         if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
       } catch (e) {
-        console.error('BTC fallback failed:', e);
+        console.error('CoinGecko BTC fallback failed:', e);
       }
     }
 
