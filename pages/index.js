@@ -4,6 +4,7 @@ import QRCode from 'qrcode.react';
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
+  const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState(null);
   const [orderId, setOrderId] = useState(null);
@@ -12,6 +13,15 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [timer, setTimer] = useState(600);
   const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    const loadGames = async () => {
+      const snap = await db.collection('games').orderBy('name').get();
+      const list = snap.docs.map(doc => doc.data().name);
+      setGames(list);
+    };
+    loadGames();
+  }, []);
 
   useEffect(() => {
     const savedOrderId = localStorage.getItem('active_order');
@@ -117,15 +127,30 @@ export default function Home() {
         <form onSubmit={handleSubmit}>
           <label>Username</label>
           <input className="input" name="username" value={form.username} onChange={handleChange} required />
+
           <label>Game Name</label>
-          <input className="input" name="game" value={form.game} onChange={handleChange} required />
+          <select
+            className="input"
+            name="game"
+            value={form.game}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Game</option>
+            {games.map((g, i) => (
+              <option key={i} value={g}>{g}</option>
+            ))}
+          </select>
+
           <label>Amount (USD)</label>
           <input className="input" name="amount" type="number" value={form.amount} onChange={handleChange} required />
+
           <label>Payment Method</label>
           <select className="input" name="method" value={form.method} onChange={handleChange}>
             <option value="lightning">⚡ Lightning</option>
             <option value="onchain">₿ On-chain</option>
           </select>
+
           <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
             {loading ? 'Generating...' : 'Generate Invoice'}
           </button>
