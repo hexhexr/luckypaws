@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
@@ -15,29 +16,8 @@ export default function AdminDashboard() {
   const fetchOrders = async () => {
     try {
       const res = await fetch('/api/orders');
-      let ordersList = await res.json();
-      if (!Array.isArray(ordersList)) ordersList = [];
-
-      // Check live status from Speed API for each pending
-      const checkedOrders = await Promise.all(
-        ordersList.map(async (order) => {
-          if (order.status !== 'pending') return order;
-
-          try {
-            const checkRes = await fetch(`/api/check-payment-status?id=${order.orderId}`);
-            const checkData = await checkRes.json();
-            if (checkData?.status === 'paid') {
-              return { ...order, status: 'paid' };
-            }
-          } catch (err) {
-            console.error(`Speed check failed for ${order.orderId}`, err);
-          }
-
-          return order;
-        })
-      );
-
-      setOrders(checkedOrders);
+      const data = await res.json();
+      setOrders(data);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
     }
@@ -83,7 +63,7 @@ export default function AdminDashboard() {
     { label: 'BTC', key: 'btc' },
     { label: 'Method', key: 'method' },
     { label: 'Status', key: 'status' },
-    { label: 'Manual', key: 'paidManually' },
+    { label: 'Paid Manually', key: 'paidManually' },
     { label: 'Date', key: 'created' },
   ];
 
@@ -91,21 +71,14 @@ export default function AdminDashboard() {
     if (!confirm) return;
     const { type, orderId } = confirm;
     const url = type === 'pay' ? '/api/orders/update' : '/api/orders/delete';
-    const body = type === 'pay' ? { orderId, status: 'paid' } : { orderId };
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const result = await res.json();
-      if (!res.ok) console.error('API error:', result.message || 'Unknown error');
-    } catch (err) {
-      console.error('Fetch error:', err);
-    }
-
+    const body = type === 'pay'
+      ? { orderId, status: 'paid', paidManually: true }
+      : { orderId };
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
     setConfirm(null);
     fetchOrders();
   };
@@ -114,11 +87,13 @@ export default function AdminDashboard() {
     <div className="admin-dashboard">
       <aside className="sidebar">
         <h1>Lucky Paw Admin</h1>
-        <button className="nav-btn" onClick={() => window.location.reload()}>Refresh</button>
+        <Link href="/admin/dashboard" className="nav-btn">📊 Dashboard</Link>
+        <Link href="/admin/profit-loss" className="nav-btn">💰 Profit & Loss</Link>
+        <button className="nav-btn" onClick={() => window.location.reload()}>🔄 Refresh</button>
         <button className="nav-btn" onClick={() => {
           document.cookie = 'admin_auth=; Max-Age=0; path=/;';
           window.location.href = '/admin';
-        }}>Logout</button>
+        }}>🚪 Logout</button>
       </aside>
 
       <main className="main-content">
@@ -147,7 +122,9 @@ export default function AdminDashboard() {
                 {columns.map(col => (
                   <th key={col.key} onClick={() => toggleSort(col.key)}>
                     {col.label}
-                    {sortKey === col.key && <span className="sort-arrow">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span>}
+                    {sortKey === col.key && (
+                      <span className="sort-arrow">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span>
+                    )}
                   </th>
                 ))}
                 <th>Actions</th>
@@ -165,11 +142,7 @@ export default function AdminDashboard() {
                     <td>{o.btc || '—'}</td>
                     <td>{o.method}</td>
                     <td><span className={`status-tag ${o.status}`}>{o.status}</span></td>
-                    <td>
-                      <span className={`badge ${o.paidManually ? 'badge-green' : 'badge-gray'}`}>
-                        {o.paidManually ? 'Yes' : 'No'}
-                      </span>
-                    </td>
+                    <td>{o.paidManually ? 'Yes' : 'No'}</td>
                     <td>{date.toLocaleDateString()}<br />{date.toLocaleTimeString()}</td>
                     <td>
                       {o.status !== 'paid' && (
