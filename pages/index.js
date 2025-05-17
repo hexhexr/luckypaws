@@ -1,8 +1,11 @@
+// pages/index.js
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
+import { db } from '../lib/firebaseClient';
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
+  const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
   const [status, setStatus] = useState('idle');
@@ -13,6 +16,15 @@ export default function Home() {
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
   const [btcRate, setBtcRate] = useState(null);
+
+  useEffect(() => {
+    const loadGames = async () => {
+      const snap = await db.collection('games').orderBy('name').get();
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGames(list);
+    };
+    loadGames();
+  }, []);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -47,7 +59,13 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const fallback = await res.text();
+        throw new Error(`Invalid JSON: ${fallback}`);
+      }
 
       if (!res.ok) {
         throw new Error(data.message || 'Payment request failed');
@@ -55,7 +73,7 @@ export default function Home() {
 
       const btc = btcRate ? (parseFloat(form.amount) / btcRate).toFixed(8) : null;
 
-      setOrder({ ...data, ...form, created: new Date().toISOString(), btc, orderId: data.orderId });
+      setOrder({ ...data, ...form, created: new Date().toISOString(), btc });
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
@@ -139,9 +157,9 @@ export default function Home() {
             <label>Select Game</label>
             <select className="select" name="game" value={form.game} onChange={handleChange} required>
               <option value="" disabled>Select Game</option>
-              <option>Juwa</option>
-              <option>Game Vault</option>
-              <option>Orion Stars</option>
+              {games.map(g => (
+                <option key={g.id} value={g.name}>{g.name}</option>
+              ))}
             </select>
 
             <label>Amount (USD)</label>
@@ -206,14 +224,6 @@ export default function Home() {
               <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
-            <a
-              href={`/receipt?id=${order.orderId}`}
-              className="btn btn-outline mt-sm"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Full Receipt
-            </a>
           </div>
         </div>
       )}
