@@ -16,11 +16,16 @@ export default function Home() {
 
   useEffect(() => {
     const loadGames = async () => {
-      const snap = await db.collection('games').orderBy('name').get();
-      const list = snap.docs.map(doc => doc.data().name);
-      setGames(list);
-      if (list.length > 0) {
-        setForm(prev => ({ ...prev, game: list[0] }));
+      try {
+        const snap = await db.collection('games').orderBy('name').get();
+        const list = snap.docs.map(doc => doc.data().name).filter(Boolean);
+        setGames(list);
+        if (list.length > 0) {
+          setForm(prev => ({ ...prev, game: list[0] }));
+        }
+      } catch (err) {
+        console.error('Game loading error:', err);
+        setGames([]);
       }
     };
     loadGames();
@@ -132,11 +137,11 @@ export default function Home() {
           <input className="input" name="username" value={form.username} onChange={handleChange} required />
 
           <label>Game Name</label>
-          {games.length > 0 ? (
+          {Array.isArray(games) && games.length > 0 ? (
             <select
               className="input"
               name="game"
-              value={form.game}
+              value={form.game || ''}
               onChange={handleChange}
               required
             >
@@ -145,7 +150,9 @@ export default function Home() {
               ))}
             </select>
           ) : (
-            <p className="alert alert-warning">⚠️ No games found. Please add some games from admin panel.</p>
+            <select className="input" disabled>
+              <option>Loading games...</option>
+            </select>
           )}
 
           <label>Amount (USD)</label>
