@@ -37,12 +37,10 @@ export default function Receipt() {
     <div className="container mt-lg">
       <div className="receipt-modal">
         <h2 className="receipt-header">✅ Payment Received</h2>
-
         <div className="receipt-amounts">
           <div className="usd-amount">${order.amount}</div>
           <div className="btc-amount">({order.btc} BTC)</div>
         </div>
-
         <div className="receipt-details">
           <p><strong>Username:</strong> {order.username}</p>
           <p><strong>Game:</strong> {order.game}</p>
@@ -50,13 +48,11 @@ export default function Receipt() {
           <p><strong>Method:</strong> {order.method}</p>
           <p><strong>Date:</strong> {new Date(order.created).toLocaleString()}</p>
         </div>
-
         <div className="scroll-box short-invoice">
           {order.invoice
             ? `Invoice: ${order.invoice.slice(0, 8)}...${order.invoice.slice(-8)}`
             : `Address: ${order.address.slice(0, 8)}...${order.address.slice(-8)}`}
         </div>
-
         <div className="text-center mt-md">
           <button className="btn btn-primary" onClick={() => router.push('/')}>Done</button>
         </div>

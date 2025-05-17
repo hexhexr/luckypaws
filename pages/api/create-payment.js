@@ -1,26 +1,21 @@
-import { db } from '../../lib/firebaseAdmin';
+import { db } from '../../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
   const { username, game, amount, method } = req.body;
-  if (!username || !game || !amount || !method) {
-    return res.status(400).json({ message: 'Missing fields' });
-  }
+  if (!username || !game || !amount || !method) return res.status(400).json({ message: 'Missing fields' });
 
-  const apiUrl = process.env.SPEED_API_BASE_URL || 'https://api.tryspeed.com';
-  const url = `${apiUrl}/payments`;
   const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
-
   const payload = {
     amount: Number(amount),
     currency: 'USD',
-    success_url: 'https://luckypaw.vercel.app/receipt',
-    cancel_url: 'https://luckypaw.vercel.app',
+    success_url: 'https://luckypaws.vercel.app/receipt',
+    cancel_url: 'https://luckypaws.vercel.app/',
   };
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch('https://api.tryspeed.com/payments', {
       method: 'POST',
       headers: {
         Authorization: `Basic ${authHeader}`,
@@ -32,35 +27,16 @@ export default async function handler(req, res) {
     });
 
     const payment = await response.json();
-
-    if (
-      !payment.id ||
-      (!payment.payment_method_options?.lightning?.payment_request &&
-       !payment.payment_method_options?.on_chain?.address)
-    ) {
-      return res.status(500).json({ message: 'Invalid response from Speed API', payment });
-    }
+    if (!response.ok) throw new Error(payment.message || 'Payment failed');
 
     const invoice = payment.payment_method_options?.lightning?.payment_request || null;
     const address = payment.payment_method_options?.on_chain?.address || null;
+    const sats = method === 'lightning'
+      ? payment.payment_method_options?.lightning?.amount || 0
+      : payment.payment_method_options?.on_chain?.amount || 0;
+    const btc = (sats / 100000000).toFixed(8);
 
-    let btc = '0.00000000';
-    const sats = payment.amount_in_satoshis || 0;
-
-    if (sats > 0) {
-      btc = (sats / 100000000).toFixed(8);
-    } else {
-      try {
-        const btcRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-        const btcData = await btcRes.json();
-        const rate = btcData.bitcoin.usd;
-        if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
-      } catch (e) {
-        console.error('CoinGecko BTC fallback failed:', e);
-      }
-    }
-
-    await db.collection('orders').doc(payment.id).set({
+    const order = {
       orderId: payment.id,
       username,
       game,
@@ -71,12 +47,12 @@ export default async function handler(req, res) {
       invoice,
       address,
       created: new Date().toISOString(),
-      paidManually: false,
-    });
+    };
 
-    return res.status(200).json({ orderId: payment.id, invoice, address, btc });
+    await db.collection('orders').doc(payment.id).set(order);
+    res.status(200).json({ orderId: payment.id, invoice, address, btc });
   } catch (err) {
-    console.error('Speed API error:', err);
-    return res.status(500).json({ message: 'Speed API failed', error: err.message });
+    console.error('Speed API Error:', err);
+    res.status(500).json({ message: 'Speed API error' });
   }
 }

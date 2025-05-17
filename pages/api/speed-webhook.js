@@ -1,27 +1,18 @@
-import { db } from '../../lib/firebaseAdmin.js';
-import crypto from 'crypto';
-
-export const config = { api: { bodyParser: true } };
+import { db } from '../../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
-  const sig = req.headers['speed-signature'];
-  const expectedSig = crypto
-    .createHmac('sha256', process.env.SPEED_WEBHOOK_SECRET)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-
-  if (!sig || sig !== expectedSig) {
-    return res.status(401).json({ message: 'Invalid signature' });
+  const { event, data } = req.body;
+  if (event === 'payment.status.updated' && data?.id && data.status === 'paid') {
+    try {
+      await db.collection('orders').doc(data.id).update({ status: 'paid' });
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      console.error('Webhook error:', err);
+      return res.status(500).json({ message: 'Failed to update status' });
+    }
   }
 
-  const event = req.body;
-  if (event.event_type === 'payment.updated') {
-    const paymentId = event.data?.object?.id;
-    const newStatus = event.data?.object?.status === 'paid' ? 'paid' : 'pending';
-    await db.collection('orders').doc(paymentId).update({ status: newStatus });
-  }
-
-  res.status(200).json({ received: true });
+  return res.status(200).json({ received: true });
 }
