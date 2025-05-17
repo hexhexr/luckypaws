@@ -5,6 +5,7 @@ import { db } from '../lib/firebaseClient';
 export default function Receipt() {
   const router = useRouter();
   const { id } = router.query;
+
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -12,59 +13,54 @@ export default function Receipt() {
   useEffect(() => {
     if (!id) return;
 
-    const fetchOrder = async () => {
-      try {
-        const doc = await db.collection('orders').doc(id).get();
-        if (!doc.exists) {
-          setNotFound(true);
-          return;
-        }
+    const unsubscribe = db.collection('orders').doc(id).onSnapshot(doc => {
+      if (doc.exists) {
         const data = doc.data();
-        if (data.status !== 'paid') {
+        if (data.status === 'paid') {
+          setOrder(data);
+        } else {
           setNotFound(true);
-          return;
         }
-        setOrder(data);
-      } catch (err) {
+      } else {
         setNotFound(true);
-      } finally {
-        setLoading(false);
       }
-    };
+      setLoading(false);
+    });
 
-    fetchOrder();
+    return () => unsubscribe();
   }, [id]);
 
-  const shorten = (str) => {
-    if (!str) return '';
-    return str.length <= 12 ? str : `${str.slice(0, 5)}...${str.slice(-5)}`;
-  };
+  if (loading) return <div className="container text-center mt-lg">Loading...</div>;
+  if (notFound || !order) return <div className="container text-center mt-lg"><p className="alert alert-danger">Receipt not found or not yet paid.</p></div>;
 
   return (
     <div className="container mt-lg">
-      {loading ? (
-        <div className="text-center mt-lg">Loading receipt...</div>
-      ) : notFound ? (
-        <div className="alert alert-warning text-center">Waiting for payment confirmation...</div>
-      ) : (
-        <div className="card" style={{ maxWidth: 500, margin: '0 auto', padding: '2rem' }}>
-          <div className="text-center">
-            <div style={{ fontSize: '2.5rem', color: '#27ae60' }}>✅</div>
-            <h2 className="mt-sm">Payment Received</h2>
-            <p className="mt-sm" style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-              ${order.amount}
-            </p>
-            <p style={{ fontSize: '0.95rem' }}>{order.btc} BTC</p>
-            <div className="mt-md" style={{ fontSize: '0.85rem', color: '#666' }}>
-              <p><strong>Game:</strong> {order.game}</p>
-              <p><strong>Username:</strong> {order.username}</p>
-              <p><strong>Order ID:</strong> {shorten(order.orderId)}</p>
-              <p><strong>Paid:</strong> {new Date(order.created).toLocaleString()}</p>
-            </div>
-            <button className="btn btn-primary mt-md" onClick={() => router.push('/')}>Done</button>
-          </div>
+      <div className="receipt-modal">
+        <h2 className="receipt-header">✅ Payment Received</h2>
+
+        <div className="receipt-amounts">
+          <div className="usd-amount">${order.amount}</div>
+          <div className="btc-amount">({order.btc} BTC)</div>
         </div>
-      )}
+
+        <div className="receipt-details">
+          <p><strong>Username:</strong> {order.username}</p>
+          <p><strong>Game:</strong> {order.game}</p>
+          <p><strong>Order ID:</strong> {order.orderId}</p>
+          <p><strong>Method:</strong> {order.method}</p>
+          <p><strong>Date:</strong> {new Date(order.created).toLocaleString()}</p>
+        </div>
+
+        <div className="scroll-box short-invoice">
+          {order.invoice
+            ? `Invoice: ${order.invoice.slice(0, 8)}...${order.invoice.slice(-8)}`
+            : `Address: ${order.address.slice(0, 8)}...${order.address.slice(-8)}`}
+        </div>
+
+        <div className="text-center mt-md">
+          <button className="btn btn-primary" onClick={() => router.push('/')}>Done</button>
+        </div>
+      </div>
     </div>
   );
 }
