@@ -13,25 +13,21 @@ export default function ProfitLossPage() {
   const [sortOption, setSortOption] = useState('default');
   const [submitting, setSubmitting] = useState(false);
 
-  // 1️⃣ Load all PL entries and their customers
+  // Load PL entries and linked customers
   const fetchData = async () => {
-    // Fetch entries
     const entrySnap = await db.collection('pl_entries').orderBy('timestamp', 'desc').get();
     const entryData = entrySnap.docs.map(d => ({ id: d.id, ...d.data() }));
     setEntries(entryData);
 
-    // Fetch customers for those entries
     const customerIds = [...new Set(entryData.map(e => e.customerId))];
     if (customerIds.length) {
       const batches = [];
-      // Firestore 'in' supports up to 10, so batch if needed
       while (customerIds.length) {
         batches.push(customerIds.splice(0, 10));
       }
       const map = {};
       await Promise.all(batches.map(async batchIds => {
-        const snap = await db
-          .collection('customers')
+        const snap = await db.collection('customers')
           .where(firebase.firestore.FieldPath.documentId(), 'in', batchIds)
           .get();
         snap.docs.forEach(d => map[d.id] = d.data());
@@ -42,33 +38,16 @@ export default function ProfitLossPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 2️⃣ Handle form changes
   const handleChange = e => {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // 3️⃣ Utility: extract FB username
   const extractFbUsername = url => {
     const m = url.match(/facebook\.com\/(?:profile\.php\?id=)?([\w\.]+)/);
-    return m ? m[1] : null;
+    return m ? m[1] : url;
   };
 
-  // 4️⃣ Utility: fetch FB name once
-  const getFbName = async username => {
-    try {
-      const token = process.env.NEXT_PUBLIC_FB_ACCESS_TOKEN;
-      const res = await fetch(
-        `https://graph.facebook.com/${username}?fields=name&access_token=${token}`
-      );
-      const data = await res.json();
-      return data.name || username;
-    } catch {
-      return username;
-    }
-  };
-
-  // 5️⃣ Add or upsert customer & then add PL entry
   const handleAddEntry = async e => {
     e.preventDefault();
     setSubmitting(true);
@@ -77,33 +56,27 @@ export default function ProfitLossPage() {
       const username = extractFbUsername(url);
       const avatarUrl = `https://graph.facebook.com/${username}/picture?type=large`;
 
-      // Lookup existing customer
-      const custQuery = await db
-        .collection('customers')
+      // Upsert customer
+      const custQuery = await db.collection('customers')
         .where('facebookUrl', '==', url)
         .limit(1)
         .get();
 
-      let customerId, displayName;
+      let customerId;
 
       if (!custQuery.empty) {
-        // existing
-        const doc = custQuery.docs[0];
-        customerId = doc.id;
-        displayName = doc.data().displayName;
+        customerId = custQuery.docs[0].id;
       } else {
-        // new: fetch name + create
-        displayName = await getFbName(username);
         const ref = await db.collection('customers').add({
           facebookUrl: url,
-          displayName,
+          displayName: username,
           avatarUrl,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         customerId = ref.id;
       }
 
-      // now add PL entry
+      // Add PL entry
       await db.collection('pl_entries').add({
         customerId,
         type: form.type,
@@ -114,26 +87,24 @@ export default function ProfitLossPage() {
       setForm({ facebookUrl: '', type: 'deposit', amount: '' });
       await fetchData();
     } catch (err) {
-      console.error('Error adding entry:', err);
-      alert('Failed to add entry');
+      console.error('Error adding PL entry:', err);
     }
     setSubmitting(false);
   };
 
-  // 6️⃣ Build the display list
   const users = Object.values(entries.reduce((acc, e) => {
     const { customerId } = e;
-    if (!acc[customerId]) acc[customerId] = { entries: [] };
-    acc[customerId].entries.push(e);
+    if (!acc[customerId]) acc[customerId] = [];
+    acc[customerId].push(e);
     return acc;
-  }, {})).map(({ entries }) => {
-    const cid = entries[0].customerId;
-    const customer = customersMap[cid] || {};
-    const deposits = entries.filter(e => e.type==='deposit').reduce((s,e)=>s+e.amount,0);
-    const cashouts = entries.filter(e => e.type==='cashout').reduce((s,e)=>s+e.amount,0);
+  }, {})).map(group => {
+    const { customerId } = group[0];
+    const customer = customersMap[customerId] || {};
+    const deposits = group.filter(e => e.type === 'deposit').reduce((s, e) => s + e.amount, 0);
+    const cashouts = group.filter(e => e.type === 'cashout').reduce((s, e) => s + e.amount, 0);
     return {
-      customerId: cid,
-      displayName: customer.displayName || 'Unknown',
+      customerId,
+      displayName: customer.displayName || extractFbUsername(group[0].facebookUrl),
       avatarUrl: customer.avatarUrl,
       deposits,
       cashouts,
@@ -141,12 +112,11 @@ export default function ProfitLossPage() {
     };
   });
 
-  // 7️⃣ Filter & sort
   const filtered = users
     .filter(u => u.displayName.toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b) => {
-      if (sortOption==='profit') return b.net - a.net;
-      if (sortOption==='loss') return a.net - b.net;
+    .sort((a, b) => {
+      if (sortOption === 'profit') return b.net - a.net;
+      if (sortOption === 'loss') return a.net - b.net;
       return 0;
     });
 
@@ -180,9 +150,7 @@ export default function ProfitLossPage() {
           <option value="deposit">Deposit</option>
           <option value="cashout">Cashout</option>
         </select>
-        <button className="btn" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Add Entry'}
-        </button>
+        <button className="btn" disabled={submitting}>{submitting ? 'Saving…' : 'Add Entry'}</button>
       </form>
 
       <div className="search-form">
@@ -192,11 +160,7 @@ export default function ProfitLossPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <select
-          value={sortOption}
-          onChange={e => setSortOption(e.target.value)}
-          style={{marginLeft:'1rem'}}
-        >
+        <select value={sortOption} onChange={e => setSortOption(e.target.value)} style={{ marginLeft: '1rem' }}>
           <option value="default">Sort: Default</option>
           <option value="profit">Profit High → Low</option>
           <option value="loss">Loss High → Low</option>
