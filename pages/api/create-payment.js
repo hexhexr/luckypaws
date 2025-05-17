@@ -1,73 +1,68 @@
-import { db } from '../../lib/firebaseAdmin.js';
+import { db } from '../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { username, game, amount, method } = req.body;
+
+  if (!username || !game || !amount || !method) {
+    return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
-    const { username, game, amount, method } = req.body;
-
-    if (!username || !game || !amount || !method) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
-    const apiUrl = process.env.SPEED_API_BASE_URL || 'https://api.tryspeed.com';
-    const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
-
-    const payload = {
-      amount: Number(amount),
-      currency: 'USD',
-      success_url: 'https://your-site.vercel.app/success',
-      cancel_url: 'https://your-site.vercel.app/cancel',
-    };
-
-    const response = await fetch(`${apiUrl}/payments`, {
+    // 1. Create invoice from Speed API
+    const speedRes = await fetch('https://api.tryspeed.com/invoice', {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${authHeader}`,
+        Authorization: `Bearer ${process.env.SPEED_API_KEY}`,
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'speed-version': '2022-10-15',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        amount: parseFloat(amount),
+        currency: 'USD',
+        payment_method: method,
+        success_url: 'https://yourdomain.com/success', // optional
+      }),
     });
 
-    const payment = await response.json();
-
-    // 🔍 LOG for debugging
-    console.log('Speed API response:', payment);
-
-    if (!payment?.id) {
-      return res.status(500).json({ message: 'Missing payment ID from TrySpeed response' });
+    const speedData = await speedRes.json();
+    if (!speedRes.ok) {
+      console.error('Speed API Error:', speedData);
+      return res.status(500).json({ message: speedData.message || 'Invoice creation failed' });
     }
 
-    const invoice = payment.payment_method_options?.lightning?.payment_request || null;
-    const address = payment.payment_method_options?.on_chain?.address || null;
-    const sats = method === 'lightning'
-      ? payment.payment_method_options?.lightning?.amount || 0
-      : payment.payment_method_options?.on_chain?.amount || 0;
-    const btc = (sats / 1e8).toFixed(8);
+    // 2. Fetch BTC rate
+    const btcRes = await fetch('https://api.coindesk.com/v1/bpi/currentprice/USD.json');
+    const btcData = await btcRes.json();
+    const btcRate = parseFloat(btcData.bpi.USD.rate.replace(/,/g, ''));
 
-    const order = {
-      orderId: payment.id,
+    const btc = (parseFloat(amount) / btcRate).toFixed(8);
+
+    // 3. Save to Firebase
+    const docRef = await db.collection('orders').add({
       username,
       game,
-      amount,
+      amount: parseFloat(amount),
       btc,
       method,
       status: 'pending',
-      invoice,
-      address,
+      orderId: speedData.id,
+      invoice: speedData.invoice || null,
+      address: speedData.address || null,
       created: new Date().toISOString(),
-    };
+      paidManually: false,
+    });
 
-    // ✅ Only write if payment.id is valid
-    await db.collection('orders').doc(payment.id).set(order);
+    // 4. Return response
+    return res.status(200).json({
+      orderId: speedData.id,
+      invoice: speedData.invoice,
+      address: speedData.address,
+      btc,
+    });
 
-    return res.status(200).json({ orderId: payment.id, invoice, address, btc });
   } catch (err) {
-    console.error('API /create-payment error:', err);
+    console.error('Create Payment Error:', err);
     return res.status(500).json({ message: 'Internal server error' });
   }
 }
