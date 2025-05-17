@@ -89,6 +89,7 @@ export default function AdminDashboard() {
         <h1>Lucky Paw Admin</h1>
         <Link href="/admin/dashboard" className="nav-btn">📊 Dashboard</Link>
         <Link href="/admin/profit-loss" className="nav-btn">💰 Profit & Loss</Link>
+        <Link href="/admin/games" className="nav-btn">Update Games</Link>
         <button className="nav-btn" onClick={() => window.location.reload()}>🔄 Refresh</button>
         <button className="nav-btn" onClick={() => {
           document.cookie = 'admin_auth=; Max-Age=0; path=/;';
