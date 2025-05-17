@@ -15,9 +15,13 @@ export default function ProfitLossPage() {
   }, []);
 
   const fetchEntries = async () => {
-    const snapshot = await db.collection('pl_entries').orderBy('timestamp', 'desc').get();
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setEntries(data);
+    try {
+      const snapshot = await db.collection('pl_entries').orderBy('timestamp', 'desc').get();
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEntries(data);
+    } catch (err) {
+      console.error('Error fetching entries:', err);
+    }
   };
 
   const handleChange = e => {
@@ -43,20 +47,24 @@ export default function ProfitLossPage() {
   const handleAddEntry = async e => {
     e.preventDefault();
     setSubmitting(true);
-    const username = extractFbUsername(form.facebookUrl);
-    const fbImage = `https://graph.facebook.com/${username}/picture?type=large`;
-    const fbName = await getFbName(username);
-    const payload = {
-      facebookUrl: form.facebookUrl,
-      fbName,
-      fbImage,
-      type: form.type,
-      amount: parseFloat(form.amount),
-      timestamp: new Date().toISOString(),
-    };
-    await db.collection('pl_entries').add(payload);
-    setForm({ facebookUrl: '', type: 'deposit', amount: '' });
-    await fetchEntries();
+    try {
+      const username = extractFbUsername(form.facebookUrl);
+      const fbImage = `https://graph.facebook.com/${username}/picture?type=large`;
+      const fbName = await getFbName(username);
+      const payload = {
+        facebookUrl: form.facebookUrl,
+        fbName,
+        fbImage,
+        type: form.type,
+        amount: parseFloat(form.amount),
+        timestamp: new Date().toISOString(),
+      };
+      await db.collection('pl_entries').add(payload);
+      setForm({ facebookUrl: '', type: 'deposit', amount: '' });
+      await fetchEntries();
+    } catch (error) {
+      console.error('Failed to add entry:', error);
+    }
     setSubmitting(false);
   };
 
@@ -101,24 +109,41 @@ export default function ProfitLossPage() {
         <button className="btn" disabled={submitting}>{submitting ? 'Saving...' : 'Add Entry'}</button>
       </form>
 
-      <input className="search" placeholder="Search user by name or URL..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="search-form">
+        <input
+          className="search"
+          placeholder="Search user by name or URL..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <button className="btn" onClick={fetchEntries}>🔍 Search</button>
+      </div>
 
-      <div className="user-list">
-        {filteredUsers.map(user => (
-          <div key={user.url} className="user-card">
-            <img src={user.fbImage} alt={user.fbName} className="avatar" />
-            <div>
-              <strong>{user.fbName}</strong>
-              <p>Total Deposits: ${user.deposits.toFixed(2)}</p>
-              <p>Total Cashouts: ${user.cashouts.toFixed(2)}</p>
-              <p>
-                Net: <strong className={user.net >= 0 ? 'profit' : 'loss'}>
-                  {user.net >= 0 ? `Profit +$${user.net.toFixed(2)}` : `Loss -$${Math.abs(user.net).toFixed(2)}`}
-                </strong>
-              </p>
-            </div>
-          </div>
-        ))}
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Name</th>
+              <th>Deposits ($)</th>
+              <th>Cashouts ($)</th>
+              <th>Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map(user => (
+              <tr key={user.url}>
+                <td><img src={user.fbImage} alt={user.fbName} className="avatar" /></td>
+                <td>{user.fbName}</td>
+                <td>{user.deposits.toFixed(2)}</td>
+                <td>{user.cashouts.toFixed(2)}</td>
+                <td className={user.net >= 0 ? 'profit' : 'loss'}>
+                  {user.net >= 0 ? `+${user.net.toFixed(2)}` : `-${Math.abs(user.net).toFixed(2)}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
