@@ -361,3 +361,111 @@ tr:hover {
   background: #f0f0f0;
   color: #444;
 }
+.pl-section {
+  padding: 2rem;
+  font-family: sans-serif;
+  background: #f9f9f9;
+}
+
+.sidebar-menu {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.nav-btn {
+  background: #e0e0e0;
+  color: #333;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav-btn.active {
+  background: #0070f3;
+  color: #fff;
+}
+
+.entry-form {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.entry-form input,
+.entry-form select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-width: 200px;
+}
+
+.entry-form .btn {
+  padding: 0.5rem 1rem;
+  background: #0070f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.entry-form .btn[disabled] {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+.search {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.6rem;
+  margin-bottom: 2rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.user-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.user-card {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.user-card .avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid #0070f3;
+  object-fit: cover;
+}
+
+.user-card strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 0.3rem;
+}
+
+.user-card p {
+  margin: 0.2rem 0;
+}
+
+.profit {
+  color: green;
+  font-weight: bold;
+}
+
+.loss {
+  color: red;
+  font-weight: bold;
+}
