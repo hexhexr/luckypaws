@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
+import QRCode from 'qrcode.react';
 import { db } from '../lib/firebaseClient';
 
 export default function Home() {
@@ -44,17 +44,8 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        const fallback = await res.text();
-        throw new Error(`Invalid JSON: ${fallback}`);
-      }
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Payment request failed');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Payment request failed');
 
       setOrder({ ...data, ...form, created: new Date().toISOString() });
       setShowInvoiceModal(true);
@@ -145,7 +136,6 @@ export default function Home() {
             <label>Payment Method</label>
             <div className="radio-group">
               <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
-              <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
             </div>
 
             <button className="btn btn-primary" type="submit" disabled={loading}>
@@ -166,7 +156,14 @@ export default function Home() {
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-            <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
+            <div className="qr-container">
+              <QRCode
+                value={String(order.invoice || order.address)}
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
             <div className="scroll-box">{order.invoice || order.address}</div>
             <button className="btn btn-success mt-md" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy Invoice'}
