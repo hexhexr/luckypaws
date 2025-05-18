@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import QRCode from 'qrcode.react';
+import QRCode from 'react-qr-code';
 import { db } from '../lib/firebaseClient';
 
 export default function Home() {
@@ -44,8 +44,17 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Payment request failed');
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const fallback = await res.text();
+        throw new Error(`Invalid JSON: ${fallback}`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Payment request failed');
+      }
 
       setOrder({ ...data, ...form, created: new Date().toISOString() });
       setShowInvoiceModal(true);
@@ -111,15 +120,12 @@ export default function Home() {
     setShowExpiredModal(false);
     setCountdown(0);
   };
-  const shorten = str => str ? `${str.slice(0, 8)}…${str.slice(-6)}` : '';
-
-  const qrValue = order?.invoice || order?.address;
-  const isQrValid = typeof qrValue === 'string' && qrValue.length > 10;
+  const shorten = str => str ? `${str.slice(0, 8)}â€¦${str.slice(-6)}` : '';
 
   return (
     <div className="container mt-lg">
       <div className="card">
-        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
+        <h1 className="card-header text-center">ðŸŽ£ Lucky Pawâ€™s Fishing Room</h1>
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <label>Username</label>
@@ -129,7 +135,7 @@ export default function Home() {
             <select className="select" name="game" value={form.game} onChange={handleChange} required>
               <option value="" disabled>Select Game</option>
               {games.map(g => (
-                <option key={g.id} value={g.name || ''}>{g.name || 'Unnamed Game'}</option>
+                <option key={g.id} value={g.name}>{g.name}</option>
               ))}
             </select>
 
@@ -139,10 +145,11 @@ export default function Home() {
             <label>Payment Method</label>
             <div className="radio-group">
               <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
+              <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
             </div>
 
             <button className="btn btn-primary" type="submit" disabled={loading}>
-              {loading ? 'Generating…' : 'Generate Invoice'}
+              {loading ? 'Generatingâ€¦' : 'Generate Invoice'}
             </button>
           </form>
 
@@ -159,27 +166,11 @@ export default function Home() {
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-
-            {isQrValid ? (
-              <>
-                <div className="qr-container">
-                  <QRCode
-                    value={qrValue}
-                    size={200}
-                    level="H"
-                    includeMargin={true}
-                  />
-                </div>
-                <div className="scroll-box">{qrValue}</div>
-                <button className="btn btn-success mt-md" onClick={copyToClipboard}>
-                  {copied ? 'Copied!' : 'Copy Invoice'}
-                </button>
-              </>
-            ) : (
-              <div className="alert alert-danger text-center mt-md">
-                ⚠️ Invoice not available or invalid. Please try again.
-              </div>
-            )}
+            <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
+            <div className="scroll-box">{order.invoice || order.address}</div>
+            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
+              {copied ? 'Copied!' : 'Copy Invoice'}
+            </button>
           </div>
         </div>
       )}
@@ -187,7 +178,7 @@ export default function Home() {
       {showExpiredModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>⚠️ Invoice Expired</h2>
+            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>âš ï¸ Invoice Expired</h2>
             <p>The invoice has expired. Please generate a new one to continue.</p>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Generate New</button>
           </div>
@@ -197,7 +188,7 @@ export default function Home() {
       {showReceiptModal && order && (
         <div className="modal-overlay">
           <div className="modal receipt-modal">
-            <h2 className="receipt-header">✅ Payment Received</h2>
+            <h2 className="receipt-header">âœ… Payment Received</h2>
             <div className="receipt-amounts">
               <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
@@ -207,7 +198,7 @@ export default function Home() {
               <p><strong>Game:</strong> {order.game}</p>
               <p><strong>Order ID:</strong> {order.orderId}</p>
               <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice">{shorten(qrValue)}</div>
+              <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
           </div>
