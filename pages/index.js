@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebaseClient';
+import { QRCode } from 'qrcode.react';
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -137,7 +138,7 @@ export default function Home() {
               <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
             </div>
 
-            <button className="btn btn-primary" type="submit" disabled={loading}>
+            <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
               {loading ? 'Generating…' : 'Generate Invoice'}
             </button>
           </form>
@@ -146,6 +147,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* INVOICE MODAL */}
       {showInvoiceModal && order && (
         <div className="modal-overlay">
           <div className="modal">
@@ -154,8 +156,16 @@ export default function Home() {
               <p className="usd-amount">${order.amount} USD</p>
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
+
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-            <div className="scroll-box">{order.invoice || order.address}</div>
+
+            {order.invoice && (
+              <div className="qr-container mt-md">
+                <QRCode value={order.invoice} size={180} />
+                <p className="mt-sm qr-text">{order.invoice}</p>
+              </div>
+            )}
+
             <button className="btn btn-success mt-md" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy Invoice'}
             </button>
