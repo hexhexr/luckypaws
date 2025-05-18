@@ -4,7 +4,7 @@ import { db } from '../../lib/firebaseAdmin';
 
 export const config = {
   api: {
-    bodyParser: false, // Required to access raw body
+    bodyParser: false, // required to get raw body
   },
 };
 
@@ -14,7 +14,10 @@ export default async function handler(req, res) {
   }
 
   const secret = process.env.SPEED_WEBHOOK_SECRET;
-  if (!secret) return res.status(500).json({ message: 'Missing secret' });
+  if (!secret) {
+    console.error('Missing SPEED_WEBHOOK_SECRET');
+    return res.status(500).json({ message: 'Missing secret' });
+  }
 
   let rawBody;
   try {
@@ -24,10 +27,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ message: 'Failed to read raw body' });
   }
 
-  const receivedSig = req.headers['webhook-signature'];
-  if (!receivedSig) {
-    return res.status(400).json({ message: 'Missing signature' });
-  }
+  const headerSig = req.headers['webhook-signature'] || '';
+  const receivedSig = headerSig.split(',')[1]; // ✅ remove 'v1,' prefix
 
   const computedSig = crypto
     .createHmac('sha256', secret)
@@ -45,6 +46,7 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBody);
   } catch (err) {
+    console.error('Invalid JSON body');
     return res.status(400).json({ message: 'Invalid JSON' });
   }
 
@@ -66,7 +68,7 @@ export default async function handler(req, res) {
         paidAt: new Date().toISOString(),
       });
 
-      console.log('✅ Payment confirmed for', orderId);
+      console.log('✅ Webhook: Payment confirmed for order:', orderId);
       return res.status(200).json({ success: true });
     } catch (err) {
       console.error('❌ Firestore update failed:', err);
