@@ -52,7 +52,7 @@ export default function AdminGames() {
         <a className="nav-btn" href="/admin/games">🎮 Games</a>
         <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
         <button className="nav-btn" onClick={logout}>🚪 Logout</button>
-      </div>
+ 
     <div className="admin-dashboard">
       <div className="sidebar">
         <h1>Lucky Paw Admin</h1>
