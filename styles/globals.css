@@ -16,7 +16,7 @@ body {
 .card {
   background: #fff;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   padding: 2rem;
 }
 
@@ -27,7 +27,8 @@ body {
   color: #00c853;
 }
 
-.input, .select {
+.input,
+.select {
   width: 100%;
   padding: 0.75rem;
   margin: 0.5rem 0 1rem;
@@ -37,7 +38,8 @@ body {
   transition: border-color 0.3s ease;
 }
 
-.input:focus, .select:focus {
+.input:focus,
+.select:focus {
   border-color: #00c853;
   outline: none;
 }
@@ -83,11 +85,19 @@ body {
   color: #b71c1c;
 }
 
+.alert-warning {
+  background-color: #fff8e1;
+  color: #8a6d3b;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background-color: rgba(0,0,0,0.5);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,101 +177,30 @@ body {
   background: #f1f8e9;
 }
 
-.qr-container {
-  display: flex;
-  justify-content: center;
-  margin: 1rem 0;
-}
-
-/* Utility */
-.text-center { text-align: center; }
-.mt-md { margin-top: 1rem; }
-.mt-lg { margin-top: 2rem; }
-
-/* Animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* Dashboard */
-.admin-dashboard {
-  display: flex;
-  height: 100vh;
-  font-family: 'Segoe UI', sans-serif;
-}
-
-.sidebar {
-  width: 200px;
-  background: #1f1f2f;
-  color: #fff;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar h1 {
-  margin-bottom: 2rem;
-  font-size: 1.3rem;
-  color: #00c853;
-  font-weight: bold;
-}
-
-.nav-btn {
-  background: #2b2b3d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.6rem 1rem;
-  margin-bottom: 0.5rem;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.nav-btn:hover {
-  background: #3a3a50;
-}
-
-.main-content {
-  flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
-  background: #f9f9f9;
-}
-
-/* Table */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  font-size: 0.95rem;
-}
-
-th, td {
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  text-align: left;
-}
-
-th {
-  background-color: #e0f2f1;
-  font-weight: 600;
-}
-.qr-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 1rem;
-}
-
-.qr-text {
-  font-size: 0.8rem;
-  word-break: break-all;
+.text-center {
   text-align: center;
-  margin-top: 0.5rem;
-  color: #555;
 }
+
+.mt-md {
+  margin-top: 1rem;
+}
+
+.mt-lg {
+  margin-top: 2rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* QR code container styles */
 .qr-container {
   display: flex;
   flex-direction: column;
@@ -276,3 +215,5 @@ th {
   margin-top: 0.5rem;
   color: #555;
 }
+
+/* (Keep the rest of your existing styles unchanged) */
