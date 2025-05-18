@@ -1,64 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import QRCode from 'react-qr-code';
 import { db } from '../lib/firebaseClient';
-import QRCode from 'qrcode.react';
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [invoice, setInvoice] = useState('');
-  const [btc, setBtc] = useState('');
-  const [orderId, setOrderId] = useState(null);
-  const [status, setStatus] = useState('pending');
+  const [order, setOrder] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [timer, setTimer] = useState(600);
-  const [expired, setExpired] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [countdown, setCountdown] = useState(600);
 
   useEffect(() => {
     const loadGames = async () => {
-      try {
-        const snap = await db.collection('games').orderBy('name').get();
-        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setGames(list);
-        if (list.length > 0) {
-          setForm(prev => ({ ...prev, game: list[0].name }));
-        }
-      } catch {
-        setGames([]);
-      }
+      const snap = await db.collection('games').orderBy('name').get();
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGames(list);
     };
     loadGames();
   }, []);
-
-  useEffect(() => {
-    const savedOrder = JSON.parse(localStorage.getItem('active_order') || 'null');
-    if (savedOrder?.orderId) {
-      setOrderId(savedOrder.orderId);
-      setInvoice(savedOrder.invoice);
-      setBtc(savedOrder.btc);
-      setForm(prev => ({ ...prev, method: 'lightning' }));
-      setShowModal(true);
-      checkStatus(savedOrder.orderId);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!showModal || status === 'paid') return;
-    const countdown = setInterval(() => {
-      setTimer(prev => {
-        if (prev <= 1) {
-          clearInterval(countdown);
-          setExpired(true);
-          setShowModal(false);
-          localStorage.removeItem('active_order');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(countdown);
-  }, [showModal, status]);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -68,12 +32,10 @@ export default function Home() {
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
-    setInvoice('');
-    setStatus('pending');
-    setOrderId(null);
-    setExpired(false);
-    setTimer(600);
-    setShowModal(false);
+    setError('');
+    setShowInvoiceModal(false);
+    setShowReceiptModal(false);
+    setShowExpiredModal(false);
 
     try {
       const res = await fetch('/api/create-payment', {
@@ -82,118 +44,162 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        const fallback = await res.text();
-        throw new Error(`Unexpected response: ${fallback}`);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Payment request failed');
 
-      if (!res.ok) throw new Error(data.message || 'Failed to create invoice');
-
-      setInvoice(data.invoice);
-      setBtc(data.btc);
-      setOrderId(data.orderId);
-      setShowModal(true);
-      localStorage.setItem(
-        'active_order',
-        JSON.stringify({
-          orderId: data.orderId,
-          invoice: data.invoice,
-          btc: data.btc,
-          method: 'lightning',
-        })
-      );
-      checkStatus(data.orderId);
+      setOrder({ ...data, ...form, created: new Date().toISOString() });
+      setShowInvoiceModal(true);
+      setStatus('pending');
+      setCountdown(600);
     } catch (err) {
-      alert(err.message || 'Error creating invoice');
+      console.error(err);
+      setError(err.message || 'Payment error');
     } finally {
       setLoading(false);
     }
   };
 
-  const checkStatus = id => {
-    db.collection('orders').doc(id).onSnapshot(doc => {
-      const data = doc.data();
-      if (data?.status === 'paid') {
-        setStatus('paid');
-        setTimeout(() => {
-          localStorage.removeItem('active_order');
-          window.location.href = `/receipt?id=${id}`;
-        }, 1000);
+  useEffect(() => {
+    if (!order || status !== 'pending') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
+        const upd = await res.json();
+        if (upd?.status === 'paid') {
+          setStatus('paid');
+          setOrder(prev => ({ ...prev, status: 'paid' }));
+          setShowInvoiceModal(false);
+          setShowReceiptModal(true);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
       }
-    });
-  };
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [order, status]);
 
-  const closeModal = () => {
-    setInvoice('');
-    setOrderId(null);
-    setStatus('pending');
-    setTimer(600);
-    setExpired(false);
-    setShowModal(false);
-    localStorage.removeItem('active_order');
-  };
+  useEffect(() => {
+    if (!showInvoiceModal) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setShowInvoiceModal(false);
+          setShowExpiredModal(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showInvoiceModal]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(invoice);
+  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(order.invoice || order.address);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setTimeout(() => setCopied(false), 2000);
   };
-
-  const formatTime = () => `${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`;
+  const resetAll = () => {
+    setForm({ username: '', game: '', amount: '', method: 'lightning' });
+    setOrder(null);
+    setStatus('idle');
+    setError('');
+    setShowInvoiceModal(false);
+    setShowReceiptModal(false);
+    setShowExpiredModal(false);
+    setCountdown(0);
+  };
+  const shorten = str => str ? `${str.slice(0, 8)}…${str.slice(-6)}` : '';
 
   return (
     <div className="container mt-lg">
-      <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
-        <h2 className="text-center">Lucky Paw's Fishing Room</h2>
+      <div className="card">
+        <h1 className="card-header text-center">🐾 Welcome to Lucky Paw</h1>
+        <p className="text-center" style={{ color: '#4CAF50', marginBottom: '1.5rem' }}>
+          A secure and fast way to deposit for your game. Your payment is handled safely using Bitcoin.
+        </p>
+
         <form onSubmit={handleSubmit}>
           <label>Username</label>
-          <input className="input" name="username" value={form.username} onChange={handleChange} required />
-          <label>Game</label>
+          <input className="input" name="username" value={form.username} onChange={handleChange} required placeholder="Your username" />
+
+          <label>Select Game</label>
           <select className="select" name="game" value={form.game} onChange={handleChange} required>
             <option value="" disabled>Select Game</option>
             {games.map(g => (
               <option key={g.id} value={g.name}>{g.name}</option>
             ))}
           </select>
+
           <label>Amount (USD)</label>
-          <input className="input" name="amount" type="number" value={form.amount} onChange={handleChange} required />
-          <input type="hidden" name="method" value="lightning" />
-          <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
-            {loading ? 'Generating...' : 'Generate Invoice'}
+          <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required placeholder="Amount in USD" />
+
+          <label>Payment Method</label>
+          <div className="radio-group">
+            <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
+            <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
+          </div>
+
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? 'Generating Invoice...' : 'Generate Invoice'}
           </button>
         </form>
+
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      {showModal && (
+      {showInvoiceModal && order && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3 className="text-center">Complete Your Payment</h3>
-            <p><strong>Amount:</strong> ${form.amount} | {btc || '0.00000000'} BTC</p>
-            <div className="text-center mt-sm">
-              <QRCode value={invoice} size={180} />
-              <p className="mt-sm scroll-box">{invoice}</p>
-              <button className="btn btn-secondary btn-sm mt-sm" onClick={handleCopy}>
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-              <div className="mt-sm" style={{ fontSize: '0.9rem', color: '#666' }}>
-                Expires in {formatTime()}
-              </div>
+            <h2 className="receipt-header">🧾 Secure Invoice</h2>
+            <div className="receipt-amounts">
+              <p className="usd-amount">${order.amount} USD</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
-            <div className="mt-md text-center">
-              {status === 'paid' ? (
-                <p className="alert alert-success">Payment confirmed! Redirecting…</p>
-              ) : expired ? (
-                <p className="alert alert-danger">Invoice expired. Please generate a new one.</p>
-              ) : (
-                <p className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="loader"></span>&nbsp; Waiting for payment confirmation...
-                </p>
-              )}
-              <button className="btn btn-danger mt-sm" onClick={closeModal}>Close</button>
+            <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
+            <div className="qr-container"><QRCode value={order.invoice || order.address} size={140} /></div>
+            <div className="scroll-box">{order.invoice || order.address}</div>
+            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
+              {copied ? 'Copied!' : 'Copy Invoice'}
+            </button>
+            <p className="text-center mt-md" style={{ fontSize: '0.85rem', color: '#888' }}>
+              Payments are processed instantly via Speed API. Your funds are safe.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showExpiredModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>⚠️ Invoice Expired</h2>
+            <p>The invoice has expired. Please generate a new one to continue.</p>
+            <button className="btn btn-primary mt-md" onClick={resetAll}>Generate New</button>
+          </div>
+        </div>
+      )}
+
+      {showReceiptModal && order && (
+        <div className="modal-overlay">
+          <div className="modal receipt-modal">
+            <h2 className="receipt-header">✅ Payment Received</h2>
+            <div className="receipt-amounts">
+              <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
+            <div className="receipt-details">
+              <p><strong>Username:</strong> {order.username}</p>
+              <p><strong>Game:</strong> {order.game}</p>
+              <p><strong>Order ID:</strong> {order.orderId}</p>
+              <p><strong>Invoice:</strong></p>
+              <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
+            </div>
+            <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
+            <p className="text-center" style={{ fontSize: '0.85rem', color: '#888', marginTop: '1rem' }}>
+              Your payment has been recorded and verified. Thank you for using Lucky Paw.
+            </p>
           </div>
         </div>
       )}
