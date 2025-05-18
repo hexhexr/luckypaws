@@ -18,40 +18,47 @@ export default function ProfitLoss() {
   }, []);
 
   useEffect(() => {
-    const load = async () => {
-      const orderSnap = await db.collection('orders').where('status', '==', 'paid').get();
-      const paidOrders = orderSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'deposit' }));
+    const loadData = async () => {
+      try {
+        const orderSnap = await db.collection('orders').where('status', '==', 'paid').get();
+        const depositList = orderSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'deposit' }));
 
-      const cashoutSnap = await db.collection('profitLoss').where('type', '==', 'cashout').get();
-      const manualCashouts = cashoutSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'cashout' }));
+        const cashoutSnap = await db.collection('profitLoss').where('type', '==', 'cashout').get();
+        const cashoutList = cashoutSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'cashout' }));
 
-      setOrders(paidOrders);
-      setCashouts(manualCashouts);
-      setLoading(false);
-      summarize(paidOrders, manualCashouts);
+        setOrders(depositList);
+        setCashouts(cashoutList);
+        summarize(depositList, cashoutList);
+      } catch (err) {
+        console.error('Error loading profit/loss data:', err);
+      } finally {
+        setLoading(false);
+      }
     };
-    load();
+
+    loadData();
   }, []);
 
   const summarize = (deposits, cashouts) => {
-    const depositTotal = deposits.reduce((a, b) => a + Number(b.amount || 0), 0);
-    const cashoutTotal = cashouts.reduce((a, b) => a + Number(b.amount || 0), 0);
-    setSummary({ deposit: depositTotal, cashout: cashoutTotal });
+    const totalDeposit = deposits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+    const totalCashout = cashouts.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+    setSummary({ deposit: totalDeposit, cashout: totalCashout });
   };
 
-  const filteredDeposits = orders.filter(e =>
-    e.username &&
-    e.username.toLowerCase().includes(search.toLowerCase()) &&
-    (codeFilter === '' || e.username.endsWith(codeFilter))
+  const filteredDeposits = orders.filter(d =>
+    d.username?.toLowerCase().includes(search.toLowerCase()) &&
+    (codeFilter === '' || d.username.endsWith(codeFilter))
   );
 
-  const filteredCashouts = cashouts.filter(e =>
-    e.username &&
-    e.username.toLowerCase().includes(search.toLowerCase()) &&
-    (codeFilter === '' || e.username.endsWith(codeFilter))
+  const filteredCashouts = cashouts.filter(c =>
+    c.username?.toLowerCase().includes(search.toLowerCase()) &&
+    (codeFilter === '' || c.username.endsWith(codeFilter))
   );
 
-  const usernames = [...new Set([...filteredDeposits.map(d => d.username), ...filteredCashouts.map(c => c.username)])];
+  const usernames = [...new Set([
+    ...filteredDeposits.map(d => d.username),
+    ...filteredCashouts.map(c => c.username)
+  ])];
 
   const extractFB = url => {
     const match = url?.match(/facebook\.com\/([^/?#]+)/);
@@ -65,8 +72,8 @@ export default function ProfitLoss() {
     const name = deposits[0]?.customerName || cashouts[0]?.customerName || '';
 
     const all = [
-      ...deposits.map(d => ({ ...d, type: 'deposit' })),
-      ...cashouts.map(c => ({ ...c, type: 'cashout' }))
+      ...deposits,
+      ...cashouts
     ].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
 
     const totalDeposit = deposits.reduce((a, b) => a + Number(b.amount || 0), 0);
@@ -79,7 +86,7 @@ export default function ProfitLoss() {
   return (
     <div className="container mt-lg">
       <div className="card">
-        <h2 className="text-center">📊 Profit & Loss</h2
+        <h2 className="text-center">📊 Profit & Loss</h2>
 
         <div className="mt-md">
           <input
