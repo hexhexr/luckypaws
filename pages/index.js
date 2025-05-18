@@ -23,6 +23,72 @@ export default function Home() {
     loadGames();
   }, []);
 
+  useEffect(() => {
+    if (!order || status !== 'pending') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
+        const data = await res.json();
+        if (data?.status === 'paid') {
+          setStatus('paid');
+          setOrder(prev => ({ ...prev, status: 'paid' }));
+          setShowInvoiceModal(false);
+          setShowReceiptModal(true);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [order, status]);
+
+  useEffect(() => {
+    if (!showInvoiceModal) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          resetModals();
+          setShowExpiredModal(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showInvoiceModal]);
+
+  const formatTime = (sec) => {
+    const min = Math.floor(sec / 60);
+    const s = String(sec % 60).padStart(2, '0');
+    return `${min}:${s}`;
+  };
+
+  const resetModals = () => {
+    setShowInvoiceModal(false);
+    setShowReceiptModal(false);
+    setShowExpiredModal(false);
+    setCopied(false);
+  };
+
+  const copyToClipboard = () => {
+    const text = order?.invoice || '';
+    if (!text) {
+      setError('No payment details to copy');
+      return;
+    }
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shorten = (str) => {
+    if (!str) return 'N/A';
+    if (str.length <= 14) return str;
+    return `${str.slice(0, 8)}…${str.slice(-6)}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -40,14 +106,14 @@ export default function Home() {
       if (!res.ok) throw new Error(data.message || 'Payment failed');
 
       if (!data.invoice) throw new Error('Invoice not generated');
-      
+
       setOrder({
         ...data,
         ...form,
         created: new Date().toISOString(),
         orderId: data.orderId || Date.now().toString()
       });
-      
+
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
@@ -59,26 +125,6 @@ export default function Home() {
     }
   };
 
-  // Add safe copy function
-  const copyToClipboard = () => {
-    const text = order?.invoice || '';
-    if (!text) {
-      setError('No payment details to copy');
-      return;
-    }
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Safe shorten function
-  const shorten = (str) => {
-    if (!str) return 'N/A';
-    if (str.length <= 14) return str;
-    return `${str.slice(0, 8)}…${str.slice(-6)}`;
-  };
-
-  // Modal rendering with safety checks
   const renderInvoiceModal = () => (
     <div className="modal-overlay">
       <div className="modal">
@@ -92,7 +138,7 @@ export default function Home() {
           Expires in: <strong>{formatTime(countdown)}</strong>
         </p>
 
-        {order?.invoice ? (
+        {typeof order?.invoice === 'string' && order.invoice.trim() !== '' ? (
           <div className="qr-container mt-md">
             <QRCode value={order.invoice} size={180} />
             <p className="mt-sm qr-text">{order.invoice}</p>
@@ -110,9 +156,69 @@ export default function Home() {
 
   return (
     <div className="container mt-lg">
-      {/* ... rest of your JSX ... */}
+      <div className="card">
+        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
+        <div className="card-body">
+          <form onSubmit={handleSubmit}>
+            <label>Username</label>
+            <input className="input" name="username" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} required placeholder="Your username" />
+
+            <label>Select Game</label>
+            <select className="select" name="game" value={form.game} onChange={e => setForm({ ...form, game: e.target.value })} required>
+              <option value="" disabled>Select Game</option>
+              {games.map(g => (
+                <option key={g.id} value={g.name || ''}>{g.name || 'Unnamed Game'}</option>
+              ))}
+            </select>
+
+            <label>Amount (USD)</label>
+            <input className="input" type="number" name="amount" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required placeholder="Amount in USD" />
+
+            <label>Payment Method</label>
+            <div className="radio-group">
+              <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm({ ...form, method: e.target.value })} /> Lightning</label>
+            </div>
+
+            <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
+              {loading ? 'Generating…' : 'Generate Invoice'}
+            </button>
+          </form>
+
+          {error && <div className="alert alert-danger mt-md">{error}</div>}
+        </div>
+      </div>
+
       {showInvoiceModal && renderInvoiceModal()}
-      {/* ... other modals ... */}
+
+      {showExpiredModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>⚠️ Invoice Expired</h2>
+            <p>The invoice has expired. Please generate a new one to continue.</p>
+            <button className="btn btn-primary mt-md" onClick={resetModals}>Generate New</button>
+          </div>
+        </div>
+      )}
+
+      {showReceiptModal && order && (
+        <div className="modal-overlay">
+          <div className="modal receipt-modal">
+            <h2 className="receipt-header">✅ Payment Received</h2>
+            <div className="receipt-amounts">
+              <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
+            </div>
+            <div className="receipt-details">
+              <p><strong>Username:</strong> {order.username}</p>
+              <p><strong>Game:</strong> {order.game}</p>
+              <p><strong>Order ID:</strong> {order.orderId}</p>
+              <p><strong>Short Invoice:</strong></p>
+              <div className="scroll-box short-invoice">{shorten(order.invoice)}</div>
+            </div>
+            <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
