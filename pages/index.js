@@ -7,7 +7,6 @@ export default function Home() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState('');
-  const [address, setAddress] = useState('');
   const [btc, setBtc] = useState('');
   const [orderId, setOrderId] = useState(null);
   const [status, setStatus] = useState('pending');
@@ -37,9 +36,8 @@ export default function Home() {
     if (savedOrder?.orderId) {
       setOrderId(savedOrder.orderId);
       setInvoice(savedOrder.invoice);
-      setAddress(savedOrder.address);
       setBtc(savedOrder.btc);
-      setForm(prev => ({ ...prev, method: savedOrder.method }));
+      setForm(prev => ({ ...prev, method: 'lightning' }));
       setShowModal(true);
       checkStatus(savedOrder.orderId);
     }
@@ -71,7 +69,6 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setInvoice('');
-    setAddress('');
     setStatus('pending');
     setOrderId(null);
     setExpired(false);
@@ -96,7 +93,6 @@ export default function Home() {
       if (!res.ok) throw new Error(data.message || 'Failed to create invoice');
 
       setInvoice(data.invoice);
-      setAddress(data.address);
       setBtc(data.btc);
       setOrderId(data.orderId);
       setShowModal(true);
@@ -105,9 +101,8 @@ export default function Home() {
         JSON.stringify({
           orderId: data.orderId,
           invoice: data.invoice,
-          address: data.address,
           btc: data.btc,
-          method: form.method,
+          method: 'lightning',
         })
       );
       checkStatus(data.orderId);
@@ -118,7 +113,7 @@ export default function Home() {
     }
   };
 
-  const checkStatus = async id => {
+  const checkStatus = id => {
     db.collection('orders').doc(id).onSnapshot(doc => {
       const data = doc.data();
       if (data?.status === 'paid') {
@@ -133,7 +128,6 @@ export default function Home() {
 
   const closeModal = () => {
     setInvoice('');
-    setAddress('');
     setOrderId(null);
     setStatus('pending');
     setTimer(600);
@@ -143,7 +137,7 @@ export default function Home() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(form.method === 'lightning' ? invoice : address);
+    navigator.clipboard.writeText(invoice);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -153,11 +147,11 @@ export default function Home() {
   return (
     <div className="container mt-lg">
       <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
-        <h2 className="text-center">🎮 Lucky Paw's Fishing Room</h2>
+        <h2 className="text-center">Lucky Paw's Fishing Room</h2>
         <form onSubmit={handleSubmit}>
           <label>Username</label>
           <input className="input" name="username" value={form.username} onChange={handleChange} required />
-          <label>Game Name</label>
+          <label>Game</label>
           <select className="select" name="game" value={form.game} onChange={handleChange} required>
             <option value="" disabled>Select Game</option>
             {games.map(g => (
@@ -166,11 +160,7 @@ export default function Home() {
           </select>
           <label>Amount (USD)</label>
           <input className="input" name="amount" type="number" value={form.amount} onChange={handleChange} required />
-          <label>Payment Method</label>
-          <select className="select" name="method" value={form.method} onChange={handleChange}>
-            <option value="lightning">⚡ Lightning</option>
-            <option value="onchain">₿ On-chain</option>
-          </select>
+          <input type="hidden" name="method" value="lightning" />
           <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
             {loading ? 'Generating...' : 'Generate Invoice'}
           </button>
@@ -180,23 +170,23 @@ export default function Home() {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3 className="text-center">💸 Complete Your Payment</h3>
+            <h3 className="text-center">Complete Your Payment</h3>
             <p><strong>Amount:</strong> ${form.amount} | {btc || '0.00000000'} BTC</p>
             <div className="text-center mt-sm">
-              <QRCode value={form.method === 'lightning' ? invoice : address} size={180} />
-              <p className="mt-sm scroll-box">{form.method === 'lightning' ? invoice : address}</p>
+              <QRCode value={invoice} size={180} />
+              <p className="mt-sm scroll-box">{invoice}</p>
               <button className="btn btn-secondary btn-sm mt-sm" onClick={handleCopy}>
-                📋 {copied ? 'Copied!' : 'Copy'}
+                {copied ? 'Copied!' : 'Copy'}
               </button>
               <div className="mt-sm" style={{ fontSize: '0.9rem', color: '#666' }}>
-                ⏳ Expires in {formatTime()}
+                Expires in {formatTime()}
               </div>
             </div>
             <div className="mt-md text-center">
               {status === 'paid' ? (
-                <p className="alert alert-success">✅ Payment confirmed! Redirecting…</p>
+                <p className="alert alert-success">Payment confirmed! Redirecting…</p>
               ) : expired ? (
-                <p className="alert alert-danger">❌ Invoice expired. Please generate a new one.</p>
+                <p className="alert alert-danger">Invoice expired. Please generate a new one.</p>
               ) : (
                 <p className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span className="loader"></span>&nbsp; Waiting for payment confirmation...
