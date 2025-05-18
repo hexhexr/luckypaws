@@ -77,6 +77,14 @@ export default function ProfitLoss() {
   };
 
   return (
+<div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
+      </div>s
     <div className="container mt-lg">
       <div className="card">
         <h2 className="text-center">📊 Profit & Loss</h2>
