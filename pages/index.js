@@ -126,7 +126,7 @@ export default function Home() {
             <select className="select" name="game" value={form.game} onChange={handleChange} required>
               <option value="" disabled>Select Game</option>
               {games.map(g => (
-                <option key={g.id} value={g.name}>{g.name}</option>
+                <option key={g.id} value={g.name || ''}>{g.name || 'Unnamed Game'}</option>
               ))}
             </select>
 
@@ -156,18 +156,25 @@ export default function Home() {
               <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-            <div className="qr-container">
-              <QRCode
-                value={String(order.invoice || order.address)}
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-            <div className="scroll-box">{order.invoice || order.address}</div>
-            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
-              {copied ? 'Copied!' : 'Copy Invoice'}
-            </button>
+
+            {(order.invoice || order.address) ? (
+              <>
+                <div className="qr-container">
+                  <QRCode
+                    value={String(order.invoice || order.address)}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <div className="scroll-box">{order.invoice || order.address}</div>
+                <button className="btn btn-success mt-md" onClick={copyToClipboard}>
+                  {copied ? 'Copied!' : 'Copy Invoice'}
+                </button>
+              </>
+            ) : (
+              <p className="alert alert-danger mt-md text-center">⚠️ Invoice not available.</p>
+            )}
           </div>
         </div>
       )}
