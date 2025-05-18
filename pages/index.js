@@ -1,25 +1,66 @@
-import { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
+import { useEffect, useState } from 'react';
 import { db } from '../lib/firebaseClient';
+import QRCode from 'qrcode.react';
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [invoiceData, setInvoiceData] = useState(null);
+  const [invoice, setInvoice] = useState('');
+  const [address, setAddress] = useState('');
+  const [btc, setBtc] = useState('');
+  const [orderId, setOrderId] = useState(null);
+  const [status, setStatus] = useState('pending');
   const [copied, setCopied] = useState(false);
   const [timer, setTimer] = useState(600);
-  const [status, setStatus] = useState('idle');
-  const [modal, setModal] = useState(null); // 'invoice' | 'receipt' | 'expired'
+  const [expired, setExpired] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    const fetchGames = async () => {
-      const snap = await db.collection('games').orderBy('name').get();
-      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setGames(list);
+    const loadGames = async () => {
+      try {
+        const snap = await db.collection('games').orderBy('name').get();
+        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setGames(list);
+        if (list.length > 0) {
+          setForm(prev => ({ ...prev, game: list[0].name }));
+        }
+      } catch {
+        setGames([]);
+      }
     };
-    fetchGames();
+    loadGames();
   }, []);
+
+  useEffect(() => {
+    const savedOrder = JSON.parse(localStorage.getItem('active_order'));
+    if (savedOrder?.orderId) {
+      setOrderId(savedOrder.orderId);
+      setInvoice(savedOrder.invoice);
+      setAddress(savedOrder.address);
+      setBtc(savedOrder.btc);
+      setForm(prev => ({ ...prev, method: savedOrder.method }));
+      setShowModal(true);
+      checkStatus(savedOrder.orderId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showModal || status === 'paid') return;
+    const countdown = setInterval(() => {
+      setTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(countdown);
+          setExpired(true);
+          setShowModal(false);
+          localStorage.removeItem('active_order');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(countdown);
+  }, [showModal, status]);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -29,10 +70,13 @@ export default function Home() {
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
-    setCopied(false);
+    setInvoice('');
+    setAddress('');
     setStatus('pending');
+    setOrderId(null);
+    setExpired(false);
     setTimer(600);
-    setModal(null);
+    setShowModal(false);
 
     try {
       const res = await fetch('/api/create-payment', {
@@ -42,149 +86,117 @@ export default function Home() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invoice creation failed');
+      if (!res.ok) throw new Error(data.message || 'Failed to create invoice');
 
-      const invoiceObj = {
-        ...data,
-        ...form,
-        created: new Date().toISOString(),
-      };
-      setInvoiceData(invoiceObj);
-      setModal('invoice');
-
-      pollStatus(invoiceObj.orderId);
+      setInvoice(data.invoice);
+      setAddress(data.address);
+      setBtc(data.btc);
+      setOrderId(data.orderId);
+      setShowModal(true);
+      localStorage.setItem(
+        'active_order',
+        JSON.stringify({
+          orderId: data.orderId,
+          invoice: data.invoice,
+          address: data.address,
+          btc: data.btc,
+          method: form.method,
+        })
+      );
+      checkStatus(data.orderId);
     } catch (err) {
-      alert(err.message || 'Something went wrong');
+      alert(err.message || 'Error creating invoice');
     } finally {
       setLoading(false);
     }
   };
 
-  const pollStatus = orderId => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/check-status?id=${orderId}`);
-        const data = await res.json();
-        if (data?.status === 'paid') {
-          setStatus('paid');
-          clearInterval(interval);
-          setModal('receipt');
-        }
-      } catch (err) {
-        console.error('Polling error:', err);
+  const checkStatus = async id => {
+    db.collection('orders').doc(id).onSnapshot(doc => {
+      const data = doc.data();
+      if (data?.status === 'paid') {
+        setStatus('paid');
+        setTimeout(() => {
+          localStorage.removeItem('active_order');
+          window.location.href = `/receipt?id=${id}`;
+        }, 1000);
       }
-    }, 2000);
+    });
   };
 
-  useEffect(() => {
-    if (modal !== 'invoice') return;
-    const interval = setInterval(() => {
-      setTimer(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setModal('expired');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [modal]);
-
-  const reset = () => {
-    setForm({ username: '', game: '', amount: '', method: 'lightning' });
-    setInvoiceData(null);
-    setModal(null);
-    setStatus('idle');
+  const closeModal = () => {
+    setInvoice('');
+    setAddress('');
+    setOrderId(null);
+    setStatus('pending');
     setTimer(600);
+    setExpired(false);
+    setShowModal(false);
+    localStorage.removeItem('active_order');
   };
 
-  const copyInvoice = () => {
-    navigator.clipboard.writeText(invoiceData.invoice || invoiceData.address);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(form.method === 'lightning' ? invoice : address);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const shorten = str => str ? `${str.slice(0, 8)}...${str.slice(-6)}` : '';
-  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  const formatTime = () => `${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`;
 
   return (
     <div className="container mt-lg">
-      <div className="card">
-        <h2 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h2>
+      <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
+        <h2 className="text-center">🎮 Lucky Paw's Fishing Room</h2>
         <form onSubmit={handleSubmit}>
           <label>Username</label>
           <input className="input" name="username" value={form.username} onChange={handleChange} required />
-
-          <label>Select Game</label>
+          <label>Game Name</label>
           <select className="select" name="game" value={form.game} onChange={handleChange} required>
-            <option value="">Select Game</option>
+            <option value="" disabled>Select Game</option>
             {games.map(g => (
               <option key={g.id} value={g.name}>{g.name}</option>
             ))}
           </select>
-
           <label>Amount (USD)</label>
-          <input className="input" type="number" name="amount" value={form.amount} onChange={handleChange} required />
-
+          <input className="input" name="amount" type="number" value={form.amount} onChange={handleChange} required />
           <label>Payment Method</label>
-          <div className="radio-group">
-            <label><input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={handleChange} /> Lightning</label>
-            <label><input type="radio" name="method" value="onchain" checked={form.method === 'onchain'} onChange={handleChange} /> On-chain</label>
-          </div>
-
+          <select className="select" name="method" value={form.method} onChange={handleChange}>
+            <option value="lightning">⚡ Lightning</option>
+            <option value="onchain">₿ On-chain</option>
+          </select>
           <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
-            {loading ? 'Generating…' : 'Generate Invoice'}
+            {loading ? 'Generating...' : 'Generate Invoice'}
           </button>
         </form>
       </div>
 
-      {modal === 'invoice' && invoiceData && (
+      {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2 className="receipt-header">Send Payment</h2>
-            <div className="receipt-amounts">
-              <p className="usd-amount">${invoiceData.amount}</p>
-              <p className="btc-amount">{invoiceData.btc || '0.00000000'} BTC</p>
+            <h3 className="text-center">💸 Complete Your Payment</h3>
+            <p><strong>Amount:</strong> ${form.amount} | {btc || '0.00000000'} BTC</p>
+            <div className="text-center mt-sm">
+              <QRCode value={form.method === 'lightning' ? invoice : address} size={180} />
+              <p className="mt-sm scroll-box">{form.method === 'lightning' ? invoice : address}</p>
+              <button className="btn btn-secondary btn-sm mt-sm" onClick={handleCopy}>
+                📋 {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <div className="mt-sm" style={{ fontSize: '0.9rem', color: '#666' }}>
+                ⏳ Expires in {formatTime()}
+              </div>
             </div>
-            <p className="text-center">Expires in: <strong>{formatTime(timer)}</strong></p>
-            <div className="qr-container">
-              <QRCode value={invoiceData.invoice || invoiceData.address} size={140} />
+            <div className="mt-md text-center">
+              {status === 'paid' ? (
+                <p className="alert alert-success">✅ Payment confirmed! Redirecting…</p>
+              ) : expired ? (
+                <p className="alert alert-danger">❌ Invoice expired. Please generate a new one.</p>
+              ) : (
+                <p className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="loader"></span>&nbsp; Waiting for payment confirmation...
+                </p>
+              )}
+              <button className="btn btn-danger mt-sm" onClick={closeModal}>Close</button>
             </div>
-            <div className="scroll-box">{invoiceData.invoice || invoiceData.address}</div>
-            <button className="btn btn-success mt-md" onClick={copyInvoice}>
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {modal === 'expired' && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>⚠️ Invoice Expired</h2>
-            <p>Your invoice expired. Please generate a new one to continue.</p>
-            <button className="btn btn-primary mt-md" onClick={reset}>Generate New</button>
-          </div>
-        </div>
-      )}
-
-      {modal === 'receipt' && invoiceData && (
-        <div className="modal-overlay">
-          <div className="modal receipt-modal">
-            <h2 className="receipt-header">✅ Payment Received</h2>
-            <div className="receipt-amounts">
-              <p className="usd-amount"><strong>${invoiceData.amount}</strong> USD</p>
-              <p className="btc-amount">{invoiceData.btc || '0.00000000'} BTC</p>
-            </div>
-            <div className="receipt-details">
-              <p><strong>Username:</strong> {invoiceData.username}</p>
-              <p><strong>Game:</strong> {invoiceData.game}</p>
-              <p><strong>Order ID:</strong> {invoiceData.orderId}</p>
-              <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice">{shorten(invoiceData.invoice || invoiceData.address)}</div>
-            </div>
-            <button className="btn btn-primary mt-md" onClick={reset}>Done</button>
           </div>
         </div>
       )}
