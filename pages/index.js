@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
-// Dynamically import QRCode so it only runs on the client
+// Dynamically import the QRCode component so it's only used client-side
 const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
@@ -18,21 +18,21 @@ export default function Home() {
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
 
-  // Load games from Firestore on mount
+  // Load available games on mount
   useEffect(() => {
     const loadGames = async () => {
       try {
         const snap = await db.collection('games').orderBy('name').get();
         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
-        console.error(err);
+        console.error('Error loading games:', err);
         setError('Failed to load games');
       }
     };
     loadGames();
   }, []);
 
-  // Poll for payment status when invoice is pending
+  // Poll for the payment status if an order is “pending”
   useEffect(() => {
     if (!order || status !== 'pending') return;
     const interval = setInterval(async () => {
@@ -53,7 +53,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [order, status]);
 
-  // Countdown for invoice expiry
+  // Countdown timer for invoice expiry
   useEffect(() => {
     if (!showInvoiceModal) return;
     const timer = setInterval(() => {
@@ -70,13 +70,14 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [showInvoiceModal]);
 
-  // Format seconds as MM:SS
+  // Utility: format seconds as “MM:SS”
   const formatTime = sec => {
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
     return `${min}:${s}`;
   };
 
+  // Reset all modals and “copied” flag
   const resetModals = () => {
     setShowInvoiceModal(false);
     setShowReceiptModal(false);
@@ -84,6 +85,7 @@ export default function Home() {
     setCopied(false);
   };
 
+  // Copy invoice text to clipboard (safely)
   const copyToClipboard = () => {
     const text = order?.invoice || '';
     if (!text) {
@@ -95,12 +97,14 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Shorten a long invoice/address string
   const shorten = str => {
     if (!str) return 'N/A';
     if (str.length <= 14) return str;
     return `${str.slice(0, 8)}…${str.slice(-6)}`;
   };
 
+  // Handle “Generate Invoice” form submit
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -127,15 +131,17 @@ export default function Home() {
       setStatus('pending');
       setCountdown(600);
     } catch (err) {
-      console.error(err);
+      console.error('Create-payment error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Render invoice modal only if order & its invoice exist
   const renderInvoiceModal = () => {
-    const qrValue = order?.invoice || '';
+    if (!order) return null;
+    const qrValue = order.invoice || '';
     const isValidQR = typeof qrValue === 'string' && qrValue.trim() !== '';
 
     return (
@@ -143,8 +149,8 @@ export default function Home() {
         <div className="modal">
           <h2 className="receipt-header">Send Payment</h2>
           <div className="receipt-amounts">
-            <p className="usd-amount">${order?.amount || '0.00'} USD</p>
-            <p className="btc-amount">{order?.btc || '0.00000000'} BTC</p>
+            <p className="usd-amount">${order.amount ?? '0.00'} USD</p>
+            <p className="btc-amount">{order.btc ?? '0.00000000'} BTC</p>
           </div>
           <p className="text-center">
             Expires in: <strong>{formatTime(countdown)}</strong>
@@ -195,8 +201,8 @@ export default function Home() {
                 Select Game
               </option>
               {games.map(g => (
-                <option key={g.id} value={g.name || ''}>
-                  {g.name || 'Unnamed Game'}
+                <option key={g.id} value={g.name ?? ''}>
+                  {g.name ?? 'Unnamed Game'}
                 </option>
               ))}
             </select>
@@ -221,7 +227,7 @@ export default function Home() {
                   value="lightning"
                   checked={form.method === 'lightning'}
                   onChange={e => setForm(prev => ({ ...prev, method: e.target.value }))}
-                />{' '}
+                />
                 Lightning
               </label>
             </div>
@@ -259,7 +265,7 @@ export default function Home() {
               <p className="usd-amount">
                 <strong>${order.amount}</strong> USD
               </p>
-              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
+              <p className="btc-amount">{order.btc}</p>
             </div>
             <div className="receipt-details">
               <p>
