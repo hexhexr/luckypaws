@@ -113,6 +113,9 @@ export default function Home() {
   };
   const shorten = str => str ? `${str.slice(0, 8)}…${str.slice(-6)}` : '';
 
+  const qrValue = order?.invoice || order?.address;
+  const isQrValid = typeof qrValue === 'string' && qrValue.length > 10;
+
   return (
     <div className="container mt-lg">
       <div className="card">
@@ -157,23 +160,25 @@ export default function Home() {
             </div>
             <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
 
-            {(order.invoice || order.address) ? (
+            {isQrValid ? (
               <>
                 <div className="qr-container">
                   <QRCode
-                    value={String(order.invoice || order.address)}
+                    value={qrValue}
                     size={200}
                     level="H"
                     includeMargin={true}
                   />
                 </div>
-                <div className="scroll-box">{order.invoice || order.address}</div>
+                <div className="scroll-box">{qrValue}</div>
                 <button className="btn btn-success mt-md" onClick={copyToClipboard}>
                   {copied ? 'Copied!' : 'Copy Invoice'}
                 </button>
               </>
             ) : (
-              <p className="alert alert-danger mt-md text-center">⚠️ Invoice not available.</p>
+              <div className="alert alert-danger text-center mt-md">
+                ⚠️ Invoice not available or invalid. Please try again.
+              </div>
             )}
           </div>
         </div>
@@ -202,7 +207,7 @@ export default function Home() {
               <p><strong>Game:</strong> {order.game}</p>
               <p><strong>Order ID:</strong> {order.orderId}</p>
               <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
+              <div className="scroll-box short-invoice">{shorten(qrValue)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
           </div>

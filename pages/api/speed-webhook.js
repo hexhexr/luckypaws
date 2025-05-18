@@ -1,63 +1,63 @@
-import { db } from '../../lib/firebaseAdmin';
+import { buffer } from 'micro';
 import crypto from 'crypto';
-import getRawBody from 'raw-body';
+import { db } from '../../lib/firebaseAdmin';
 
 export const config = {
   api: {
-    bodyParser: false, // Disable body parsing to read raw payload
+    bodyParser: false, // We need raw body for signature validation
   },
 };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
   const secret = process.env.SPEED_WEBHOOK_SECRET;
+  if (!secret) return res.status(500).json({ message: 'Missing webhook secret' });
 
-  let raw;
+  let rawBody;
   try {
-    raw = await getRawBody(req);
+    rawBody = (await buffer(req)).toString();
   } catch (err) {
-    console.error('❌ Error reading raw body:', err);
-    return res.status(400).json({ message: 'Invalid body' });
+    return res.status(500).json({ message: 'Failed to parse body' });
   }
 
-  // Extract and format the webhook signature
-  const rawSignature = req.headers['webhook-signature'];
-  const signature = rawSignature?.split(',')[1]; // Remove "v1," prefix if present
+  const signature = req.headers['webhook-signature'];
+  if (!signature) {
+    return res.status(400).json({ message: 'Missing signature header' });
+  }
 
-  const computedSig = crypto.createHmac('sha256', secret).update(raw).digest('hex');
-
-  // Debug log
-  console.log('🚨 Webhook debug log:');
-  console.log('> Raw body:', raw.toString());
-  console.log('> Header Signature:', signature);
-  console.log('> Computed Signature:', computedSig);
+  const computedSig = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('base64');
 
   if (signature !== computedSig) {
-    console.warn('❌ Invalid webhook signature');
-    return res.status(401).json({ message: 'Invalid signature' });
+    console.error('❌ Invalid webhook signature');
+    return res.status(400).json({ message: 'Invalid signature' });
   }
 
-  let payload;
+  let parsed;
   try {
-    payload = JSON.parse(raw.toString('utf8'));
+    parsed = JSON.parse(rawBody);
   } catch (err) {
-    console.error('❌ JSON parse error:', err);
     return res.status(400).json({ message: 'Invalid JSON' });
   }
 
-  const { event_type, data } = payload;
+  const { event_type, data } = parsed;
 
-  // Support new format: TrySpeed uses `event_type` like "payment.confirmed"
-  if (event_type === 'payment.confirmed' && data?.object?.status === 'paid') {
-    const orderId = data.object.id;
+  if (event_type === 'payment.confirmed' && data?.object?.id && data.object.status === 'paid') {
     try {
-      await db.collection('orders').doc(orderId).update({ status: 'paid' });
-      console.log('✅ Firebase updated for order ID:', orderId);
-      return res.status(200).json({ received: true });
+      const orderId = data.object.id;
+      await db.collection('orders').doc(orderId).update({
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+      });
+      return res.status(200).json({ success: true });
     } catch (err) {
-      console.error('❌ Firebase update error:', err);
-      return res.status(500).json({ message: 'Failed to update order status' });
+      console.error('Firestore update failed:', err);
+      return res.status(500).json({ message: 'Failed to update order' });
     }
   }
 
