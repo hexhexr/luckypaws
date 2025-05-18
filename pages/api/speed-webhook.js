@@ -4,7 +4,7 @@ import { db } from '../../lib/firebaseAdmin';
 
 export const config = {
   api: {
-    bodyParser: false, // Required for raw body
+    bodyParser: false, // Required to access raw body
   },
 };
 
@@ -14,27 +14,30 @@ export default async function handler(req, res) {
   }
 
   const secret = process.env.SPEED_WEBHOOK_SECRET;
-  if (!secret) return res.status(500).json({ message: 'Missing webhook secret' });
+  if (!secret) return res.status(500).json({ message: 'Missing secret' });
 
   let rawBody;
   try {
     rawBody = (await buffer(req)).toString();
   } catch (err) {
+    console.error('Error reading raw body:', err);
     return res.status(500).json({ message: 'Failed to read raw body' });
   }
 
   const receivedSig = req.headers['webhook-signature'];
   if (!receivedSig) {
-    return res.status(400).json({ message: 'Missing signature header' });
+    return res.status(400).json({ message: 'Missing signature' });
   }
 
-  const expectedSig = crypto
+  const computedSig = crypto
     .createHmac('sha256', secret)
     .update(rawBody)
     .digest('base64');
 
-  if (receivedSig !== expectedSig) {
+  if (computedSig !== receivedSig) {
     console.error('❌ Invalid webhook signature');
+    console.error('Expected:', computedSig);
+    console.error('Received:', receivedSig);
     return res.status(400).json({ message: 'Invalid signature' });
   }
 
@@ -42,7 +45,7 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBody);
   } catch (err) {
-    return res.status(400).json({ message: 'Invalid JSON payload' });
+    return res.status(400).json({ message: 'Invalid JSON' });
   }
 
   const event = payload.event_type;
@@ -53,6 +56,7 @@ export default async function handler(req, res) {
     try {
       const orderRef = db.collection('orders').doc(orderId);
       const existing = await orderRef.get();
+
       if (!existing.exists) {
         return res.status(404).json({ message: 'Order not found' });
       }
@@ -62,10 +66,10 @@ export default async function handler(req, res) {
         paidAt: new Date().toISOString(),
       });
 
-      console.log('✅ Webhook: Payment confirmed for order', orderId);
-      return res.status(200).json({ received: true });
+      console.log('✅ Payment confirmed for', orderId);
+      return res.status(200).json({ success: true });
     } catch (err) {
-      console.error('❌ Firebase update failed:', err);
+      console.error('❌ Firestore update failed:', err);
       return res.status(500).json({ message: 'Failed to update order' });
     }
   }
