@@ -7,37 +7,25 @@ export default function Receipt() {
   const { id } = router.query;
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    const unsubscribe = db.collection('orders').doc(id).onSnapshot(doc => {
-      if (!doc.exists) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-
+    const unsub = db.collection('orders').doc(id).onSnapshot(doc => {
+      if (!doc.exists) return setLoading(false);
       const data = doc.data();
-      if (data.status === 'paid') {
+      if (data?.status === 'paid') {
         setOrder(data);
-        setNotFound(false);
-      } else {
-        setNotFound(true);
       }
-
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [id]);
 
   const shorten = str => str ? `${str.slice(0, 8)}…${str.slice(-6)}` : '';
 
-  if (loading) return <div className="container text-center mt-lg">Loading...</div>;
-  if (notFound || !order) {
-    return <div className="container text-center mt-lg"><p className="alert alert-danger">Payment not found or not yet confirmed.</p></div>;
-  }
+  if (loading) return <div className="container text-center mt-lg">Loading receipt…</div>;
+  if (!order) return <div className="container text-center mt-lg"><p className="alert alert-danger">Payment not found or not confirmed.</p></div>;
 
   return (
     <div className="container mt-lg">
@@ -52,7 +40,7 @@ export default function Receipt() {
           <p><strong>Game:</strong> {order.game}</p>
           <p><strong>Order ID:</strong> {order.orderId}</p>
           <p><strong>Short Invoice:</strong></p>
-          <div className="scroll-box short-invoice">{shorten(order.invoice || order.address)}</div>
+          <div className="scroll-box short-invoice">{shorten(order.invoice)}</div>
         </div>
         <div className="text-center mt-md">
           <button className="btn btn-primary" onClick={() => router.push('/')}>Done</button>
