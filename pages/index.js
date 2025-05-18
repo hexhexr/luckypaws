@@ -33,7 +33,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const savedOrder = JSON.parse(localStorage.getItem('active_order'));
+    const savedOrder = JSON.parse(localStorage.getItem('active_order') || 'null');
     if (savedOrder?.orderId) {
       setOrderId(savedOrder.orderId);
       setInvoice(savedOrder.invoice);
@@ -85,7 +85,14 @@ export default function Home() {
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        const fallback = await res.text();
+        throw new Error(`Unexpected response: ${fallback}`);
+      }
+
       if (!res.ok) throw new Error(data.message || 'Failed to create invoice');
 
       setInvoice(data.invoice);
