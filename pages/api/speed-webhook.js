@@ -4,7 +4,7 @@ import { db } from '../../lib/firebaseAdmin';
 
 export const config = {
   api: {
-    bodyParser: false, // required to get raw body
+    bodyParser: false,
   },
 };
 
@@ -14,21 +14,22 @@ export default async function handler(req, res) {
   }
 
   const secret = process.env.SPEED_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error('Missing SPEED_WEBHOOK_SECRET');
-    return res.status(500).json({ message: 'Missing secret' });
-  }
+  if (!secret) return res.status(500).json({ message: 'Missing secret' });
 
   let rawBody;
   try {
     rawBody = (await buffer(req)).toString();
   } catch (err) {
-    console.error('Error reading raw body:', err);
+    console.error('❌ Failed to read raw body:', err);
     return res.status(500).json({ message: 'Failed to read raw body' });
   }
 
-  const headerSig = req.headers['webhook-signature'] || '';
-  const receivedSig = headerSig.split(',')[1]; // ✅ remove 'v1,' prefix
+  const headerSig = req.headers['webhook-signature'];
+  if (!headerSig) {
+    return res.status(400).json({ message: 'Missing webhook-signature header' });
+  }
+
+  const receivedSig = headerSig.replace(/^v1,/, '').trim();
 
   const computedSig = crypto
     .createHmac('sha256', secret)
@@ -46,7 +47,6 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBody);
   } catch (err) {
-    console.error('Invalid JSON body');
     return res.status(400).json({ message: 'Invalid JSON' });
   }
 
@@ -68,11 +68,11 @@ export default async function handler(req, res) {
         paidAt: new Date().toISOString(),
       });
 
-      console.log('✅ Webhook: Payment confirmed for order:', orderId);
+      console.log('✅ Payment confirmed for', orderId);
       return res.status(200).json({ success: true });
     } catch (err) {
-      console.error('❌ Firestore update failed:', err);
-      return res.status(500).json({ message: 'Failed to update order' });
+      console.error('❌ Failed to update Firestore:', err);
+      return res.status(500).json({ message: 'Firestore update error' });
     }
   }
 

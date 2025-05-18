@@ -45,21 +45,7 @@ export default function AdminGames() {
   };
 
   return (
-      <div className="admin-dashboard">
-      <div className="sidebar">
-        <h1>Lucky Paw Admin</h1>
-        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        <a className="nav-btn" href="/admin/games">🎮 Games</a>
-        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
-        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
  
-    <div className="admin-dashboard">
-      <div className="sidebar">
-        <h1>Lucky Paw Admin</h1>
-        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        <a className="nav-btn" href="/admin/games">🎮 Games</a>
-        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
-      </div>
       <div className="main-content">
         <h2 className="text-center mt-lg">🎮 Manage Games</h2>
         <form onSubmit={handleAddGame}>
