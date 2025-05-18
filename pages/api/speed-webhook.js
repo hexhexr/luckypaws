@@ -4,7 +4,7 @@ import getRawBody from 'raw-body';
 
 export const config = {
   api: {
-    bodyParser: false, // Required to get raw body
+    bodyParser: false,
   },
 };
 
@@ -17,26 +17,35 @@ export default async function handler(req, res) {
   try {
     raw = await getRawBody(req);
   } catch (err) {
+    console.error('❌ Error reading raw body:', err);
     return res.status(400).json({ message: 'Invalid body' });
   }
 
-  // Verify signature
-  const signature = req.headers['x-speed-signature'];
-  const expectedSig = crypto
-    .createHmac('sha256', secret)
-    .update(raw)
-    .digest('hex');
+  const signatureHeader = req.headers['x-speed-signature'] ||
+                          req.headers['x-webhook-signature'] ||
+                          req.headers['x-signature'] ||
+                          req.headers['x-tryspeed-signature'];
 
-  if (signature !== expectedSig) {
+  const computedSig = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+
+  // Debug log
+  console.log('🚨 Webhook debug log:');
+  console.log('> Raw body:', raw.toString());
+  console.log('> Header Signature:', signatureHeader);
+  console.log('> Computed Signature:', computedSig);
+  console.log('> Headers:', req.headers);
+
+  if (signatureHeader !== computedSig) {
     console.warn('❌ Invalid webhook signature');
-    return res.status(401).json({ message: 'Unauthorized: invalid signature' });
+    return res.status(401).json({ message: 'Invalid signature' });
   }
 
   let payload;
   try {
-    payload = JSON.parse(raw.toString('utf8'));
+    payload = JSON.parse(raw.toString());
   } catch (err) {
-    return res.status(400).json({ message: 'Invalid JSON payload' });
+    console.error('❌ JSON parse error:', err);
+    return res.status(400).json({ message: 'Invalid JSON' });
   }
 
   const { event, data } = payload;
@@ -44,9 +53,10 @@ export default async function handler(req, res) {
   if (event === 'payment.status.updated' && data?.id && data.status === 'paid') {
     try {
       await db.collection('orders').doc(data.id).update({ status: 'paid' });
+      console.log('✅ Firebase updated for order ID:', data.id);
       return res.status(200).json({ received: true });
     } catch (err) {
-      console.error('❌ Failed to update Firebase:', err);
+      console.error('❌ Firebase update error:', err);
       return res.status(500).json({ message: 'Failed to update order status' });
     }
   }
