@@ -1,30 +1,6 @@
 import { buffer } from 'micro';
 import crypto from 'crypto';
 import { db } from '../../lib/firebaseAdmin';
-import { NextApiRequest, NextApiResponse } from 'next';
-
-interface WebhookPayload {
-  event_type: string;
-  data: {
-    object?: {
-      id?: string;
-      status?: string;
-      metadata?: {
-        orderId?: string;
-      };
-      // Add other necessary payment fields
-    };
-  };
-}
-
-interface PaymentObject {
-  id: string;
-  status?: string;
-  metadata?: {
-    orderId?: string;
-  };
-  // Include other relevant payment properties
-}
 
 export const config = {
   api: {
@@ -32,7 +8,7 @@ export const config = {
   },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST allowed' });
   }
@@ -43,8 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Missing webhook secret' });
   }
 
-  // Get raw buffer for signature verification
-  let rawBodyBuffer: Buffer;
+  let rawBodyBuffer;
   try {
     rawBodyBuffer = await buffer(req);
   } catch (err) {
@@ -52,16 +27,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Failed to read request body' });
   }
 
-  // Signature verification
   const headerSig = req.headers['webhook-signature'];
   if (typeof headerSig !== 'string' || !headerSig.startsWith('v1,')) {
-    console.error('Invalid signature header format');
     return res.status(400).json({ error: 'Invalid signature header format' });
   }
 
   const receivedSig = headerSig.split(',')[1]?.trim();
   if (!receivedSig) {
-    console.error('Missing signature in header');
     return res.status(400).json({ error: 'Missing signature in header' });
   }
 
@@ -75,8 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid webhook signature' });
   }
 
-  // Parse payload
-  let payload: WebhookPayload;
+  let payload;
   try {
     payload = JSON.parse(rawBodyBuffer.toString('utf8'));
   } catch (err) {
@@ -85,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const event = payload?.event_type;
-  const payment = payload.data?.object as PaymentObject | undefined;
+  const payment = payload.data?.object;
 
   if (!event || !payment) {
     console.error('Invalid payload structure');
@@ -94,10 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   console.log(`Received ${event} event for payment: ${payment.id}`);
 
-  // Handle different event types
   switch (event) {
     case 'payment.created':
-      // Handle payment creation logic if needed
       console.log(`Payment created: ${payment.id}`);
       return res.status(200).json({ received: true });
 
@@ -110,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
-async function handlePaymentConfirmed(payment: PaymentObject, res: NextApiResponse) {
+async function handlePaymentConfirmed(payment, res) {
   if (payment.status !== 'paid') {
     console.log(`Payment ${payment.id} not in paid status`);
     return res.status(200).json({ received: true });
