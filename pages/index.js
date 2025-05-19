@@ -4,37 +4,28 @@ import { db } from '../lib/firebaseClient';
 
 const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
-// Utility functions
-const formatTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-const shorten = (str) => str?.length > 14 ? `${str.slice(0, 8)}…${str.slice(-6)}` : str || 'N/A';
-
-export default function PaymentInterface() {
-  const [form, setForm] = useState({ 
-    username: '', 
-    game: '', 
-    amount: '', 
-    method: 'lightning' 
-  });
+export default function Home() {
+  const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState({ state: 'idle', error: '' });
-  const [uiState, setUiState] = useState({
-    copied: false,
-    showInvoice: false,
-    showReceipt: false,
-    showExpired: false
-  });
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
 
-  // Load games on mount
+  // Fixed games loading useEffect
   useEffect(() => {
     const loadGames = async () => {
       try {
-        const snapshot = await db.collection('games').orderBy('name').get();
-        setGames(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } catch (error) {
-        console.error('Failed loading games:', error);
-        setStatus({ state: 'error', error: 'Failed to load games' });
+        const snap = await db.collection('games').orderBy('name').get();
+        setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))); // Fixed missing parenthesis
+      } catch (err) {
+        console.error('Error loading games:', err);
+        setError('Failed to load games');
       }
     };
     loadGames();
@@ -42,130 +33,140 @@ export default function PaymentInterface() {
 
   // Payment status polling
   useEffect(() => {
-    if (!order || status.state !== 'pending') return;
+    if (!order || status !== 'pending') return;
     
-    const pollInterval = setInterval(async () => {
+    const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/payments/${order.id}/status`);
-        const data = await response.json();
-        
-        if (data.status === 'paid') {
-          setStatus({ state: 'paid', error: '' });
-          setUiState(prev => ({ ...prev, showInvoice: false, showReceipt: true }));
-          clearInterval(pollInterval);
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
+        const data = await res.json();
+        if (data?.status === 'paid') {
+          setStatus('paid');
+          setOrder(prev => ({ ...prev, status: 'paid' }));
+          setShowInvoiceModal(false);
+          setShowReceiptModal(true);
+          clearInterval(interval);
         }
-      } catch (error) {
-        console.error('Polling error:', error);
+      } catch (err) {
+        console.error('Polling error:', err);
       }
     }, 2000);
+    return () => clearInterval(interval);
+  }, [order, status]);
 
-    return () => clearInterval(pollInterval);
-  }, [order, status.state]);
-
-  // Invoice expiration countdown
+  // Countdown timer
   useEffect(() => {
-    if (!uiState.showInvoice || !order?.expiresAt) return;
+    if (!showInvoiceModal || !order?.expiresAt) return;
 
-    const expirationTime = new Date(order.expiresAt).getTime();
+    const expiryTime = new Date(order.expiresAt).getTime();
     const timer = setInterval(() => {
-      const remaining = Math.floor((expirationTime - Date.now()) / 1000);
-      setCountdown(Math.max(0, remaining));
+      const now = Date.now();
+      const remainingSeconds = Math.max(0, Math.floor((expiryTime - now) / 1000));
+      setCountdown(remainingSeconds);
 
-      if (remaining <= 0) {
-        setUiState({ showInvoice: false, showExpired: true, showReceipt: false });
+      if (remainingSeconds <= 0) {
         clearInterval(timer);
+        setShowExpiredModal(true);
+        setShowInvoiceModal(false);
       }
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [uiState.showInvoice, order?.expiresAt]);
+  }, [showInvoiceModal, order?.expiresAt]);
 
-  const handlePaymentCreation = async (e) => {
+  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
+  const resetModals = () => {
+    setShowInvoiceModal(false);
+    setShowReceiptModal(false);
+    setShowExpiredModal(false);
+    setCopied(false);
+    setCountdown(600);
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(order?.invoice || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+      setError('Failed to copy invoice');
+    }
+  };
+
+  const shorten = str => str?.length > 14 ? `${str.slice(0, 8)}…${str.slice(-6)}` : str || 'N/A';
+
+  const handleSubmit = async e => {
     e.preventDefault();
-    setStatus({ state: 'loading', error: '' });
-    setUiState({ showInvoice: false, showReceipt: false, showExpired: false });
+    setLoading(true);
+    setError('');
+    resetModals();
 
     try {
-      const response = await fetch('/api/payments', {
+      const res = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Payment creation failed');
-      }
-
-      const paymentData = await response.json();
-      setOrder(paymentData);
-      setStatus({ state: 'pending', error: '' });
-      setUiState(prev => ({ ...prev, showInvoice: true }));
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Payment failed');
+      
+      setOrder({
+        ...data,
+        ...form,
+        created: new Date().toISOString(),
+        orderId: data.orderId || Date.now().toString(),
+      });
+      
+      setShowInvoiceModal(true);
+      setStatus('pending');
       setCountdown(600);
-    } catch (error) {
-      console.error('Payment error:', error);
-      setStatus({ state: 'error', error: error.message });
-    }
-  };
-
-  const copyInvoice = async () => {
-    try {
-      await navigator.clipboard.writeText(order.paymentRequest);
-      setUiState(prev => ({ ...prev, copied: true }));
-      setTimeout(() => setUiState(prev => ({ ...prev, copied: false })), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-      setStatus({ state: 'error', error: 'Failed to copy invoice' });
+    } catch (err) {
+      console.error('Payment error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="payment-container">
-      <div className="payment-card">
-        <h1 className="payment-header">🎣 Lucky Paw’s Fishing Room</h1>
-        
-        <form onSubmit={handlePaymentCreation}>
-          {/* Form fields */}
-          <div className="form-group">
+    <div className="container mt-lg">
+      <div className="card">
+        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
+        <div className="card-body">
+          <form onSubmit={handleSubmit}>
             <label>Username</label>
             <input
+              className="input"
               value={form.username}
-              onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+              onChange={e => setForm(prev => ({ ...prev, username: e.target.value }))}
               required
+              placeholder="Your username"
             />
-          </div>
 
-          {/* Game selection */}
-          <div className="form-group">
-            <label>Game</label>
+            <label>Select Game</label>
             <select
+              className="select"
               value={form.game}
-              onChange={(e) => setForm(prev => ({ ...prev, game: e.target.value }))}
+              onChange={e => setForm(prev => ({ ...prev, game: e.target.value }))}
               required
             >
-              <option value="">Select a game</option>
-              {games.map(game => (
-                <option key={game.id} value={game.id}>
-                  {game.name}
-                </option>
+              <option value="" disabled>Select Game</option>
+              {games.map(g => (
+                <option key={g.id} value={g.name}>{g.name}</option>
               ))}
             </select>
-          </div>
 
-          {/* Amount input */}
-          <div className="form-group">
             <label>Amount (USD)</label>
             <input
+              className="input"
               type="number"
-              min="1"
               value={form.amount}
-              onChange={(e) => setForm(prev => ({ ...prev, amount: e.target.value }))}
+              onChange={e => setForm(prev => ({ ...prev, amount: e.target.value }))}
               required
+              placeholder="Amount in USD"
             />
-          </div>
 
-          {/* Payment method */}
-          <div className="form-group">
             <label>Payment Method</label>
             <div className="radio-group">
               <label>
@@ -173,60 +174,69 @@ export default function PaymentInterface() {
                   type="radio"
                   value="lightning"
                   checked={form.method === 'lightning'}
-                  onChange={(e) => setForm(prev => ({ ...prev, method: e.target.value }))}
+                  onChange={e => setForm(prev => ({ ...prev, method: e.target.value })}
                 />
-                Lightning Network
+                Lightning
               </label>
             </div>
-          </div>
 
-          <button 
-            type="submit" 
-            disabled={status.state === 'loading'}
-            className="submit-button"
-          >
-            {status.state === 'loading' ? 'Processing...' : 'Create Payment'}
-          </button>
-        </form>
+            <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
+              {loading ? 'Generating…' : 'Generate Invoice'}
+            </button>
+          </form>
 
-        {status.state === 'error' && (
-          <div className="error-message">{status.error}</div>
-        )}
+          {error && <div className="alert alert-danger mt-md">{error}</div>}
+        </div>
       </div>
 
-      {/* Payment Modals */}
-      {uiState.showInvoice && order?.paymentRequest && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>Payment Request</h2>
-            <div className="qr-container">
-              <QRCode value={order.paymentRequest} size={200} />
-              <p className="timer">Expires in: {formatTime(countdown)}</p>
-              <button onClick={copyInvoice} className="copy-button">
-                {uiState.copied ? 'Copied!' : 'Copy Invoice'}
-              </button>
+      {showInvoiceModal && order?.invoice && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2 className="receipt-header">Send Payment</h2>
+            <div className="receipt-amounts">
+              <p className="usd-amount">${order.amount} USD</p>
+              <p className="btc-amount">{order.btc} BTC</p>
             </div>
+            <p className="text-center">
+              Expires in: <strong>{formatTime(countdown)}</strong>
+            </p>
+
+            <div className="qr-container mt-md">
+              <QRCode value={order.invoice} size={180} />
+              <p className="mt-sm qr-text">{order.invoice}</p>
+            </div>
+
+            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
+              {copied ? 'Copied!' : 'Copy Invoice'}
+            </button>
           </div>
         </div>
       )}
 
-      {uiState.showReceipt && (
-        <div className="modal">
-          <div className="modal-content success">
-            <h2>Payment Received! 🎉</h2>
+      {showExpiredModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>
+              ⚠️ Invoice Expired
+            </h2>
+            <button className="btn btn-primary mt-md" onClick={resetModals}>
+              Generate New
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReceiptModal && order && (
+        <div className="modal-overlay">
+          <div className="modal receipt-modal">
+            <h2 className="receipt-header">✅ Payment Received</h2>
             <div className="receipt-details">
               <p>Amount: ${order.amount} USD</p>
-              <p>Transaction ID: {shorten(order.id)}</p>
+              <p>Transaction ID: {shorten(order.orderId)}</p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {uiState.showExpired && (
-        <div className="modal">
-          <div className="modal-content warning">
-            <h2>Invoice Expired ⚠️</h2>
-            <p>Please generate a new payment request.</p>
+            <button className="btn btn-primary mt-md" onClick={resetModals}>
+              Done
+            </button>
           </div>
         </div>
       )}
