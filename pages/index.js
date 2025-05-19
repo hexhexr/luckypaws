@@ -1,8 +1,8 @@
+// ✅ FIXED index.js with full Firebase + Speed integration
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
-// Dynamically import the QRCode component so SSR doesn’t crash
 const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
@@ -18,7 +18,6 @@ export default function Home() {
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
 
-  // Load games from Firestore on mount
   useEffect(() => {
     const loadGames = async () => {
       try {
@@ -32,7 +31,6 @@ export default function Home() {
     loadGames();
   }, []);
 
-  // Poll payment status if order is pending
   useEffect(() => {
     if (!order || status !== 'pending') return;
     const interval = setInterval(async () => {
@@ -53,7 +51,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [order, status]);
 
-  // Countdown for invoice expiration
   useEffect(() => {
     if (!showInvoiceModal) return;
     const timer = setInterval(() => {
@@ -70,14 +67,12 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [showInvoiceModal]);
 
-  // Format seconds as MM:SS
   const formatTime = sec => {
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
     return `${min}:${s}`;
   };
 
-  // Reset all modal states + clear "copied"
   const resetModals = () => {
     setShowInvoiceModal(false);
     setShowReceiptModal(false);
@@ -85,7 +80,6 @@ export default function Home() {
     setCopied(false);
   };
 
-  // Copy invoice text to clipboard
   const copyToClipboard = () => {
     const text = order?.invoice || '';
     if (!text) {
@@ -97,14 +91,12 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Shorten a long invoice string for display
   const shorten = str => {
     if (!str) return 'N/A';
     if (str.length <= 14) return str;
     return `${str.slice(0, 8)}…${str.slice(-6)}`;
   };
 
-  // Handle form submission -> create payment
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -121,12 +113,14 @@ export default function Home() {
       if (!res.ok) throw new Error(data.message || 'Payment failed');
       if (!data.invoice) throw new Error('Invoice not generated');
 
-      setOrder({
-        ...data,
+      const orderPayload = {
         ...form,
+        ...data,
         created: new Date().toISOString(),
-        orderId: data.orderId || Date.now().toString(),
-      });
+        orderId: data.orderId,
+      };
+
+      setOrder(orderPayload);
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
@@ -138,7 +132,6 @@ export default function Home() {
     }
   };
 
-  // Render the invoice modal (with QR code)
   const renderInvoiceModal = () => {
     if (!order) return null;
     const qrValue = order.invoice || '';
