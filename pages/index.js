@@ -2,7 +2,22 @@ import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
-const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
+const SafeQRCode = dynamic(
+  () =>
+    import('qrcode.react')
+      .then(mod => mod.default)
+      .catch(() => () => <div>⚠️ Failed to load QR Code</div>),
+  { ssr: false }
+);
+
+function ErrorBoundary({ children }) {
+  try {
+    return children;
+  } catch (err) {
+    console.error('Render error:', err);
+    return <div className="alert alert-danger">Something went wrong.</div>;
+  }
+}
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -38,7 +53,6 @@ export default function Home() {
       try {
         const res = await fetch(`/api/check-status?id=${order.orderId}`);
         const data = await res.json();
-
         if (data?.status === 'paid') {
           setStatus('paid');
           setOrder(prev => ({ ...prev, status: 'paid' }));
@@ -154,7 +168,7 @@ export default function Home() {
 
           {isLightningInvoice(qrValue) ? (
             <div className="qr-container mt-md">
-              <QRCode value={qrValue} size={180} />
+              <SafeQRCode value={qrValue} size={180} />
               <p className="mt-sm qr-text">{qrValue}</p>
             </div>
           ) : (
@@ -226,7 +240,11 @@ export default function Home() {
         </div>
       </div>
 
-      {modals.invoice && renderInvoiceModal()}
+      {modals.invoice && (
+        <ErrorBoundary>
+          {renderInvoiceModal()}
+        </ErrorBoundary>
+      )}
 
       {modals.expired && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
