@@ -38,16 +38,15 @@ export default async function handler(req, res) {
     // Validate Speed API response
     if (
       !payment.id ||
-      (!payment.payment_method_options?.lightning?.payment_request &&
-        !payment.payment_method_options?.on_chain?.address)
+      !payment.payment_method_options?.lightning?.payment_request
     ) {
       return res.status(500).json({ message: 'Invalid response from Speed API', payment });
     }
 
-    const invoice = payment.payment_method_options.lightning?.payment_request || null;
-    const address = payment.payment_method_options.on_chain?.address || null;
+    // Lightning invoice from Speed API
+    const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // Calculate BTC amount (convert sats if provided, else fallback via CoinGecko)
+    // BTC calculation (use sats if available, fallback to CoinGecko)
     let btc = '0.00000000';
     const sats = payment.amount_in_satoshis || 0;
 
@@ -66,7 +65,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Save a new order in Firestore with status "pending"
+    // Save order with invoice for frontend QR code
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -75,13 +74,13 @@ export default async function handler(req, res) {
       btc,
       method,
       status: 'pending',
-      invoice,
-      address,
+      invoice, // IMPORTANT: raw Lightning invoice string here
       created: new Date().toISOString(),
       paidManually: false,
     });
 
-    return res.status(200).json({ orderId: payment.id, invoice, address, btc });
+    // Return invoice and orderId for frontend
+    return res.status(200).json({ orderId: payment.id, invoice, btc });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });
