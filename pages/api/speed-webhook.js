@@ -7,8 +7,11 @@ export const config = { api: { bodyParser: false } };
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const secret = process.env.SPEED_WEBHOOK_SECRET;
-  if (!secret) return res.status(500).json({ error: 'Missing webhook secret' });
+  const secretEnv = process.env.SPEED_WEBHOOK_SECRET;
+  if (!secretEnv) return res.status(500).json({ error: 'Missing webhook secret' });
+
+  // Remove 'wsec_' prefix and decode base64 secret
+  const secret = Buffer.from(secretEnv.replace(/^wsec_/, ''), 'base64');
 
   let rawBody;
   try {
@@ -18,17 +21,43 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to read body' });
   }
 
+  // Required headers from TrySpeed webhook
   const headerSig = req.headers['webhook-signature'];
-  if (!headerSig?.startsWith('v1,')) return res.status(400).json({ error: 'Invalid signature header' });
+  const webhookId = req.headers['webhook-id'];
+  const webhookTimestamp = req.headers['webhook-timestamp'];
+
+  if (!headerSig || !webhookId || !webhookTimestamp) {
+    return res.status(400).json({ error: 'Missing required webhook headers' });
+  }
+
+  // Signature is expected to be like: v1,<base64signature>
+  if (!headerSig.startsWith('v1,')) {
+    return res.status(400).json({ error: 'Invalid signature header format' });
+  }
 
   const receivedSig = headerSig.split(',')[1].trim();
-  const computedSig = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
 
-  if (computedSig !== receivedSig) {
+  // Construct the signed payload string
+  const signedPayload = `${webhookId}.${webhookTimestamp}.${rawBody}`;
+
+  // Compute expected signature
+  const computedSig = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('base64');
+
+  // Timing safe compare
+  const receivedSigBuffer = Buffer.from(receivedSig, 'base64');
+  const computedSigBuffer = Buffer.from(computedSig, 'base64');
+  if (
+    receivedSigBuffer.length !== computedSigBuffer.length ||
+    !crypto.timingSafeEqual(receivedSigBuffer, computedSigBuffer)
+  ) {
     console.error('❌ Invalid signature');
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
+  // Parse payload JSON
   let payload;
   try {
     payload = JSON.parse(rawBody);
@@ -36,6 +65,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
+  // Handle your business logic
   const payment = payload?.data?.object;
   const orderId = payment?.id;
 
@@ -55,5 +85,6 @@ export default async function handler(req, res) {
     }
   }
 
+  // Acknowledge receipt for other events or if conditions don't match
   return res.status(200).json({ received: true });
 }
