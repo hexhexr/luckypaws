@@ -1,7 +1,8 @@
 /* ============================
-   ✅ Enhanced Cash App–style Theme 
+   ✅ Enhanced Cash App–Style Theme 
    ============================ */
 
+/* Global Styles */
 body {
   margin: 0;
   font-family: 'Segoe UI', sans-serif;
@@ -15,6 +16,7 @@ body {
   padding: 1rem;
 }
 
+/* Card Layout */
 .card {
   background: #fff;
   border-radius: 16px;
@@ -29,6 +31,7 @@ body {
   color: #00c853;
 }
 
+/* Input & Select */
 .input,
 .select {
   width: 100%;
@@ -46,12 +49,14 @@ body {
   outline: none;
 }
 
+/* Radio Button Group */
 .radio-group {
   display: flex;
   gap: 1.5rem;
   margin-top: 0.5rem;
 }
 
+/* Buttons */
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -77,6 +82,7 @@ body {
   color: white;
 }
 
+/* Alerts */
 .alert {
   padding: 1rem;
   border-radius: 8px;
@@ -92,7 +98,7 @@ body {
   color: #8a6d3b;
 }
 
-/* Modal Styles */
+/* Modals */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -117,6 +123,7 @@ body {
   text-align: center;
 }
 
+/* Receipt Modal */
 .receipt-modal {
   padding: 2rem;
   background: #ffffff;
@@ -165,6 +172,7 @@ body {
   color: #444;
 }
 
+/* Scrollable Text Box */
 .scroll-box {
   background: #f5f5f5;
   padding: 0.75rem;
@@ -174,11 +182,34 @@ body {
   margin-top: 0.5rem;
 }
 
+/* Short Invoice Box */
 .short-invoice {
   text-align: center;
   background: #f1f8e9;
+  padding: 0.5rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: #33691e;
 }
 
+/* QR Code Section */
+.qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.qr-text {
+  font-size: 0.8rem;
+  word-break: break-word;
+  text-align: center;
+  margin-top: 0.5rem;
+  color: #555;
+}
+
+/* Utility Classes */
 .text-center {
   text-align: center;
 }
@@ -201,21 +232,3 @@ body {
     transform: scale(1);
   }
 }
-
-/* QR code container styles */
-.qr-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 1rem;
-}
-
-.qr-text {
-  font-size: 0.8rem;
-  word-break: break-word;
-  text-align: center;
-  margin-top: 0.5rem;
-  color: #555;
-}
-
-/* (The rest of your existing styles remain unchanged) */

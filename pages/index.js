@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
@@ -16,13 +16,14 @@ export default function Home() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
+  const errorRef = useRef(null);
 
-  // Fixed games loading useEffect
+  // Load games from Firebase
   useEffect(() => {
     const loadGames = async () => {
       try {
         const snap = await db.collection('games').orderBy('name').get();
-        setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))); // Fixed missing parenthesis
+        setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
         console.error('Error loading games:', err);
         setError('Failed to load games');
@@ -31,10 +32,10 @@ export default function Home() {
     loadGames();
   }, []);
 
-  // Payment status polling
+  // Payment polling
   useEffect(() => {
     if (!order || status !== 'pending') return;
-    
+
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/check-status?id=${order.orderId}`);
@@ -50,10 +51,11 @@ export default function Home() {
         console.error('Polling error:', err);
       }
     }, 2000);
+
     return () => clearInterval(interval);
   }, [order, status]);
 
-  // Countdown timer
+  // Countdown
   useEffect(() => {
     if (!showInvoiceModal || !order?.expiresAt) return;
 
@@ -69,6 +71,7 @@ export default function Home() {
         setShowInvoiceModal(false);
       }
     }, 1000);
+
     return () => clearInterval(timer);
   }, [showInvoiceModal, order?.expiresAt]);
 
@@ -80,6 +83,7 @@ export default function Home() {
     setShowExpiredModal(false);
     setCopied(false);
     setCountdown(600);
+    setForm({ username: '', game: '', amount: '', method: 'lightning' });
   };
 
   const copyToClipboard = async () => {
@@ -107,23 +111,26 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Payment failed');
-      
+
       setOrder({
         ...data,
         ...form,
         created: new Date().toISOString(),
         orderId: data.orderId || Date.now().toString(),
       });
-      
+
       setShowInvoiceModal(true);
       setStatus('pending');
       setCountdown(600);
     } catch (err) {
       console.error('Payment error:', err);
       setError(err.message);
+      if (errorRef.current) {
+        errorRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     } finally {
       setLoading(false);
     }
@@ -131,12 +138,13 @@ export default function Home() {
 
   return (
     <div className="container mt-lg">
-      <div className="card">
+      <div className={`card ${loading ? 'form-disabled' : ''}`}>
         <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
         <div className="card-body">
           <form onSubmit={handleSubmit}>
-            <label>Username</label>
+            <label htmlFor="username">Username</label>
             <input
+              id="username"
               className="input"
               value={form.username}
               onChange={e => setForm(prev => ({ ...prev, username: e.target.value }))}
@@ -144,8 +152,9 @@ export default function Home() {
               placeholder="Your username"
             />
 
-            <label>Select Game</label>
+            <label htmlFor="game">Select Game</label>
             <select
+              id="game"
               className="select"
               value={form.game}
               onChange={e => setForm(prev => ({ ...prev, game: e.target.value }))}
@@ -157,14 +166,17 @@ export default function Home() {
               ))}
             </select>
 
-            <label>Amount (USD)</label>
+            <label htmlFor="amount">Amount (USD)</label>
             <input
+              id="amount"
               className="input"
               type="number"
               value={form.amount}
               onChange={e => setForm(prev => ({ ...prev, amount: e.target.value }))}
               required
               placeholder="Amount in USD"
+              min="0.01"
+              step="0.01"
             />
 
             <label>Payment Method</label>
@@ -172,29 +184,35 @@ export default function Home() {
               <label>
                 <input
                   type="radio"
+                  name="method"
                   value="lightning"
                   checked={form.method === 'lightning'}
-                  onChange={e => setForm(prev => ({ ...prev, method: e.target.value })}
+                  onChange={e => setForm(prev => ({ ...prev, method: e.target.value }))}
                 />
                 Lightning
               </label>
             </div>
 
-            <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
+            <button className="btn btn-primary mt-md" type="submit" disabled={loading || !form.game}>
               {loading ? 'Generating…' : 'Generate Invoice'}
             </button>
           </form>
 
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
+          {error && (
+            <div ref={errorRef} className="alert alert-danger mt-md">
+              {error}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Invoice Modal */}
       {showInvoiceModal && order?.invoice && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="receipt-header">Send Payment</h2>
             <div className="receipt-amounts">
-              <p className="usd-amount">${order.amount} USD</p>
+              <p className="usd-amount">${parseFloat(order.amount).toLocaleString()}</p>
               <p className="btc-amount">{order.btc} BTC</p>
             </div>
             <p className="text-center">
@@ -203,7 +221,7 @@ export default function Home() {
 
             <div className="qr-container mt-md">
               <QRCode value={order.invoice} size={180} />
-              <p className="mt-sm qr-text">{order.invoice}</p>
+              <p className="mt-sm qr-text">{shorten(order.invoice)}</p>
             </div>
 
             <button className="btn btn-success mt-md" onClick={copyToClipboard}>
@@ -213,6 +231,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Expired Modal */}
       {showExpiredModal && (
         <div className="modal-overlay">
           <div className="modal">
@@ -226,12 +245,14 @@ export default function Home() {
         </div>
       )}
 
+      {/* Receipt Modal */}
       {showReceiptModal && order && (
         <div className="modal-overlay">
           <div className="modal receipt-modal">
             <h2 className="receipt-header">✅ Payment Received</h2>
             <div className="receipt-details">
-              <p>Amount: ${order.amount} USD</p>
+              <p>Amount: ${parseFloat(order.amount).toLocaleString()}</p>
+              <p>BTC: {order.btc} BTC</p>
               <p>Transaction ID: {shorten(order.orderId)}</p>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetModals}>
