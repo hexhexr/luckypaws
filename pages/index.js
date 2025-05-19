@@ -18,7 +18,6 @@ export default function Home() {
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
 
-  // Load game list
   useEffect(() => {
     const loadGames = async () => {
       try {
@@ -32,7 +31,6 @@ export default function Home() {
     loadGames();
   }, []);
 
-  // Polling
   useEffect(() => {
     if (!order || status !== 'pending') return;
 
@@ -55,7 +53,6 @@ export default function Home() {
     return () => clearInterval(pollingRef.current);
   }, [order, status]);
 
-  // Countdown Timer
   useEffect(() => {
     if (!modals.invoice) return;
 
@@ -99,6 +96,10 @@ export default function Home() {
     });
   };
 
+  const isLightningInvoice = value => {
+    return typeof value === 'string' && /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
+  };
+
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -113,7 +114,7 @@ export default function Home() {
       });
       const data = await res.json();
 
-      if (!res.ok || !data.invoice) throw new Error(data.message || 'Invoice error');
+      if (!res.ok || !data.invoice) throw new Error(data.message || 'Invoice generation failed');
 
       const newOrder = {
         ...form,
@@ -128,7 +129,7 @@ export default function Home() {
       setModals({ invoice: true, receipt: false, expired: false });
     } catch (err) {
       console.error(err);
-      setError(err.message);
+      setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -150,14 +151,16 @@ export default function Home() {
             <p className="btc-amount">{order.btc ?? '0.00000000'} BTC</p>
           </div>
           <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
-          {qrValue ? (
+
+          {isLightningInvoice(qrValue) ? (
             <div className="qr-container mt-md">
               <QRCode value={qrValue} size={180} />
               <p className="mt-sm qr-text">{qrValue}</p>
             </div>
           ) : (
-            <p className="alert alert-warning">Invoice not available</p>
+            <p className="alert alert-warning">⚠️ Invalid Lightning invoice</p>
           )}
+
           <button className="btn btn-success mt-md" onClick={copyToClipboard}>
             {copied ? 'Copied!' : 'Copy Invoice'}
           </button>
