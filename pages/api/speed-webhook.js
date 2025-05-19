@@ -27,23 +27,40 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to read request body' });
   }
 
-  const headerSig = req.headers['webhook-signature'];
-  if (typeof headerSig !== 'string' || !headerSig.startsWith('v1,')) {
+  // Try multiple common header keys just in case
+  const headerSig =
+    req.headers['webhook-signature'] ||
+    req.headers['x-webhook-signature'] ||
+    req.headers['x-speed-signature'];
+
+  if (!headerSig || typeof headerSig !== 'string' || !headerSig.startsWith('v1,')) {
+    console.error('Invalid or missing signature header:', headerSig);
     return res.status(400).json({ error: 'Invalid signature header format' });
   }
 
   const receivedSig = headerSig.split(',')[1]?.trim();
   if (!receivedSig) {
+    console.error('Signature not found in header:', headerSig);
     return res.status(400).json({ error: 'Missing signature in header' });
   }
 
+  // Compute base64 HMAC signature of raw body
   const computedSig = crypto
     .createHmac('sha256', secret)
     .update(rawBodyBuffer)
     .digest('base64');
 
-  if (!crypto.timingSafeEqual(Buffer.from(computedSig), Buffer.from(receivedSig))) {
-    console.error('Signature mismatch');
+  console.log('Received Signature:', receivedSig);
+  console.log('Computed Signature:', computedSig);
+
+  const valid =
+    crypto.timingSafeEqual(
+      Buffer.from(computedSig),
+      Buffer.from(receivedSig)
+    );
+
+  if (!valid) {
+    console.error('⚠️ Signature mismatch – webhook rejected');
     return res.status(400).json({ error: 'Invalid webhook signature' });
   }
 
@@ -51,44 +68,35 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBodyBuffer.toString('utf8'));
   } catch (err) {
-    console.error('Error parsing JSON payload:', err);
+    console.error('Error parsing JSON:', err);
     return res.status(400).json({ error: 'Invalid JSON payload' });
   }
 
   const event = payload?.event_type;
-  const payment = payload.data?.object;
+  const payment = payload?.data?.object;
 
   if (!event || !payment) {
-    console.error('Invalid payload structure');
     return res.status(400).json({ error: 'Invalid payload structure' });
   }
 
-  console.log(`Received ${event} event for payment: ${payment.id}`);
+  console.log(`✅ Received ${event} for ${payment.id}`);
 
-  switch (event) {
-    case 'payment.created':
-      console.log(`Payment created: ${payment.id}`);
-      return res.status(200).json({ received: true });
-
-    case 'payment.confirmed':
-      return handlePaymentConfirmed(payment, res);
-
-    default:
-      console.log(`Unhandled event type: ${event}`);
-      return res.status(200).json({ received: true });
+  if (event === 'payment.confirmed') {
+    return handlePaymentConfirmed(payment, res);
   }
+
+  return res.status(200).json({ received: true });
 }
 
 async function handlePaymentConfirmed(payment, res) {
   if (payment.status !== 'paid') {
-    console.log(`Payment ${payment.id} not in paid status`);
+    console.warn(`Payment ${payment.id} is not paid`);
     return res.status(200).json({ received: true });
   }
 
-  const orderId = payment.metadata?.orderId;
+  const orderId = payment.metadata?.orderId || payment.id;
   if (!orderId) {
-    console.error('Payment confirmed event missing orderId');
-    return res.status(400).json({ error: 'Missing orderId in metadata' });
+    return res.status(400).json({ error: 'Missing order ID in metadata' });
   }
 
   try {
@@ -96,14 +104,12 @@ async function handlePaymentConfirmed(payment, res) {
     const doc = await orderRef.get();
 
     if (!doc.exists) {
-      console.warn(`Order not found: ${orderId}`);
-      return res.status(404).json({ error: `Order not found: ${orderId}` });
+      return res.status(404).json({ error: 'Order not found' });
     }
 
-    const currentStatus = doc.data()?.status;
+    const currentStatus = doc.data().status;
     if (currentStatus === 'paid') {
-      console.log(`Order ${orderId} already marked as paid`);
-      return res.status(200).json({ success: true, orderId });
+      return res.status(200).json({ message: 'Already marked as paid' });
     }
 
     await orderRef.update({
@@ -113,11 +119,11 @@ async function handlePaymentConfirmed(payment, res) {
       updatedAt: new Date().toISOString(),
     });
 
-    console.log(`Updated order ${orderId} to paid status`);
+    console.log(`✅ Order ${orderId} marked as paid`);
     return res.status(200).json({ success: true, orderId });
 
   } catch (err) {
-    console.error('Firebase update error:', err);
-    return res.status(500).json({ error: 'Failed to update order status' });
+    console.error('❌ Firebase update error:', err);
+    return res.status(500).json({ error: 'Failed to update order' });
   }
 }

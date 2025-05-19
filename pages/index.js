@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
-// Correct dynamic import to get named export QRCode
-const QRCode = dynamic(() => import('qrcode.react').then(mod => mod.QRCode), { ssr: false });
+// ✅ Correct dynamic import of QRCode
+const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -18,7 +18,7 @@ export default function Home() {
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const [countdown, setCountdown] = useState(600);
 
-  // Load games from Firebase once
+  // 🔄 Load games on mount
   useEffect(() => {
     const loadGames = async () => {
       try {
@@ -32,7 +32,7 @@ export default function Home() {
     loadGames();
   }, []);
 
-  // Poll payment status every 2 seconds if order is pending
+  // 🔁 Poll order status
   useEffect(() => {
     if (!order || status !== 'pending') return;
 
@@ -55,7 +55,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [order, status]);
 
-  // Countdown timer for invoice expiration
+  // ⏳ Countdown expiration
   useEffect(() => {
     if (!showInvoiceModal || !order?.expiresAt) return;
 
@@ -118,7 +118,7 @@ export default function Home() {
         ...data,
         ...form,
         created: new Date().toISOString(),
-        orderId: data.orderId || Date.now().toString(),
+        orderId: data.orderId,
       });
 
       setShowInvoiceModal(true);
@@ -154,9 +154,7 @@ export default function Home() {
               onChange={e => setForm(prev => ({ ...prev, game: e.target.value }))}
               required
             >
-              <option value="" disabled>
-                Select Game
-              </option>
+              <option value="" disabled>Select Game</option>
               {games.map(g => (
                 <option key={g.id} value={g.name}>
                   {g.name}
@@ -196,23 +194,22 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Invoice Modal */}
       {showInvoiceModal && order?.invoice && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="receipt-header">Send Payment</h2>
             <div className="receipt-amounts">
               <p className="usd-amount">${order.amount} USD</p>
-              <p className="btc-amount">{order.btc} BTC</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
             </div>
             <p className="text-center">
               Expires in: <strong>{formatTime(countdown)}</strong>
             </p>
-
             <div className="qr-container mt-md">
               <QRCode value={order.invoice} size={180} />
               <p className="mt-sm qr-text">{order.invoice}</p>
             </div>
-
             <button className="btn btn-success mt-md" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy Invoice'}
             </button>
@@ -220,12 +217,14 @@ export default function Home() {
         </div>
       )}
 
+      {/* Expired Modal */}
       {showExpiredModal && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="receipt-header" style={{ color: '#d32f2f' }}>
               ⚠️ Invoice Expired
             </h2>
+            <p>The invoice has expired. Please generate a new one.</p>
             <button className="btn btn-primary mt-md" onClick={resetModals}>
               Generate New
             </button>
@@ -233,13 +232,21 @@ export default function Home() {
         </div>
       )}
 
+      {/* Receipt Modal */}
       {showReceiptModal && order && (
         <div className="modal-overlay">
           <div className="modal receipt-modal">
             <h2 className="receipt-header">✅ Payment Received</h2>
+            <div className="receipt-amounts">
+              <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
+              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
+            </div>
             <div className="receipt-details">
-              <p>Amount: ${order.amount} USD</p>
-              <p>Transaction ID: {shorten(order.orderId)}</p>
+              <p><strong>Username:</strong> {order.username}</p>
+              <p><strong>Game:</strong> {order.game}</p>
+              <p><strong>Order ID:</strong> {order.orderId}</p>
+              <p><strong>Short Invoice:</strong></p>
+              <div className="scroll-box short-invoice">{shorten(order.invoice)}</div>
             </div>
             <button className="btn btn-primary mt-md" onClick={resetModals}>
               Done

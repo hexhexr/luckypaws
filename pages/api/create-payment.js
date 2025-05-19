@@ -60,6 +60,8 @@ export default async function handler(req, res) {
       }
     }
 
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins from now
+
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -70,11 +72,18 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice,
       address,
+      expiresAt,
       created: new Date().toISOString(),
       paidManually: false,
     });
 
-    return res.status(200).json({ orderId: payment.id, invoice, address, btc });
+    return res.status(200).json({
+      orderId: payment.id,
+      invoice,
+      address,
+      btc,
+      expiresAt
+    });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });
