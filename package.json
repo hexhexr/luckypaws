@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "cookie": "^1.0.2",
+    "crypto": "^1.0.1",
     "crypto-js": "^4.1.1",
     "firebase": "^11.7.3",
     "firebase-admin": "^13.4.0",
