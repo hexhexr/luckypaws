@@ -17,6 +17,12 @@ export default async function handler(req, res) {
     currency: 'USD',
     success_url: 'https://luckypaw.vercel.app/receipt',
     cancel_url: 'https://luckypaw.vercel.app',
+    metadata: {
+      username,
+      game,
+      amount
+    },
+    description: `🎮 ${game} | 👤 ${username} | 💰 $${amount}`
   };
 
   try {
@@ -33,34 +39,18 @@ export default async function handler(req, res) {
 
     const payment = await response.json();
 
-    if (
-      !payment.id ||
-      (!payment.payment_method_options?.lightning?.payment_request &&
-       !payment.payment_method_options?.on_chain?.address)
-    ) {
+    if (!payment.id || !payment.hosted_checkout_url) {
       return res.status(500).json({ message: 'Invalid response from Speed API', payment });
     }
-
-    const invoice = payment.payment_method_options?.lightning?.payment_request || null;
-    const address = payment.payment_method_options?.on_chain?.address || null;
 
     let btc = '0.00000000';
     const sats = payment.amount_in_satoshis || 0;
 
     if (sats > 0) {
       btc = (sats / 100000000).toFixed(8);
-    } else {
-      try {
-        const btcRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-        const btcData = await btcRes.json();
-        const rate = btcData.bitcoin.usd;
-        if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
-      } catch (e) {
-        console.error('CoinGecko BTC fallback failed:', e);
-      }
     }
 
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
 
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
@@ -70,20 +60,19 @@ export default async function handler(req, res) {
       btc,
       method,
       status: 'pending',
-      invoice,
-      address,
-      expiresAt,
+      hostedUrl: payment.hosted_checkout_url,
       created: new Date().toISOString(),
+      expiresAt,
       paidManually: false,
     });
 
     return res.status(200).json({
       orderId: payment.id,
-      invoice,
-      address,
+      hostedUrl: payment.hosted_checkout_url,
       btc,
       expiresAt
     });
+
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });

@@ -27,40 +27,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to read request body' });
   }
 
-  // Try multiple common header keys just in case
-  const headerSig =
-    req.headers['webhook-signature'] ||
-    req.headers['x-webhook-signature'] ||
-    req.headers['x-speed-signature'];
-
+  const headerSig = req.headers['webhook-signature'];
   if (!headerSig || typeof headerSig !== 'string' || !headerSig.startsWith('v1,')) {
-    console.error('Invalid or missing signature header:', headerSig);
-    return res.status(400).json({ error: 'Invalid signature header format' });
+    return res.status(400).json({ error: 'Invalid signature header' });
   }
 
   const receivedSig = headerSig.split(',')[1]?.trim();
-  if (!receivedSig) {
-    console.error('Signature not found in header:', headerSig);
-    return res.status(400).json({ error: 'Missing signature in header' });
-  }
-
-  // Compute base64 HMAC signature of raw body
   const computedSig = crypto
     .createHmac('sha256', secret)
     .update(rawBodyBuffer)
     .digest('base64');
 
-  console.log('Received Signature:', receivedSig);
-  console.log('Computed Signature:', computedSig);
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(computedSig),
+    Buffer.from(receivedSig)
+  );
 
-  const valid =
-    crypto.timingSafeEqual(
-      Buffer.from(computedSig),
-      Buffer.from(receivedSig)
-    );
-
-  if (!valid) {
-    console.error('⚠️ Signature mismatch – webhook rejected');
+  if (!isValid) {
+    console.error('❌ Webhook signature mismatch');
     return res.status(400).json({ error: 'Invalid webhook signature' });
   }
 
@@ -68,18 +52,18 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBodyBuffer.toString('utf8'));
   } catch (err) {
-    console.error('Error parsing JSON:', err);
-    return res.status(400).json({ error: 'Invalid JSON payload' });
+    console.error('Invalid JSON payload:', err);
+    return res.status(400).json({ error: 'Invalid JSON' });
   }
 
   const event = payload?.event_type;
   const payment = payload?.data?.object;
 
   if (!event || !payment) {
-    return res.status(400).json({ error: 'Invalid payload structure' });
+    return res.status(400).json({ error: 'Invalid webhook structure' });
   }
 
-  console.log(`✅ Received ${event} for ${payment.id}`);
+  console.log(`✅ Received event: ${event} for payment ID: ${payment.id}`);
 
   if (event === 'payment.confirmed') {
     return handlePaymentConfirmed(payment, res);
@@ -90,40 +74,45 @@ export default async function handler(req, res) {
 
 async function handlePaymentConfirmed(payment, res) {
   if (payment.status !== 'paid') {
-    console.warn(`Payment ${payment.id} is not paid`);
+    console.log(`Ignored non-paid payment: ${payment.id}`);
     return res.status(200).json({ received: true });
   }
 
   const orderId = payment.metadata?.orderId || payment.id;
-  if (!orderId) {
-    return res.status(400).json({ error: 'Missing order ID in metadata' });
-  }
+  const username = payment.metadata?.username || 'N/A';
+  const game = payment.metadata?.game || 'N/A';
+  const amount = payment.metadata?.amount || 'N/A';
 
   try {
     const orderRef = db.collection('orders').doc(orderId);
     const doc = await orderRef.get();
 
     if (!doc.exists) {
-      return res.status(404).json({ error: 'Order not found' });
+      console.warn(`Order not found: ${orderId}`);
+      return res.status(404).json({ error: `Order not found: ${orderId}` });
     }
 
-    const currentStatus = doc.data().status;
+    const currentStatus = doc.data()?.status;
     if (currentStatus === 'paid') {
-      return res.status(200).json({ message: 'Already marked as paid' });
+      console.log(`Order ${orderId} already marked as paid`);
+      return res.status(200).json({ success: true, orderId });
     }
 
     await orderRef.update({
       status: 'paid',
       paidAt: new Date().toISOString(),
-      paymentId: payment.id,
       updatedAt: new Date().toISOString(),
+      paymentId: payment.id,
+      username,
+      game,
+      amount,
     });
 
-    console.log(`✅ Order ${orderId} marked as paid`);
+    console.log(`✅ Updated order ${orderId} to paid with user ${username}, game ${game}`);
     return res.status(200).json({ success: true, orderId });
 
   } catch (err) {
-    console.error('❌ Firebase update error:', err);
-    return res.status(500).json({ error: 'Failed to update order' });
+    console.error('❌ Failed to update Firebase order:', err);
+    return res.status(500).json({ error: 'Internal error while updating payment' });
   }
 }

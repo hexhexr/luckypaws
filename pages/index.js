@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
-
-// ✅ Correct dynamic import of QRCode
-const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -12,13 +8,9 @@ export default function Home() {
   const [order, setOrder] = useState(null);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showRedirectModal, setShowRedirectModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [showExpiredModal, setShowExpiredModal] = useState(false);
-  const [countdown, setCountdown] = useState(600);
 
-  // 🔄 Load games on mount
   useEffect(() => {
     const loadGames = async () => {
       try {
@@ -32,7 +24,6 @@ export default function Home() {
     loadGames();
   }, []);
 
-  // 🔁 Poll order status
   useEffect(() => {
     if (!order || status !== 'pending') return;
 
@@ -42,8 +33,7 @@ export default function Home() {
         const data = await res.json();
         if (data?.status === 'paid') {
           setStatus('paid');
-          setOrder(prev => ({ ...prev, status: 'paid' }));
-          setShowInvoiceModal(false);
+          setShowRedirectModal(false);
           setShowReceiptModal(true);
           clearInterval(interval);
         }
@@ -55,54 +45,12 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [order, status]);
 
-  // ⏳ Countdown expiration
-  useEffect(() => {
-    if (!showInvoiceModal || !order?.expiresAt) return;
-
-    const expiryTime = new Date(order.expiresAt).getTime();
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const remainingSeconds = Math.max(0, Math.floor((expiryTime - now) / 1000));
-      setCountdown(remainingSeconds);
-
-      if (remainingSeconds <= 0) {
-        clearInterval(timer);
-        setShowExpiredModal(true);
-        setShowInvoiceModal(false);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [showInvoiceModal, order?.expiresAt]);
-
-  const formatTime = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-
-  const resetModals = () => {
-    setShowInvoiceModal(false);
-    setShowReceiptModal(false);
-    setShowExpiredModal(false);
-    setCopied(false);
-    setCountdown(600);
-  };
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(order?.invoice || '');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Copy failed:', err);
-      setError('Failed to copy invoice');
-    }
-  };
-
-  const shorten = str => (str?.length > 14 ? `${str.slice(0, 8)}…${str.slice(-6)}` : str || 'N/A');
-
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    resetModals();
+    setShowReceiptModal(false);
+    setShowRedirectModal(false);
 
     try {
       const res = await fetch('/api/create-payment', {
@@ -118,12 +66,10 @@ export default function Home() {
         ...data,
         ...form,
         created: new Date().toISOString(),
-        orderId: data.orderId,
       });
 
-      setShowInvoiceModal(true);
       setStatus('pending');
-      setCountdown(600);
+      setShowRedirectModal(true);
     } catch (err) {
       console.error('Payment error:', err);
       setError(err.message);
@@ -131,6 +77,17 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const resetAll = () => {
+    setForm({ username: '', game: '', amount: '', method: 'lightning' });
+    setOrder(null);
+    setStatus('idle');
+    setShowReceiptModal(false);
+    setShowRedirectModal(false);
+    setError('');
+  };
+
+  const shorten = str => (str?.length > 14 ? `${str.slice(0, 8)}…${str.slice(-6)}` : str || 'N/A');
 
   return (
     <div className="container mt-lg">
@@ -156,9 +113,7 @@ export default function Home() {
             >
               <option value="" disabled>Select Game</option>
               {games.map(g => (
-                <option key={g.id} value={g.name}>
-                  {g.name}
-                </option>
+                <option key={g.id} value={g.name}>{g.name}</option>
               ))}
             </select>
 
@@ -186,7 +141,7 @@ export default function Home() {
             </div>
 
             <button className="btn btn-primary mt-md" type="submit" disabled={loading}>
-              {loading ? 'Generating…' : 'Generate Invoice'}
+              {loading ? 'Generating…' : 'Generate Payment Link'}
             </button>
           </form>
 
@@ -194,40 +149,16 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Invoice Modal */}
-      {showInvoiceModal && order?.invoice && (
+      {/* Hosted Payment Link Modal */}
+      {showRedirectModal && order?.hostedUrl && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2 className="receipt-header">Send Payment</h2>
-            <div className="receipt-amounts">
-              <p className="usd-amount">${order.amount} USD</p>
-              <p className="btc-amount">{order.btc || '0.00000000'} BTC</p>
-            </div>
-            <p className="text-center">
-              Expires in: <strong>{formatTime(countdown)}</strong>
-            </p>
-            <div className="qr-container mt-md">
-              <QRCode value={order.invoice} size={180} />
-              <p className="mt-sm qr-text">{order.invoice}</p>
-            </div>
-            <button className="btn btn-success mt-md" onClick={copyToClipboard}>
-              {copied ? 'Copied!' : 'Copy Invoice'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Expired Modal */}
-      {showExpiredModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h2 className="receipt-header" style={{ color: '#d32f2f' }}>
-              ⚠️ Invoice Expired
-            </h2>
-            <p>The invoice has expired. Please generate a new one.</p>
-            <button className="btn btn-primary mt-md" onClick={resetModals}>
-              Generate New
-            </button>
+            <h2 className="receipt-header">Pay Now</h2>
+            <p>Click below to complete your payment via Speed.</p>
+            <a href={order.hostedUrl} target="_blank" rel="noopener noreferrer" className="btn btn-success mt-md">
+              Go to Payment Page
+            </a>
+            <button className="btn btn-primary mt-md" onClick={resetAll}>Cancel</button>
           </div>
         </div>
       )}
@@ -244,13 +175,10 @@ export default function Home() {
             <div className="receipt-details">
               <p><strong>Username:</strong> {order.username}</p>
               <p><strong>Game:</strong> {order.game}</p>
-              <p><strong>Order ID:</strong> {order.orderId}</p>
-              <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice">{shorten(order.invoice)}</div>
+              <p><strong>Order ID:</strong> {shorten(order.orderId)}</p>
+              <p className="text-center mt-md"><em>📸 Please take a screenshot of this receipt and share it with admin as proof of payment.</em></p>
             </div>
-            <button className="btn btn-primary mt-md" onClick={resetModals}>
-              Done
-            </button>
+            <button className="btn btn-primary mt-md" onClick={resetAll}>Done</button>
           </div>
         </div>
       )}
