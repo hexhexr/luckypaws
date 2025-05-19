@@ -33,18 +33,23 @@ export default async function handler(req, res) {
   }
 
   const receivedSig = headerSig.split(',')[1]?.trim();
+
+  // ✅ Fix: use hex instead of base64
   const computedSig = crypto
     .createHmac('sha256', secret)
     .update(rawBodyBuffer)
-    .digest('base64');
+    .digest('hex');
+
+  console.log('Received Signature:', receivedSig);
+  console.log('Computed Signature:', computedSig);
 
   const isValid = crypto.timingSafeEqual(
-    Buffer.from(computedSig),
-    Buffer.from(receivedSig)
+    Buffer.from(computedSig, 'utf8'),
+    Buffer.from(receivedSig, 'utf8')
   );
 
   if (!isValid) {
-    console.error('❌ Webhook signature mismatch');
+    console.error('⚠️ Signature mismatch – webhook rejected');
     return res.status(400).json({ error: 'Invalid webhook signature' });
   }
 
