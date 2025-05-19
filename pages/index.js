@@ -55,20 +55,24 @@ export default function Home() {
 
   // Countdown timer for invoice expiry
   useEffect(() => {
-    if (!showInvoiceModal) return;
+    if (!showInvoiceModal || !order?.expiresAt) return; // Ensure expiresAt exists
+
+    const expiryTime = new Date(order.expiresAt).getTime();
+
     const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          resetModals();
-          setShowExpiredModal(true);
-          return 0;
-        }
-        return prev - 1;
-      });
+      const now = Date.now();
+      const remainingSeconds = Math.max(0, Math.floor((expiryTime - now) / 1000));
+
+      setCountdown(remainingSeconds);
+
+      if (remainingSeconds <= 0) {
+        clearInterval(timer);
+        resetModals();
+        setShowExpiredModal(true);
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, [showInvoiceModal]);
+  }, [showInvoiceModal, order?.expiresAt]);
 
   // Utility: format seconds as “MM:SS”
   const formatTime = sec => {
@@ -83,23 +87,30 @@ export default function Home() {
     setShowReceiptModal(false);
     setShowExpiredModal(false);
     setCopied(false);
+    setCountdown(600); // Reset countdown for new invoices
   };
 
   // Copy invoice text to clipboard (safely)
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     const text = order?.invoice || '';
     if (!text) {
       setError('No payment details to copy');
       return;
     }
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      setError('Failed to copy invoice');
+    }
   };
 
   // Shorten a long invoice/address string
   const shorten = str => {
     if (!str) return 'N/A';
+    if (typeof str !== 'string') return String(str); // Ensure it's a string
     if (str.length <= 14) return str;
     return `${str.slice(0, 8)}…${str.slice(-6)}`;
   };
@@ -120,6 +131,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Payment failed');
       if (!data.invoice) throw new Error('Invoice not generated');
+      if (!data.expiresAt) console.warn('Invoice response missing expiresAt'); // Warn if expiresAt is missing
 
       setOrder({
         ...data,
@@ -129,7 +141,7 @@ export default function Home() {
       });
       setShowInvoiceModal(true);
       setStatus('pending');
-      setCountdown(600);
+      setCountdown(600); // Initial countdown
     } catch (err) {
       console.error('Create-payment error:', err);
       setError(err.message);
@@ -140,8 +152,8 @@ export default function Home() {
 
   // Render invoice modal only if order & its invoice exist
   const renderInvoiceModal = () => {
-    if (!order) return null;
-    const qrValue = order.invoice || '';
+    if (!order || !order.invoice) return null; // Ensure order and invoice exist
+    const qrValue = order.invoice;
     const isValidQR = typeof qrValue === 'string' && qrValue.trim() !== '';
 
     return (
