@@ -1,7 +1,9 @@
 import { db } from '../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
   const { username, game, amount, method } = req.body;
   if (!username || !game || !amount || !method) {
@@ -15,14 +17,8 @@ export default async function handler(req, res) {
   const payload = {
     amount: Number(amount),
     currency: 'USD',
-    success_url: 'https://luckypaw.vercel.app/receipt',
-    cancel_url: 'https://luckypaw.vercel.app',
-    metadata: {
-      username,
-      game,
-      amount
-    },
-    description: `🎮 ${game} | 👤 ${username} | 💰 $${amount}`
+    success_url: 'https://luckypaws.vercel.app/receipt',
+    cancel_url: 'https://luckypaws.vercel.app',
   };
 
   try {
@@ -39,19 +35,38 @@ export default async function handler(req, res) {
 
     const payment = await response.json();
 
-    if (!payment.id || !payment.hosted_checkout_url) {
+    // Validate Speed API response
+    if (
+      !payment.id ||
+      (!payment.payment_method_options?.lightning?.payment_request &&
+        !payment.payment_method_options?.on_chain?.address)
+    ) {
       return res.status(500).json({ message: 'Invalid response from Speed API', payment });
     }
 
+    const invoice = payment.payment_method_options.lightning?.payment_request || null;
+    const address = payment.payment_method_options.on_chain?.address || null;
+
+    // Calculate BTC amount (convert sats if provided, else fallback via CoinGecko)
     let btc = '0.00000000';
     const sats = payment.amount_in_satoshis || 0;
 
     if (sats > 0) {
       btc = (sats / 100000000).toFixed(8);
+    } else {
+      try {
+        const btcRes = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+        );
+        const btcData = await btcRes.json();
+        const rate = btcData.bitcoin.usd;
+        if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
+      } catch (e) {
+        console.error('CoinGecko BTC fallback failed:', e);
+      }
     }
 
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
-
+    // Save a new order in Firestore with status "pending"
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -60,19 +75,13 @@ export default async function handler(req, res) {
       btc,
       method,
       status: 'pending',
-      hostedUrl: payment.hosted_checkout_url,
+      invoice,
+      address,
       created: new Date().toISOString(),
-      expiresAt,
       paidManually: false,
     });
 
-    return res.status(200).json({
-      orderId: payment.id,
-      hostedUrl: payment.hosted_checkout_url,
-      btc,
-      expiresAt
-    });
-
+    return res.status(200).json({ orderId: payment.id, invoice, address, btc });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });

@@ -4,120 +4,87 @@ import { db } from '../../lib/firebaseAdmin';
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // we need raw body for signature check
   },
 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const secret = process.env.SPEED_WEBHOOK_SECRET;
   if (!secret) {
-    console.error('Missing SPEED_WEBHOOK_SECRET in env');
+    console.error('Missing SPEED_WEBHOOK_SECRET');
     return res.status(500).json({ error: 'Missing webhook secret' });
   }
 
-  let rawBodyBuffer;
+  // 1. Read raw body as string
+  let rawBody;
   try {
-    rawBodyBuffer = await buffer(req);
+    rawBody = (await buffer(req)).toString();
   } catch (err) {
-    console.error('Error reading request buffer:', err);
-    return res.status(400).json({ error: 'Failed to read request body' });
+    console.error('❌ Failed to read raw body:', err);
+    return res.status(500).json({ error: 'Failed to read body' });
   }
 
+  // 2. Extract signature header (format: "v1,<base64_sig>")
   const headerSig = req.headers['webhook-signature'];
-  if (!headerSig || typeof headerSig !== 'string' || !headerSig.startsWith('v1,')) {
-    return res.status(400).json({ error: 'Invalid signature header' });
+  if (!headerSig || !headerSig.startsWith('v1,')) {
+    return res.status(400).json({ error: 'Missing or invalid webhook-signature header' });
   }
+  const receivedSig = headerSig.split(',')[1].trim();
 
-  const receivedSig = headerSig.split(',')[1]?.trim();
-
-  // ✅ Fix: use hex instead of base64
+  // 3. Compute our own HMAC-SHA256 over the raw body, base64-encoded
   const computedSig = crypto
     .createHmac('sha256', secret)
-    .update(rawBodyBuffer)
-    .digest('hex');
+    .update(rawBody)
+    .digest('base64');
 
-  console.log('Received Signature:', receivedSig);
-  console.log('Computed Signature:', computedSig);
-
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(computedSig, 'utf8'),
-    Buffer.from(receivedSig, 'utf8')
-  );
-
-  if (!isValid) {
-    console.error('⚠️ Signature mismatch – webhook rejected');
-    return res.status(400).json({ error: 'Invalid webhook signature' });
+  // 4. Compare signatures
+  if (computedSig !== receivedSig) {
+    console.error('❌ Invalid webhook signature');
+    console.error('Expected:', computedSig);
+    console.error('Received:', receivedSig);
+    return res.status(400).json({ error: 'Invalid signature' });
   }
 
+  // 5. Parse JSON payload
   let payload;
   try {
-    payload = JSON.parse(rawBodyBuffer.toString('utf8'));
+    payload = JSON.parse(rawBody);
   } catch (err) {
-    console.error('Invalid JSON payload:', err);
+    console.error('❌ Invalid JSON in webhook body');
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  const event = payload?.event_type;
-  const payment = payload?.data?.object;
+  const event = payload.event_type;
+  const payment = payload.data?.object;
+  const orderId = payment?.id;
 
-  if (!event || !payment) {
-    return res.status(400).json({ error: 'Invalid webhook structure' });
+  // 6. Handle only "payment.confirmed" events
+  if (event === 'payment.confirmed' && payment?.status === 'paid' && orderId) {
+    try {
+      const orderRef = db.collection('orders').doc(orderId);
+      const existing = await orderRef.get();
+      if (!existing.exists) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      // Update Firestore order to "paid"
+      await orderRef.update({
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+      });
+
+      console.log('✅ Webhook: Payment confirmed for order', orderId);
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      console.error('❌ Firestore update failed:', err);
+      return res.status(500).json({ error: 'Failed to update order' });
+    }
   }
 
-  console.log(`✅ Received event: ${event} for payment ID: ${payment.id}`);
-
-  if (event === 'payment.confirmed') {
-    return handlePaymentConfirmed(payment, res);
-  }
-
+  // Acknowledge other events
   return res.status(200).json({ received: true });
-}
-
-async function handlePaymentConfirmed(payment, res) {
-  if (payment.status !== 'paid') {
-    console.log(`Ignored non-paid payment: ${payment.id}`);
-    return res.status(200).json({ received: true });
-  }
-
-  const orderId = payment.metadata?.orderId || payment.id;
-  const username = payment.metadata?.username || 'N/A';
-  const game = payment.metadata?.game || 'N/A';
-  const amount = payment.metadata?.amount || 'N/A';
-
-  try {
-    const orderRef = db.collection('orders').doc(orderId);
-    const doc = await orderRef.get();
-
-    if (!doc.exists) {
-      console.warn(`Order not found: ${orderId}`);
-      return res.status(404).json({ error: `Order not found: ${orderId}` });
-    }
-
-    const currentStatus = doc.data()?.status;
-    if (currentStatus === 'paid') {
-      console.log(`Order ${orderId} already marked as paid`);
-      return res.status(200).json({ success: true, orderId });
-    }
-
-    await orderRef.update({
-      status: 'paid',
-      paidAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      paymentId: payment.id,
-      username,
-      game,
-      amount,
-    });
-
-    console.log(`✅ Updated order ${orderId} to paid with user ${username}, game ${game}`);
-    return res.status(200).json({ success: true, orderId });
-
-  } catch (err) {
-    console.error('❌ Failed to update Firebase order:', err);
-    return res.status(500).json({ error: 'Internal error while updating payment' });
-  }
 }
