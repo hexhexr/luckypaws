@@ -249,7 +249,7 @@ export default function ProfitLoss() {
                       <div>
                         <span style={{ color: '#2ecc71' }}>Deposit: ${totalDeposit.toFixed(2)}</span>{' | '}
                         <span style={{ color: '#e74c3c' }}> Cashout: ${totalCashout.toFixed(2)}</span>{' | '}
-                        <strong style={{ color: net >= 0 ? 'green' : 'red' }}>
+                        <strong style={{ color: net >= 0 ? 'green' : 'red' }>
                           {net >= 0 ? `Profit: $${net.toFixed(2)}` : `Loss: $${Math.abs(net).toFixed(2)}`}
                         </strong>
                       </div>
