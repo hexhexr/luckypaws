@@ -181,8 +181,8 @@ export default function ProfitLoss() {
             </div>
           </div>
           <div>
-            <span style={{ color: '#2ecc71' }}>Total Deposits: <strong>${groupedData.overallDeposit.toFixed(2)}</strong></span> {' | '}
-            <span style={{ color: '#e74c3c' }}>Total Cashouts: <strong>${groupedData.overallCashout.toFixed(2)}</strong></span> {' | '}
+            <span style={{ color: '#2ecc71' }}>Total Deposits: <strong><span class="math-inline">\{groupedData\.overallDeposit\.toFixed\(2\)\}</strong\></span\> \{' \| '\}
+<span style\=\{\{ color\: '\#e74c3c' \}\}\>Total Cashouts\: <strong\></span>{groupedData.overallCashout.toFixed(2)}</strong></span> {' | '}
             <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'green' : 'red' }}>
               Net: ${((groupedData.overallDeposit - groupedData.overallCashout)).toFixed(2)}
             </strong>
@@ -247,9 +247,10 @@ export default function ProfitLoss() {
                       </h3>
                       <div style={{ fontSize: '0.85rem', color: '#888' }}>{fb}</div>
                       <div>
-                        <span style={{ color: '#2ecc71' }}>Deposit: ${totalDeposit.toFixed(2)}</span>{' | '}
-                        <span style={{ color: '#e74c3c' }}> Cashout: ${totalCashout.toFixed(2)}</span>{' | '}
-                        <strong style={{ color: net >= 0 ? 'green' : 'red' }>
+                        {/* Corrected lines with template literals wrapped in curly braces */}
+                        <span style={{ color: '#2ecc71' }}>{`Deposit: $${totalDeposit.toFixed(2)}`}</span>{' | '}
+                        <span style={{ color: '#e74c3c' }}>{` Cashout: $${totalCashout.toFixed(2)}`}</span>{' | '}
+                        <strong style={{ color: net >= 0 ? 'green' : 'red' }}>
                           {net >= 0 ? `Profit: $${net.toFixed(2)}` : `Loss: $${Math.abs(net).toFixed(2)}`}
                         </strong>
                       </div>
