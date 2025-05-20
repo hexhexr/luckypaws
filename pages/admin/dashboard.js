@@ -1,3 +1,4 @@
+// pages/admin/dashboard.js
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
@@ -7,6 +8,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // New state for status filter
   const [refreshing, setRefreshing] = useState(false);
   const [rangeSummary, setRangeSummary] = useState({ count: 0, usd: 0, btc: 0 });
   const [range, setRange] = useState({
@@ -15,20 +17,29 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
+    // Check local storage for admin_auth before rendering
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin/login');
+      router.replace('/admin'); // Redirect to the admin login page
     }
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem('admin_auth');
-    router.replace('/admin/login');
+  const logout = async () => {
+    try {
+      // Call API to clear the server-side cookie
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout API error:', err);
+      // Even if API fails, clear local storage and redirect for client-side logout
+    } finally {
+      localStorage.removeItem('admin_auth'); // Clear local storage auth token
+      router.replace('/admin'); // Redirect to the admin login page
+    }
   };
 
   const loadOrders = async () => {
     try {
       setRefreshing(true);
-      const res = await fetch('/api/orders');
+      const res = await fetch('/api/orders'); // Fetch all orders
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to load orders');
 
@@ -45,7 +56,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(() => loadOrders(), 4000);
+    const interval = setInterval(() => loadOrders(), 4000); // Refresh every 4 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -73,10 +84,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     updateRangeSummary(orders);
-  }, [range]);
+  }, [range, orders]); // Added orders to dependency array for live update on order change
 
   const markAsRead = async (id) => {
-    await fetch(`/api/orders/update`, {
+    await fetch(`/api/orders/update`, { // Calls the update API endpoint
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, update: { read: true, readAt: new Date().toISOString() } }),
@@ -84,24 +95,49 @@ export default function AdminDashboard() {
     setOrders(orders.map(o => o.orderId === id ? { ...o, read: true, readAt: new Date().toISOString() } : o));
   };
 
-  const markAsPaid = async (id) => {
-    await fetch(`/api/orders/update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, update: { status: 'paid', paidManually: true } }),
-    });
-    setOrders(orders.map(o => o.orderId === id ? { ...o, status: 'paid', paidManually: true } : o));
+  // Remove markAsPaid function as it's no longer needed for manual payment
+  // const markAsPaid = async (id) => {
+  //   await fetch(`/api/orders/update`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ id, update: { status: 'paid', paidManually: true } }),
+  //   });
+  //   setOrders(orders.map(o => o.orderId === id ? { ...o, status: 'paid', paidManually: true } : o));
+  // };
+
+  // New action: Mark as Cancelled
+  const markAsCancelled = async (id) => {
+    if (window.confirm("Are you sure you want to mark this order as 'cancelled'? This action cannot be undone.")) {
+      try {
+        await fetch(`/api/orders/update`, { // Calls the update API endpoint
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, update: { status: 'cancelled', cancelledManually: true } }),
+        });
+        setOrders(orders.map(o => o.orderId === id ? { ...o, status: 'cancelled', cancelledManually: true } : o));
+      } catch (err) {
+        console.error('Failed to mark as cancelled:', err);
+        setError('Failed to mark order as cancelled.');
+      }
+    }
   };
+
 
   const formatAge = (timestamp) => {
     const diff = Math.floor((Date.now() - new Date(timestamp)) / 60000);
     return diff < 1 ? 'Just now' : `${diff} min${diff > 1 ? 's' : ''} ago`;
   };
 
-  const filteredOrders = orders.filter(order =>
-    order.username.toLowerCase().includes(search.toLowerCase()) ||
-    order.orderId.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredOrders = orders.filter(order => {
+    // Filter by search term (username or order ID)
+    const matchesSearch = order.username.toLowerCase().includes(search.toLowerCase()) ||
+                          order.orderId.toLowerCase().includes(search.toLowerCase());
+
+    // Filter by status
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="admin-dashboard">
@@ -130,12 +166,28 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <input
-          className="input mt-md"
-          placeholder="Search by username or order ID"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '1rem' }}>
+          <input
+            className="input"
+            style={{ flexGrow: 1, margin: 0 }} // Adjust styling for input
+            placeholder="Search by username or order ID"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select
+            className="select"
+            style={{ width: 'unset', margin: 0 }} // Adjust styling for select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="expired">Expired</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
 
         {loading ? (
           <p className="text-center mt-md">Loading orders...</p>
@@ -171,22 +223,30 @@ export default function AdminDashboard() {
                     <td>{order.btc || '0.00000000'}</td>
                     <td style={{
                       color: order.status === 'paid'
-                        ? order.paidManually ? '#2962ff' : 'green'
-                        : '#d63031'
+                        ? order.paidManually ? '#2962ff' : 'green' // Blue for manually paid
+                        : order.status === 'expired'
+                        ? '#ff9800' // Orange for expired
+                        : order.status === 'cancelled'
+                        ? '#7f8c8d' // Grey for cancelled
+                        : '#d63031' // Red for pending (default)
                     }}>
                       {order.status}
                     </td>
-                    <td>{order.paidManually ? 'Yes' : 'No'}</td>
+                    <td>{order.paidManually ? 'Yes (Paid)' : (order.cancelledManually ? 'Yes (Cancelled)' : 'No')}</td> {/* Updated */}
                     <td>{order.read ? `✔️ ${new Date(order.readAt).toLocaleTimeString()}` : '—'}</td>
                     <td>{new Date(order.created).toLocaleString()}</td>
                     <td>{formatAge(order.created)}</td>
                     <td>
+                      {order.status === 'pending' && (
+                        <>
+                          {/* Removed Mark Paid button */}
+                          <button className="btn btn-danger btn-sm mt-sm" onClick={() => markAsCancelled(order.orderId)}>Cancel</button>
+                        </>
+                      )}
                       {order.status === 'paid' && !order.read && (
                         <button className="btn btn-primary btn-sm" onClick={() => markAsRead(order.orderId)}>Mark Read</button>
                       )}
-                      {order.status !== 'paid' && (
-                        <button className="btn btn-success btn-sm mt-sm" onClick={() => markAsPaid(order.orderId)}>Mark Paid</button>
-                      )}
+                      {/* You can add more actions here for other statuses if needed */}
                     </td>
                   </tr>
                 ))}
