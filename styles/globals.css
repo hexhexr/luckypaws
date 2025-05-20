@@ -24,11 +24,12 @@
   --font-family-base: 'Segoe UI', -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
+  --spacing-xxs: 2px; /* Very small spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
-  --spacing-md: 12px; /* Slightly reduced */
-  --spacing-lg: 20px; /* Slightly reduced */
-  --spacing-xl: 28px; /* Slightly reduced */
+  --spacing-md: 12px;
+  --spacing-lg: 16px; /* Slightly reduced for overall height */
+  --spacing-xl: 20px; /* Reduced for overall height */
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -242,7 +243,7 @@ label {
   background: var(--card-bg);
   border-radius: var(--radius-xl); /* Very rounded for app feel */
   padding: var(--spacing-lg); /* Reduced padding */
-  max-width: 360px; /* Very compact for mobile */
+  max-width: 340px; /* Even more compact for mobile */
   width: 90%;
   box-shadow: var(--shadow-lg); /* Stronger shadow */
   animation: slideInUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
@@ -251,7 +252,7 @@ label {
   flex-direction: column;
   gap: var(--spacing-sm); /* Reduced spacing between elements */
   box-sizing: border-box;
-  max-height: 90vh; /* Ensure it fits on screen */
+  max-height: 95vh; /* Allow more vertical space if needed */
   overflow-y: auto; /* Enable scrolling for content overflow */
 }
 
@@ -275,12 +276,12 @@ label {
 
 /* Modal Titles */
 .modal-title {
-  font-size: 1.6rem;
+  font-size: 1.4rem; /* Slightly smaller title */
   font-weight: 700;
   color: var(--primary-green); /* Green for main titles */
   text-align: center;
   margin-bottom: var(--spacing-sm); /* Reduced margin for compactness */
-  margin-top: 0;
+  margin-top: var(--spacing-xs); /* Added slight top margin */
 }
 
 .modal-title.text-danger {
@@ -294,27 +295,27 @@ label {
 /* Amount Display (Invoice & Receipt) */
 .amount-display {
   background: linear-gradient(135deg, var(--green-light) 0%, var(--primary-green) 100%);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md); /* Slightly less rounded */
   padding: var(--spacing-md); /* Reduced padding */
   text-align: center;
   color: white;
   box-shadow: var(--shadow-sm);
-  margin-bottom: var(--spacing-md); /* Reduced margin */
+  margin-bottom: var(--spacing-md); /* Consistent spacing */
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .amount-display .usd-amount {
-  font-size: 2.8rem; /* Larger USD for prominence */
+  font-size: 2.2rem; /* Smaller USD font size */
   font-weight: 700;
   line-height: 1.2;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-xxs); /* Very small margin */
   display: block;
 }
 
 .amount-display .btc-amount {
-  font-size: 1.2rem;
+  font-size: 1rem; /* Smaller BTC font size */
   opacity: 0.9;
   display: block;
   font-family: var(--font-family-mono);
@@ -324,11 +325,11 @@ label {
 .info-section {
   background: #f8fcf8; /* Very light green tinted background */
   border-radius: var(--radius-md);
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md); /* Reduced padding */
   border: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacing-xxs); /* Reduced gap */
   margin-bottom: var(--spacing-md);
 }
 
@@ -336,9 +337,9 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.95rem;
+  font-size: 0.9rem; /* Slightly smaller text */
   color: var(--text-dark);
-  padding: var(--spacing-xs) 0;
+  padding: var(--spacing-xs) 0; /* Reduced padding */
   border-bottom: 1px dashed var(--border-subtle); /* Subtle separator */
 }
 
@@ -354,13 +355,13 @@ label {
 /* Countdown Timer */
 .invoice-countdown {
   position: absolute;
-  top: var(--spacing-md);
-  left: var(--spacing-md);
-  font-size: 0.9rem;
+  top: var(--spacing-sm); /* Adjusted closer to top */
+  left: var(--spacing-sm); /* Adjusted closer to left */
+  font-size: 0.85rem; /* Slightly smaller font */
   font-weight: 600;
   color: var(--red-alert);
   background: #fff3e0; /* Light orange for expiry */
-  padding: 0.3rem 0.6rem;
+  padding: 0.2rem 0.5rem; /* Reduced padding */
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   z-index: 10;
@@ -372,30 +373,30 @@ label {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-md);
+  padding: var(--spacing-md); /* Reduced padding */
   background: #f0f7f0; /* Light green tint */
   border-radius: var(--radius-md);
   border: 1px solid #d4edda;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md); /* Reduced margin */
 }
 
 .qr-container img {
   border: 5px solid var(--primary-green); /* Thicker, prominent border */
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
-  width: 160px; /* Slightly larger QR for scanability */
-  height: 160px;
+  width: 140px; /* Smaller QR for more space */
+  height: 140px;
 }
 
 .qr-text {
   font-family: var(--font-family-mono);
-  font-size: 0.8rem;
+  font-size: 0.75rem; /* Smaller font for invoice text */
   word-break: break-all;
   text-align: center;
-  margin-top: var(--spacing-md);
+  margin-top: var(--spacing-sm); /* Reduced margin */
   color: var(--text-light);
   background: #fcfcfc;
-  padding: var(--spacing-sm); /* Reduced padding */
+  padding: var(--spacing-xs); /* Reduced padding */
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
@@ -458,6 +459,7 @@ label {
     font-size: 2rem;
   }
   .modal {
-    max-width: 400px; /* Slightly wider modal on desktop */
+    max-width: 380px; /* Slightly wider modal on desktop if desired */
+    padding: var(--spacing-xl); /* More padding on desktop */
   }
 }

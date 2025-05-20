@@ -139,7 +139,7 @@ export default function Home() {
       console.log('Generating QR Data URL for:', order.invoice);
       QRCodeLib.toDataURL(order.invoice, {
         errorCorrectionLevel: 'M',
-        width: 160, // Optimized for mobile view
+        width: 140, // Match CSS width
         margin: 2,
       })
       .then(url => {
@@ -180,7 +180,7 @@ export default function Home() {
         ...form,
         invoice: data.invoice,
         orderId: data.orderId,
-        btc: typeof data.btc === 'string' ? data.btc : 'N/A',
+        btc: typeof data.btc === 'string' ? data.btc : '0.00000000', // Ensure btc is string here
         created: new Date().toISOString(),
         status: 'pending',
       };
@@ -214,7 +214,7 @@ export default function Home() {
           </div>
 
           {/* Amount Display */}
-          <div className="amount-display mb-md"> {/* Reduced margin-bottom */}
+          <div className="amount-display mb-md">
             <span className="usd-amount">${order.amount ?? '0.00'} USD</span>
             <span className="btc-amount">{order.btc ?? '0.00000000'} BTC</span>
           </div>
@@ -223,9 +223,9 @@ export default function Home() {
           <QRErrorBoundary
             fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
           >
-            <div className="qr-container mb-md"> {/* Reduced margin-bottom */}
+            <div className="qr-container mb-md">
               {qrCodeDataUrl ? (
-                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={160} height={160} />
+                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={140} height={140} />
               ) : (
                 isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
               )}
@@ -241,7 +241,7 @@ export default function Home() {
           </button>
 
           {/* Optional: Order ID can be placed subtly if needed */}
-          <p className="text-center mt-sm" style={{fontSize: '0.8rem', color: 'var(--text-light)', opacity: 0.8}}>Order ID: {order.orderId}</p>
+          <p className="text-center mt-sm" style={{fontSize: '0.75rem', color: 'var(--text-light)', opacity: 0.8}}>Order ID: {order.orderId}</p>
 
         </div>
       </div>
@@ -336,11 +336,10 @@ export default function Home() {
               <span className="btc-amount">{order.btc} BTC</span>
             </div>
 
-            <div className="info-section"> {/* Re-using for consistent look */}
+            <div className="info-section">
               <p><strong>Game:</strong> <span>{order.game}</span></p>
               <p><strong>Username:</strong> <span>{order.username}</span></p>
               <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-              {/* Removed "Paid Manually" from here */}
             </div>
             <div className="short-invoice-display">
               <strong>Short Invoice:</strong> {shorten(order.invoice)}
