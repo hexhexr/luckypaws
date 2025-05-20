@@ -1,36 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react'; // Ensured React is imported for the class component
-import dynamic from 'next/dynamic';
-import { db } from '../lib/firebaseClient'; // Assuming this path is correct for your project structure
+import React, { useState, useEffect, useRef } from 'react';
+import { db } from '../lib/firebaseClient'; // Assuming this path is correct
+import QRCodeLib from 'qrcode'; // Import the base qrcode library
 
-// Define the QRErrorBoundary component within the same file
+// You will no longer need:
+// import dynamic from 'next/dynamic';
+// const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
+
+// QRErrorBoundary class remains the same as you have it
 class QRErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
-
   static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI.
     return { hasError: true, error: error };
   }
-
   componentDidCatch(error, errorInfo) {
-    // You can also log the error to an error reporting service
-    console.error("QR Code Component Error Caught by Boundary:", error, errorInfo);
-    this.setState({ errorInfo: errorInfo }); // Store errorInfo if you want to display it
+    console.error("QR Code Generation/Display Error Caught by Boundary:", error, errorInfo);
+    this.setState({ errorInfo: errorInfo });
   }
-
   render() {
     if (this.state.hasError) {
-      // You can render any custom fallback UI
       return this.props.fallback || (
         <div className="alert alert-danger">
           <p>⚠️ Error displaying QR code.</p>
           <p>Please try copying the invoice text manually.</p>
-          {/* For debugging, you might want to show error details:
-          {this.state.error && <p>Error: {this.state.error.toString()}</p>}
-          {this.state.errorInfo && <details style={{ whiteSpace: 'pre-wrap' }}><summary>Details</summary>{this.state.errorInfo.componentStack}</details>}
-          */}
+          {this.state.error && <p style={{fontSize: 'small', marginTop: '10px'}}><strong>Error details:</strong> {this.state.error.toString()}</p>}
         </div>
       );
     }
@@ -38,18 +33,18 @@ class QRErrorBoundary extends React.Component {
   }
 }
 
-const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState('idle'); // 'idle', 'pending', 'paid', 'expired'
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false });
-  const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
+  const [countdown, setCountdown] = useState(600);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(''); // State for the QR code image data
 
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
@@ -69,55 +64,49 @@ export default function Home() {
 
   useEffect(() => {
     if (!order || status !== 'pending') return;
-
     pollingRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/check-status?id=${order.orderId}`); // Ensure this API endpoint is correct
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
         const data = await res.json();
         if (data?.status === 'paid') {
           setStatus('paid');
-          setOrder(prev => ({ ...prev, status: 'paid' })); // Update order status
+          setOrder(prev => ({ ...prev, status: 'paid' }));
           setModals({ invoice: false, receipt: true, expired: false });
           clearInterval(pollingRef.current);
-          clearInterval(timerRef.current); // Also clear countdown timer
+          clearInterval(timerRef.current);
         }
       } catch (err) {
         console.error('Polling error:', err);
-        // Optionally, set an error state here if polling fails multiple times
       }
-    }, 2000); // Poll every 2 seconds
-
+    }, 2000);
     return () => clearInterval(pollingRef.current);
   }, [order, status]);
 
   useEffect(() => {
-    if (!modals.invoice || status !== 'pending') { // Ensure timer runs only when invoice modal is active and status is pending
+    if (!modals.invoice || status !== 'pending') {
         clearInterval(timerRef.current);
+        setQrCodeDataUrl(''); // Clear QR code if modal is not shown or status isn't pending
         return;
     }
-
-    setCountdown(600); // Reset countdown when modal opens
+    setCountdown(600);
     timerRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current);
-          setStatus('expired'); // Set status to expired
+          setStatus('expired');
           setModals({ invoice: false, receipt: false, expired: true });
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timerRef.current);
-  }, [modals.invoice, status]); // Rerun effect if modal.invoice or status changes
+  }, [modals.invoice, status]);
 
   const resetModals = () => {
     setModals({ invoice: false, receipt: false, expired: false });
     setCopied(false);
-    // setOrder(null); // Optionally reset order details
-    // setStatus('idle'); // Optionally reset status
-    // setError(''); // Optionally clear previous errors
+    setQrCodeDataUrl(''); // Clear QR code on modal reset
     clearInterval(timerRef.current);
     clearInterval(pollingRef.current);
   };
@@ -145,45 +134,63 @@ export default function Home() {
 
   const isValidQRValue = value =>
     typeof value === 'string' &&
-    value.trim().length > 10 && // Basic length check
-    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim()); // Lightning invoice regex
+    value.trim().length > 10 &&
+    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
+
+  // Effect to generate QR Code Data URL when order.invoice changes and is valid
+  useEffect(() => {
+    if (order && order.invoice && isValidQRValue(order.invoice) && modals.invoice) {
+      console.log('Generating QR Data URL for:', order.invoice);
+      QRCodeLib.toDataURL(order.invoice, {
+        errorCorrectionLevel: 'M', // Or 'L', 'Q', 'H'
+        width: 180, // Desired width of the QR code image
+        margin: 2, // Margin around the QR code
+      })
+      .then(url => {
+        setQrCodeDataUrl(url);
+      })
+      .catch(err => {
+        console.error('Failed to generate QR code data URL:', err);
+        setQrCodeDataUrl(''); // Clear on error
+        // The QRErrorBoundary in renderInvoiceModal will catch display issues or you can set a specific error state
+        setError('Could not generate QR code image.'); // Set a general error
+      });
+    } else {
+      setQrCodeDataUrl(''); // Clear if no valid invoice
+    }
+  }, [order, modals.invoice]); // Re-run when order or invoice modal visibility changes
 
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    resetModals(); // Reset any open modals and timers
+    resetModals();
+    setQrCodeDataUrl(''); // Clear previous QR code
 
     try {
-      const res = await fetch('/api/create-payment', { // Ensure this API endpoint is correct
+      const res = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       const data = await res.json();
-
-      if (!res.ok || !data.invoice) { // Check if response is OK and invoice exists
+      if (!res.ok || !data.invoice) {
         throw new Error(data.message || 'Invoice generation failed. No invoice data received.');
       }
-      
-      // Ensure the invoice from API is a string before proceeding
       if (typeof data.invoice !== 'string' || !isValidQRValue(data.invoice)) {
         console.error('Invalid invoice format received from API:', data.invoice);
         throw new Error('Received invalid invoice format from server.');
       }
-
       const newOrder = {
-        ...form, // User form details
-        invoice: data.invoice, // The invoice string for QR code and display
-        orderId: data.orderId, // The ID for status checking
-        btc: data.btcAmount || 'N/A', // Assuming API might send BTC amount
+        ...form,
+        invoice: data.invoice,
+        orderId: data.orderId,
+        btc: data.btcAmount || 'N/A',
         created: new Date().toISOString(),
-        status: 'pending', // Initial status
+        status: 'pending',
       };
-
-      setOrder(newOrder);
+      setOrder(newOrder); // This will trigger the useEffect for QR code generation
       setStatus('pending');
-      // Countdown reset is handled by the useEffect for modals.invoice
       setModals({ invoice: true, receipt: false, expired: false });
     } catch (err) {
       console.error('Handle submit error:', err);
@@ -197,12 +204,10 @@ export default function Home() {
     !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
   const renderInvoiceModal = () => {
-    if (!order || !modals.invoice) return null; // Ensure order and modal state are valid
-
-    const qrValue = order.invoice || ''; // Fallback to empty string if invoice is somehow null/undefined
-    
-    // ✅ IMPORTANT: Keep this log active for debugging QR code issues
-    console.log('Attempting to generate QR for invoice value:', qrValue); 
+    if (!order || !modals.invoice) return null;
+    const invoiceText = order.invoice || '';
+    // The qrCodeDataUrl state will be used for the image
+    console.log('Rendering invoice modal. Current QR Data URL state:', qrCodeDataUrl ? 'Exists' : 'Empty');
 
     return (
       <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
@@ -215,22 +220,22 @@ export default function Home() {
           </div>
           <p className="text-center">Expires in: <strong data-testid="countdown-timer">{formatTime(countdown)}</strong></p>
 
-          {/* Use the internally defined QRErrorBoundary */}
           <QRErrorBoundary 
-            fallback={<p className="alert alert-danger mt-md">⚠️ Could not display QR code. Please copy the invoice below.</p>}
+            fallback={<p className="alert alert-danger mt-md">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
           >
-            {isValidQRValue(qrValue) ? (
-              <div className="qr-container mt-md">
-                <QRCode value={qrValue} size={180} level="M" /> {/* Added level prop for better error correction if needed */}
-                <p className="mt-sm qr-text" style={{wordBreak: 'break-all'}}>{qrValue}</p>
-              </div>
-            ) : (
-              // This case should ideally be rare if API validation for invoice is also done
-              <p className="alert alert-warning mt-md">⚠️ Unable to generate QR code. Invalid invoice data. (Value was: "{qrValue}")</p>
-            )}
+            <div className="qr-container mt-md">
+              {qrCodeDataUrl ? (
+                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" style={{ width: 180, height: 180 }} />
+              ) : (
+                isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
+              )}
+              {isValidQRValue(invoiceText) && (
+                <p className="mt-sm qr-text" style={{wordBreak: 'break-all'}}>{invoiceText}</p>
+              )}
+            </div>
           </QRErrorBoundary>
 
-          <button className="btn btn-success mt-md" onClick={copyToClipboard} disabled={!isValidQRValue(qrValue)}>
+          <button className="btn btn-success mt-md" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
             {copied ? 'Copied!' : 'Copy Invoice'}
           </button>
         </div>
@@ -238,6 +243,7 @@ export default function Home() {
     );
   };
 
+  // ... (rest of your Home component: form JSX, other modals)
   return (
     <div className="container mt-lg">
       <div className="card">
@@ -258,7 +264,7 @@ export default function Home() {
             <select
               id="game"
               className="select"
-              name="game" // Added name attribute for consistency
+              name="game"
               value={form.game}
               onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
               required
@@ -273,9 +279,9 @@ export default function Home() {
               id="amount"
               className="input"
               type="number"
-              min="1" // Min amount
-              step="0.01" // For cents if applicable
-              name="amount" // Added name attribute
+              min="1"
+              step="0.01"
+              name="amount"
               value={form.amount}
               onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               required
@@ -286,14 +292,13 @@ export default function Home() {
               <label>
                 <input
                   type="radio"
-                  name="method" // Added name attribute for radio group
+                  name="method"
                   value="lightning"
                   checked={form.method === 'lightning'}
                   onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
                 />
                 Lightning
               </label>
-              {/* Add other payment methods here if needed */}
             </div>
             <button className="btn btn-primary mt-md" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
               {loading ? 'Generating…' : 'Generate Invoice'}
@@ -303,7 +308,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Modals */}
       {modals.invoice && renderInvoiceModal()}
 
       {modals.expired && (
@@ -312,7 +316,7 @@ export default function Home() {
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
             <h2 className="receipt-header text-danger">⚠️ Invoice Expired</h2>
             <p>The invoice has expired. Please generate a new one.</p>
-            <button className="btn btn-primary mt-md" onClick={() => { resetModals(); /* Optionally, trigger form submission again or clear form */ }}>Generate New</button>
+            <button className="btn btn-primary mt-md" onClick={() => { resetModals(); }}>Generate New</button>
           </div>
         </div>
       )}
