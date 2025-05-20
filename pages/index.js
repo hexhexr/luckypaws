@@ -2,22 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { db } from '../lib/firebaseClient';
 
-const SafeQRCode = dynamic(
-  () =>
-    import('qrcode.react')
-      .then(mod => mod.default)
-      .catch(() => () => <div>⚠️ Failed to load QR Code</div>),
-  { ssr: false }
-);
-
-function ErrorBoundary({ children }) {
-  try {
-    return children;
-  } catch (err) {
-    console.error('Render error:', err);
-    return <div className="alert alert-danger">Something went wrong.</div>;
-  }
-}
+const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
 
 export default function Home() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -110,9 +95,10 @@ export default function Home() {
     });
   };
 
-  const isLightningInvoice = value => {
-    return typeof value === 'string' && /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
-  };
+  const isValidQRValue = value =>
+    typeof value === 'string' &&
+    value.trim().length > 10 &&
+    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -155,6 +141,7 @@ export default function Home() {
   const renderInvoiceModal = () => {
     if (!order) return null;
     const qrValue = order.invoice || '';
+    console.log('Invoice (QR value):', qrValue); // ✅ Optional debugging
 
     return (
       <div className="modal-overlay" role="dialog" aria-modal="true">
@@ -166,13 +153,13 @@ export default function Home() {
           </div>
           <p className="text-center">Expires in: <strong>{formatTime(countdown)}</strong></p>
 
-          {isLightningInvoice(qrValue) ? (
+          {isValidQRValue(qrValue) ? (
             <div className="qr-container mt-md">
-              <SafeQRCode value={qrValue} size={180} />
+              <QRCode value={qrValue} size={180} />
               <p className="mt-sm qr-text">{qrValue}</p>
             </div>
           ) : (
-            <p className="alert alert-warning">⚠️ Invalid Lightning invoice</p>
+            <p className="alert alert-warning">⚠️ Unable to generate QR code. Invalid invoice data.</p>
           )}
 
           <button className="btn btn-success mt-md" onClick={copyToClipboard}>
@@ -240,11 +227,7 @@ export default function Home() {
         </div>
       </div>
 
-      {modals.invoice && (
-        <ErrorBoundary>
-          {renderInvoiceModal()}
-        </ErrorBoundary>
-      )}
+      {modals.invoice && renderInvoiceModal()}
 
       {modals.expired && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
