@@ -165,6 +165,7 @@ export default function AdminGames() {
           {games.length === 0 ? (
             <p>No games added yet.</p>
           ) : (
+            // Updated game list styling
             <ul className="game-list">
               {games.map(game => (
                 <li key={game.id}>
@@ -179,6 +180,63 @@ export default function AdminGames() {
           )}
         </div>
       </div>
+      <style jsx>{`
+        /* Styles for horizontal game list */
+        .game-list {
+          display: flex;
+          flex-wrap: wrap; /* Allows items to wrap to the next line */
+          gap: 1rem; /* Space between items */
+          padding: 0;
+          margin: 0;
+          list-style: none; /* Remove bullet points */
+        }
+
+        .game-list li {
+          background: #f0f0f0;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-grow: 1; /* Allow items to grow to fill space */
+          max-width: calc(33% - 1rem); /* Roughly 3 items per row on wider screens */
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .game-list li span {
+          font-weight: 500;
+          margin-right: 1rem;
+        }
+
+        .game-list li div {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 768px) {
+          .game-list li {
+            max-width: calc(50% - 0.75rem); /* 2 items per row */
+          }
+        }
+
+        @media (max-width: 480px) {
+          .game-list li {
+            max-width: 100%; /* 1 item per row */
+            flex-direction: column; /* Stack name and buttons vertically */
+            align-items: flex-start;
+          }
+          .game-list li div {
+            margin-top: 0.5rem;
+            width: 100%;
+            justify-content: flex-end;
+          }
+          .game-list li span {
+            margin-bottom: 0.5rem;
+          }
+        }
+      `}</style>
     </div>
   );
 }
