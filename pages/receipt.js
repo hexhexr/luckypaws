@@ -49,7 +49,7 @@ export default function ReceiptPage() {
   if (error) return <div className="alert alert-danger container mt-xl">{error}</div>;
 
   return (
-    <div className="container"> {/* Adjusted for new centering */}
+    <div className="container">
       <div className="card">
         <h1 className="card-header">✅ Payment Received</h1>
         <div className="card-body">
@@ -58,7 +58,7 @@ export default function ReceiptPage() {
             <span className="btc-amount">{order.btc} BTC</span>
           </div>
 
-          <div className="invoice-details-section"> {/* Re-using for consistent look */}
+          <div className="info-section"> {/* Re-using for consistent look */}
             <p><strong>Game:</strong> <span>{order.game}</span></p>
             <p><strong>Username:</strong> <span>{order.username}</span></p>
             <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>

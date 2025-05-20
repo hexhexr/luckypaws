@@ -137,10 +137,9 @@ export default function Home() {
   useEffect(() => {
     if (order && order.invoice && isValidQRValue(order.invoice) && modals.invoice) {
       console.log('Generating QR Data URL for:', order.invoice);
-      // Use a smaller QR code size for mobile, ensuring it fits well
       QRCodeLib.toDataURL(order.invoice, {
         errorCorrectionLevel: 'M',
-        width: 150, // Smaller width
+        width: 160, // Optimized for mobile view
         margin: 2,
       })
       .then(url => {
@@ -219,7 +218,7 @@ export default function Home() {
             <span className="btc-amount">{order.btc ?? '0.00000000'} BTC</span>
           </div>
 
-          <div className="invoice-details-section">
+          <div className="info-section"> {/* Using generic info-section for cleaner look */}
             <p><strong>Game:</strong> <span>{order.game}</span></p> {/* Game above amount */}
             <p><strong>Username:</strong> <span>{order.username}</span></p>
             <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
@@ -230,7 +229,7 @@ export default function Home() {
           >
             <div className="qr-container">
               {qrCodeDataUrl ? (
-                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={150} height={150} />
+                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={160} height={160} />
               ) : (
                 isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
               )}
@@ -249,7 +248,7 @@ export default function Home() {
   };
 
   return (
-    <div className="container"> {/* Removed mt-lg, css handles centering */}
+    <div className="container">
       <div className="card">
         <h1 className="card-header">🎣 Lucky Paw’s Fishing Room</h1>
         <div className="card-body">
@@ -327,16 +326,16 @@ export default function Home() {
 
       {modals.receipt && order && (
         <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-          <div className="modal"> {/* Removed receipt-modal class as it's now generic */}
+          <div className="modal">
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-            <h2 className="modal-title text-success">✅ Payment Received</h2> {/* Changed title class */}
+            <h2 className="modal-title text-success">✅ Payment Received</h2>
 
             <div className="amount-display">
               <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
               <span className="btc-amount">{order.btc} BTC</span>
             </div>
 
-            <div className="invoice-details-section"> {/* Re-using for consistent look */}
+            <div className="info-section"> {/* Re-using for consistent look */}
               <p><strong>Game:</strong> <span>{order.game}</span></p>
               <p><strong>Username:</strong> <span>{order.username}</span></p>
               <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
