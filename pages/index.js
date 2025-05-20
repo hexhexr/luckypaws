@@ -137,24 +137,24 @@ export default function Home() {
   useEffect(() => {
     if (order && order.invoice && isValidQRValue(order.invoice) && modals.invoice) {
       console.log('Generating QR Data URL for:', order.invoice);
+      // Use a smaller QR code size for mobile, ensuring it fits well
       QRCodeLib.toDataURL(order.invoice, {
-        errorCorrectionLevel: 'M', // Or 'L', 'Q', 'H'
-        width: 180, // Desired width of the QR code image
-        margin: 2, // Margin around the QR code
+        errorCorrectionLevel: 'M',
+        width: 150, // Smaller width
+        margin: 2,
       })
       .then(url => {
         setQrCodeDataUrl(url);
       })
       .catch(err => {
         console.error('Failed to generate QR code data URL:', err);
-        setQrCodeDataUrl(''); // Clear on error
-        // The QRErrorBoundary in renderInvoiceModal will catch display issues or you can set a specific error state
-        setError('Could not generate QR code image.'); // Set a general error
+        setQrCodeDataUrl('');
+        setError('Could not generate QR code image.');
       });
     } else {
-      setQrCodeDataUrl(''); // Clear if no valid invoice
+      setQrCodeDataUrl('');
     }
-  }, [order, modals.invoice]); // Re-run when order or invoice modal visibility changes
+  }, [order, modals.invoice]);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -181,12 +181,11 @@ export default function Home() {
         ...form,
         invoice: data.invoice,
         orderId: data.orderId,
-        // Ensure data.btc is safely handled, defaults to 'N/A' if missing or not a string
         btc: typeof data.btc === 'string' ? data.btc : 'N/A',
         created: new Date().toISOString(),
         status: 'pending',
       };
-      setOrder(newOrder); // This will trigger the useEffect for QR code generation
+      setOrder(newOrder);
       setStatus('pending');
       setModals({ invoice: true, receipt: false, expired: false });
     } catch (err) {
@@ -203,37 +202,45 @@ export default function Home() {
   const renderInvoiceModal = () => {
     if (!order || !modals.invoice) return null;
     const invoiceText = order.invoice || '';
-    // The qrCodeDataUrl state will be used for the image
-    console.log('Rendering invoice modal. Current QR Data URL state:', qrCodeDataUrl ? 'Exists' : 'Empty');
 
     return (
       <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
         <div className="modal">
           <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-          <h2 className="receipt-header">Send Payment</h2>
-          <div className="receipt-amounts">
-            <p className="usd-amount">${order.amount ?? '0.00'} USD</p>
-            {/* Display BTC amount from order state */}
-            <p className="btc-amount">{order.btc ?? '0.00000000'} BTC</p>
+          <h2 className="modal-title">Send Payment</h2>
+
+          {/* Expiry Timer - Positioned top-left */}
+          <div className="invoice-countdown" data-testid="countdown-timer">
+            Expires in: {formatTime(countdown)}
           </div>
-          <p className="text-center">Expires in: <strong data-testid="countdown-timer">{formatTime(countdown)}</strong></p>
+
+          <div className="amount-display">
+            <span className="usd-amount">${order.amount ?? '0.00'} USD</span>
+            <span className="btc-amount">{order.btc ?? '0.00000000'} BTC</span>
+          </div>
+
+          <div className="invoice-details-section">
+            <p><strong>Game:</strong> <span>{order.game}</span></p> {/* Game above amount */}
+            <p><strong>Username:</strong> <span>{order.username}</span></p>
+            <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
+          </div>
 
           <QRErrorBoundary
-            fallback={<p className="alert alert-danger mt-md">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
+            fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
           >
-            <div className="qr-container mt-md">
+            <div className="qr-container">
               {qrCodeDataUrl ? (
-                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" style={{ width: 180, height: 180 }} />
+                <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={150} height={150} />
               ) : (
                 isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
               )}
               {isValidQRValue(invoiceText) && (
-                <p className="mt-sm qr-text" style={{wordBreak: 'break-all'}}>{invoiceText}</p>
+                <p className="qr-text">{invoiceText}</p>
               )}
             </div>
           </QRErrorBoundary>
 
-          <button className="btn btn-success mt-md" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
+          <button className="btn btn-success" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
             {copied ? 'Copied!' : 'Copy Invoice'}
           </button>
         </div>
@@ -241,11 +248,10 @@ export default function Home() {
     );
   };
 
-  // ... (rest of your Home component: form JSX, other modals)
   return (
-    <div className="container mt-lg">
+    <div className="container"> {/* Removed mt-lg, css handles centering */}
       <div className="card">
-        <h1 className="card-header text-center">🎣 Lucky Paw’s Fishing Room</h1>
+        <h1 className="card-header">🎣 Lucky Paw’s Fishing Room</h1>
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             <label htmlFor="username">Username</label>
@@ -298,11 +304,11 @@ export default function Home() {
                 Lightning
               </label>
             </div>
-            <button className="btn btn-primary mt-md" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
+            <button className="btn btn-primary" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
               {loading ? 'Generating…' : 'Generate Invoice'}
             </button>
           </form>
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
+          {error && <div className="alert alert-danger">{error}</div>}
         </div>
       </div>
 
@@ -312,30 +318,34 @@ export default function Home() {
         <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
           <div className="modal">
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-            <h2 className="receipt-header text-danger">⚠️ Invoice Expired</h2>
+            <h2 className="modal-title text-danger">⚠️ Invoice Expired</h2>
             <p>The invoice has expired. Please generate a new one.</p>
-            <button className="btn btn-primary mt-md" onClick={() => { resetModals(); }}>Generate New</button>
+            <button className="btn btn-primary" onClick={() => { resetModals(); }}>Generate New</button>
           </div>
         </div>
       )}
 
       {modals.receipt && order && (
         <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-          <div className="modal receipt-modal">
+          <div className="modal"> {/* Removed receipt-modal class as it's now generic */}
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-            <h2 className="receipt-header">✅ Payment Received</h2>
-            <div className="receipt-amounts">
-              <p className="usd-amount"><strong>${order.amount}</strong> USD</p>
-              <p className="btc-amount">{order.btc}</p>
+            <h2 className="modal-title text-success">✅ Payment Received</h2> {/* Changed title class */}
+
+            <div className="amount-display">
+              <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
+              <span className="btc-amount">{order.btc} BTC</span>
             </div>
-            <div className="receipt-details">
-              <p><strong>Username:</strong> {order.username}</p>
-              <p><strong>Game:</strong> {order.game}</p>
-              <p><strong>Order ID:</strong> {order.orderId}</p>
-              <p><strong>Short Invoice:</strong></p>
-              <div className="scroll-box short-invoice" style={{wordBreak: 'break-all'}}>{shorten(order.invoice)}</div>
+
+            <div className="invoice-details-section"> {/* Re-using for consistent look */}
+              <p><strong>Game:</strong> <span>{order.game}</span></p>
+              <p><strong>Username:</strong> <span>{order.username}</span></p>
+              <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
+              <p><strong>Paid Manually:</strong> <span>{order.paidManually ? 'Yes' : 'No'}</span></p>
             </div>
-            <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
+            <div className="short-invoice-display">
+              <strong>Short Invoice:</strong> {shorten(order.invoice)}
+            </div>
+            <button className="btn btn-primary" onClick={resetModals}>Done</button>
           </div>
         </div>
       )}

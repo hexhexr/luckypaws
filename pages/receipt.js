@@ -32,6 +32,7 @@ export default function ReceiptPage() {
           const updatedOrder = await refetched.json();
           setOrder(updatedOrder);
         } else {
+          // This path means it's pending but not yet paid, keep polling
           throw new Error('⏳ Payment is still pending. Please wait or refresh.');
         }
       } catch (err) {
@@ -44,19 +45,31 @@ export default function ReceiptPage() {
     loadReceipt();
   }, [id]);
 
-  if (loading) return <p>Loading receipt...</p>;
-  if (error) return <div className="alert">{error}</div>;
+  if (loading) return <p className="text-center mt-xl">Loading receipt...</p>;
+  if (error) return <div className="alert alert-danger container mt-xl">{error}</div>;
 
   return (
-    <div className="receipt-container">
-      <h1 className="receipt-header">✅ Payment Received</h1>
-      <div className="receipt-box">
-        <p><strong>Username:</strong> {order.username}</p>
-        <p><strong>Game:</strong> {order.game}</p>
-        <p><strong>Amount (USD):</strong> ${order.amount}</p>
-        <p><strong>BTC:</strong> {order.btc || '0.00000000'}</p>
-        <p><strong>Order ID:</strong> {order.orderId}</p>
-        <p><strong>Paid Manually:</strong> {order.paidManually ? 'Yes' : 'No'}</p>
+    <div className="container"> {/* Adjusted for new centering */}
+      <div className="card">
+        <h1 className="card-header">✅ Payment Received</h1>
+        <div className="card-body">
+          <div className="amount-display mb-lg">
+            <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
+            <span className="btc-amount">{order.btc} BTC</span>
+          </div>
+
+          <div className="invoice-details-section"> {/* Re-using for consistent look */}
+            <p><strong>Game:</strong> <span>{order.game}</span></p>
+            <p><strong>Username:</strong> <span>{order.username}</span></p>
+            <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
+            <p><strong>Paid Manually:</strong> <span>{order.paidManually ? 'Yes' : 'No'}</span></p>
+          </div>
+          {order.invoice && (
+            <div className="short-invoice-display">
+                <strong>Full Invoice:</strong> {order.invoice}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
