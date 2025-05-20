@@ -1,7 +1,7 @@
 // pages/admin/profit-loss.js
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../../lib/firebaseClient'; // Ensure this path is correct
+import { db } from '../../lib/firebaseClient'; // CORRECTED: Proper ES Module import
 
 export default function ProfitLoss() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function ProfitLoss() {
       // Fetch paid orders (deposits)
       const orderSnap = await db.collection('orders').where('status', '==', 'paid').get();
       const depositList = orderSnap.docs.map(doc => ({
-        id: doc.id,
+        id: doc.id, // Ensure id is captured for key prop
         ...doc.data(),
         type: 'deposit',
         time: doc.data().created // Use 'created' for deposits
@@ -38,7 +38,7 @@ export default function ProfitLoss() {
       // Fetch cashouts from 'profitLoss' collection with type 'cashout'
       const cashoutSnap = await db.collection('profitLoss').where('type', '==', 'cashout').get();
       const cashoutList = cashoutSnap.docs.map(doc => ({
-        id: doc.id,
+        id: doc.id, // Ensure id is captured for key prop
         ...doc.data(),
         type: 'cashout',
         time: doc.data().time || doc.data().created // Use 'time' or fallback to 'created'
@@ -181,8 +181,8 @@ export default function ProfitLoss() {
             </div>
           </div>
           <div>
-            <span style={{ color: '#2ecc71' }}>Total Deposits: <strong><span class="math-inline">\{groupedData\.overallDeposit\.toFixed\(2\)\}</strong\></span\> \{' \| '\}
-<span style\=\{\{ color\: '\#e74c3c' \}\}\>Total Cashouts\: <strong\></span>{groupedData.overallCashout.toFixed(2)}</strong></span> {' | '}
+            <span style={{ color: '#2ecc71' }}>Total Deposits: <strong>${groupedData.overallDeposit.toFixed(2)}</strong></span> {' | '}
+            <span style={{ color: '#e74c3c' }}>Total Cashouts: <strong>${groupedData.overallCashout.toFixed(2)}</strong></span> {' | '}
             <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'green' : 'red' }}>
               Net: ${((groupedData.overallDeposit - groupedData.overallCashout)).toFixed(2)}
             </strong>
@@ -231,6 +231,7 @@ export default function ProfitLoss() {
               <p className="text-center">No data found for the selected criteria.</p>
             ) : (
               displayGroups.map((group) => {
+                // Combine and sort individual user's transactions
                 const all = [...group.deposits, ...group.cashouts].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
                 const totalDeposit = group.totalDeposit;
                 const totalCashout = group.totalCashout;
@@ -247,9 +248,8 @@ export default function ProfitLoss() {
                       </h3>
                       <div style={{ fontSize: '0.85rem', color: '#888' }}>{fb}</div>
                       <div>
-                        {/* Corrected lines with template literals wrapped in curly braces */}
                         <span style={{ color: '#2ecc71' }}>{`Deposit: $${totalDeposit.toFixed(2)}`}</span>{' | '}
-                        <span style={{ color: '#e74c3c' }}>{` Cashout: $${totalCashout.toFixed(2)}`}</span>{' | '}
+                        <span style={{ color: '#e74c3c' }}>{`Cashout: $${totalCashout.toFixed(2)}`}</span>{' | '}
                         <strong style={{ color: net >= 0 ? 'green' : 'red' }}>
                           {net >= 0 ? `Profit: $${net.toFixed(2)}` : `Loss: $${Math.abs(net).toFixed(2)}`}
                         </strong>
@@ -265,8 +265,8 @@ export default function ProfitLoss() {
                         </tr>
                       </thead>
                       <tbody>
-                        {all.map((entry, idx) => (
-                          <tr key={idx}>
+                        {all.map((entry) => ( // Removed idx, using entry.id for key
+                          <tr key={entry.id}> {/* CORRECTED: Using unique entry.id for key */}
                             <td style={{ color: entry.type === 'deposit' ? 'green' : '#c0392b' }}>{entry.type}</td>
                             <td>${entry.amount}</td>
                             <td>{new Date(entry.time || entry.created).toLocaleString()}</td>
