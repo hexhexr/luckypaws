@@ -62,7 +62,7 @@ export default function ReceiptPage() {
             <p><strong>Game:</strong> <span>{order.game}</span></p>
             <p><strong>Username:</strong> <span>{order.username}</span></p>
             <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-            <p><strong>Paid Manually:</strong> <span>{order.paidManually ? 'Yes' : 'No'}</span></p>
+            {/* Removed "Paid Manually" from here */}
           </div>
           {order.invoice && (
             <div className="short-invoice-display">

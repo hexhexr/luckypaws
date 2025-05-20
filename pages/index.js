@@ -206,28 +206,24 @@ export default function Home() {
       <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
         <div className="modal">
           <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-          <h2 className="modal-title">Send Payment</h2>
+          <h2 className="modal-title">Complete Payment</h2> {/* More concise title */}
 
-          {/* Expiry Timer - Positioned top-left */}
+          {/* Expiry Timer */}
           <div className="invoice-countdown" data-testid="countdown-timer">
             Expires in: {formatTime(countdown)}
           </div>
 
-          <div className="amount-display">
+          {/* Amount Display */}
+          <div className="amount-display mb-md"> {/* Reduced margin-bottom */}
             <span className="usd-amount">${order.amount ?? '0.00'} USD</span>
             <span className="btc-amount">{order.btc ?? '0.00000000'} BTC</span>
           </div>
 
-          <div className="info-section"> {/* Using generic info-section for cleaner look */}
-            <p><strong>Game:</strong> <span>{order.game}</span></p> {/* Game above amount */}
-            <p><strong>Username:</strong> <span>{order.username}</span></p>
-            <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-          </div>
-
+          {/* QR Code Section */}
           <QRErrorBoundary
             fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
           >
-            <div className="qr-container">
+            <div className="qr-container mb-md"> {/* Reduced margin-bottom */}
               {qrCodeDataUrl ? (
                 <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={160} height={160} />
               ) : (
@@ -239,9 +235,14 @@ export default function Home() {
             </div>
           </QRErrorBoundary>
 
+          {/* Copy Button */}
           <button className="btn btn-success" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
             {copied ? 'Copied!' : 'Copy Invoice'}
           </button>
+
+          {/* Optional: Order ID can be placed subtly if needed */}
+          <p className="text-center mt-sm" style={{fontSize: '0.8rem', color: 'var(--text-light)', opacity: 0.8}}>Order ID: {order.orderId}</p>
+
         </div>
       </div>
     );
@@ -339,7 +340,7 @@ export default function Home() {
               <p><strong>Game:</strong> <span>{order.game}</span></p>
               <p><strong>Username:</strong> <span>{order.username}</span></p>
               <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-              <p><strong>Paid Manually:</strong> <span>{order.paidManually ? 'Yes' : 'No'}</span></p>
+              {/* Removed "Paid Manually" from here */}
             </div>
             <div className="short-invoice-display">
               <strong>Short Invoice:</strong> {shorten(order.invoice)}

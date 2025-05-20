@@ -26,9 +26,9 @@
 
   --spacing-xs: 4px;
   --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
+  --spacing-md: 12px; /* Slightly reduced */
+  --spacing-lg: 20px; /* Slightly reduced */
+  --spacing-xl: 28px; /* Slightly reduced */
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -241,7 +241,7 @@ label {
 .modal {
   background: var(--card-bg);
   border-radius: var(--radius-xl); /* Very rounded for app feel */
-  padding: var(--spacing-xl); /* Generous padding */
+  padding: var(--spacing-lg); /* Reduced padding */
   max-width: 360px; /* Very compact for mobile */
   width: 90%;
   box-shadow: var(--shadow-lg); /* Stronger shadow */
@@ -249,7 +249,7 @@ label {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md); /* Consistent vertical spacing */
+  gap: var(--spacing-sm); /* Reduced spacing between elements */
   box-sizing: border-box;
   max-height: 90vh; /* Ensure it fits on screen */
   overflow-y: auto; /* Enable scrolling for content overflow */
@@ -295,11 +295,11 @@ label {
 .amount-display {
   background: linear-gradient(135deg, var(--green-light) 0%, var(--primary-green) 100%);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md); /* Reduced padding */
   text-align: center;
   color: white;
   box-shadow: var(--shadow-sm);
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md); /* Reduced margin */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -395,7 +395,7 @@ label {
   margin-top: var(--spacing-md);
   color: var(--text-light);
   background: #fcfcfc;
-  padding: var(--spacing-sm);
+  padding: var(--spacing-sm); /* Reduced padding */
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
