@@ -2,10 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient'; // Assuming this path is correct
 import QRCodeLib from 'qrcode'; // Import the base qrcode library
 
-// You will no longer need:
-// import dynamic from 'next/dynamic';
-// const QRCode = dynamic(() => import('qrcode.react'), { ssr: false });
-
 // QRErrorBoundary class remains the same as you have it
 class QRErrorBoundary extends React.Component {
   constructor(props) {
@@ -185,7 +181,8 @@ export default function Home() {
         ...form,
         invoice: data.invoice,
         orderId: data.orderId,
-        btc: data.btcAmount || 'N/A',
+        // Ensure data.btc is safely handled, defaults to 'N/A' if missing or not a string
+        btc: typeof data.btc === 'string' ? data.btc : 'N/A',
         created: new Date().toISOString(),
         status: 'pending',
       };
@@ -216,11 +213,12 @@ export default function Home() {
           <h2 className="receipt-header">Send Payment</h2>
           <div className="receipt-amounts">
             <p className="usd-amount">${order.amount ?? '0.00'} USD</p>
+            {/* Display BTC amount from order state */}
             <p className="btc-amount">{order.btc ?? '0.00000000'} BTC</p>
           </div>
           <p className="text-center">Expires in: <strong data-testid="countdown-timer">{formatTime(countdown)}</strong></p>
 
-          <QRErrorBoundary 
+          <QRErrorBoundary
             fallback={<p className="alert alert-danger mt-md">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
           >
             <div className="qr-container mt-md">
