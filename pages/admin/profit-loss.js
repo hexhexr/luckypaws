@@ -1,19 +1,13 @@
-// pages/admin/profit-loss.js
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../../lib/firebaseClient'; // Assuming this path is correct and firebaseClient is configured
-import { fetchProfitLossData, addCashout } from '../../services/profitLossService'; // Import service functions
+import { db } from '../../lib/firebaseClient';
+import { fetchProfitLossData, addCashout } from '../../services/profitLossService';
 
-// Helper for currency formatting for consistency
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
-  if (isNaN(numAmount)) {
-    return '$0.00';
-  }
-  return `$${numAmount.toFixed(2)}`;
+  return isNaN(numAmount) ? '$0.00' : `$${numAmount.toFixed(2)}`;
 };
 
-// Simple Loading Skeleton Component for improved UX during data loading
 const LoadingSkeleton = () => (
   <div className="loading-skeleton mt-md">
     <div className="skeleton-line" style={{ width: '80%' }}></div>
@@ -21,12 +15,12 @@ const LoadingSkeleton = () => (
     <div className="skeleton-line" style={{ width: '70%' }}></div>
     <div className="skeleton-line" style={{ width: '85%' }}></div>
     <style jsx>{`
-    .loading-skeleton {
+      .loading-skeleton {
         padding: 1rem;
         border-radius: 8px;
         background-color: #f0f0f0;
       }
-    .skeleton-line {
+      .skeleton-line {
         height: 1.2em;
         background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
         background-size: 200% 100%;
@@ -44,8 +38,7 @@ const LoadingSkeleton = () => (
 
 export default function ProfitLoss() {
   const router = useRouter();
-  // FIXED: Corrected useState declarations
-  const [allData, setAllData] = useState([]); // Combined orders and cashouts
+  const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -55,23 +48,21 @@ export default function ProfitLoss() {
     to: new Date().toISOString().slice(0, 10)
   });
 
-  // Authentication check for admin pages
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin'); // Redirect to the admin login page
+      router.replace('/admin');
     }
-  }, []); // Empty dependency array to run once on mount
+  }, []);
 
-  // Refactored loadData to use the service layer
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError(''); // Clear previous errors
+    setError('');
     try {
-      const combined = await fetchProfitLossData(); // Use the service function
+      const combined = await fetchProfitLossData();
       setAllData(combined);
     } catch (err) {
-      console.error('Failed to load profit/loss data:', err);
-      setError(`⚠️ ${err.message || 'Failed to load financial data. Please check your network connection.'}`);
+      setError('⚠️ Failed to load data');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -81,35 +72,31 @@ export default function ProfitLoss() {
     loadData();
   }, [loadData]);
 
-  // Refactored handleAddCashout to use the service layer
   const handleAddCashout = async (e) => {
     e.preventDefault();
-    setError(''); // Clear previous errors
+    setError('');
 
     const username = newCashout.username.trim();
     const amount = parseFloat(newCashout.amount);
-
-    // Robust runtime input validation
     if (!username || isNaN(amount) || amount <= 0) {
-      setError('Please enter a valid username and a positive cashout amount.');
+      setError('Please enter a valid username and amount');
       return;
     }
 
     try {
-      await addCashout(username, amount); // Use the service function
-      setNewCashout({ username: '', amount: '' }); // Clear form
-      await loadData(); // Reload all data to reflect the new cashout
+      await addCashout(username, amount);
+      setNewCashout({ username: '', amount: '' });
+      await loadData();
     } catch (err) {
-      console.error('Error adding cashout:', err);
-      setError(`⚠️ ${err.message || 'Failed to add cashout.'}`);
+      console.error(err);
+      setError('⚠️ Failed to add cashout.');
     }
   };
 
-  // Group data by username and calculate totals, applying date range filter
   const groupedData = useMemo(() => {
     const fromDate = new Date(range.from);
     const toDate = new Date(range.to);
-    toDate.setHours(23, 59, 59, 999); // Include full 'to' day
+    toDate.setHours(23, 59, 59, 999);
 
     const filtered = allData.filter(entry => {
       const entryDate = new Date(entry.time || entry.created);
@@ -124,7 +111,7 @@ export default function ProfitLoss() {
       const uname = entry.username.toLowerCase();
       if (!groups[uname]) {
         groups[uname] = {
-          username: entry.username, // Keep original casing
+          username: entry.username,
           deposits: [],
           cashouts: [],
           totalDeposit: 0,
@@ -146,7 +133,6 @@ export default function ProfitLoss() {
       }
     });
 
-    // Calculate net and profit margin for each group
     Object.values(groups).forEach(group => {
       group.net = group.totalDeposit - group.totalCashout;
       group.profitMargin = group.totalDeposit > 0
@@ -154,7 +140,6 @@ export default function ProfitLoss() {
         : 0;
     });
 
-    // Convert to array and sort by username
     const sortedGroups = Object.values(groups).sort((a, b) =>
       a.username.localeCompare(b.username)
     );
@@ -170,14 +155,13 @@ export default function ProfitLoss() {
     try {
       await fetch('/api/admin/logout', { method: 'POST' });
     } catch (err) {
-      console.error('Logout API error:', err);
+      console.error(err);
     } finally {
       localStorage.removeItem('admin_auth');
       router.replace('/admin');
     }
   };
 
-  // CSV Export Functionality
   const exportToCSV = () => {
     const headers = ['Username', 'Facebook Username', 'Total Deposits', 'Total Cashouts', 'Net Profit/Loss', 'Profit Margin (%)'];
     const rows = displayGroups.map(group => [
@@ -196,15 +180,12 @@ export default function ProfitLoss() {
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `profit_loss_report_${range.from}_to_${range.to}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `profit_loss_${range.from}_to_${range.to}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -220,9 +201,9 @@ export default function ProfitLoss() {
       <div className="main-content">
         <h2 className="text-center mt-lg">📊 Profit & Loss</h2>
 
-        <div className="card mt-md" style={{ background: '#f9f9f9', border: '1px solid #ddd', padding: '1rem', borderRadius: '12px' }}>
-          <h3>📍 Overall Summary (Date Range)</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
+        <div className="card mt-md">
+          <h3>📍 Overall Summary</h3>
+          <div style={{ display: 'flex', gap: '1rem' }}>
             <div>
               From: <input type="date" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
             </div>
@@ -231,31 +212,26 @@ export default function ProfitLoss() {
             </div>
           </div>
           <div>
-            <span style={{ color: '#2ecc71' }}>Total Deposits: <strong>{formatCurrency(groupedData.overallDeposit)}</strong></span> {' | '}
-            <span style={{ color: '#e74c3c' }}>Total Cashouts: <strong>{formatCurrency(groupedData.overallCashout)}</strong></span> {' | '}
+            <span style={{ color: '#2ecc71' }}>Total Deposits: {formatCurrency(groupedData.overallDeposit)}</span>{' | '}
+            <span style={{ color: '#e74c3c' }}>Total Cashouts: {formatCurrency(groupedData.overallCashout)}</span>{' | '}
             <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'green' : 'red' }}>
-              Net: {formatCurrency((groupedData.overallDeposit - groupedData.overallCashout))}
-            </strong>
-          </div>
-          <div>
-            <span style={{ color: '#0984e3' }}>Overall Profit Margin: <strong>
-              {groupedData.overallDeposit > 0
-                ? `${((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2)}%`
-                : '0%'}
-            </strong></span>
+              Net: {formatCurrency(groupedData.overallDeposit - groupedData.overallCashout)}
+            </strong>{' | '}
+            <span style={{ color: '#0984e3' }}>
+              Margin: {groupedData.overallDeposit > 0 ? ((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2) : '0'}%
+            </span>
           </div>
           <button onClick={exportToCSV} className="btn btn-secondary mt-sm">Export to CSV</button>
         </div>
 
-        {/* Add Cashout Form */}
         <div className="card mt-md">
-          <h3>💰 Add New Cashout</h3>
-          <form onSubmit={handleAddCashout} className="form-inline" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+          <h3>💰 Add Cashout</h3>
+          <form onSubmit={handleAddCashout}>
             <input
               className="input"
               placeholder="Username"
               value={newCashout.username}
-              onChange={(e) => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
+              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
               required
             />
             <input
@@ -264,7 +240,7 @@ export default function ProfitLoss() {
               step="0.01"
               placeholder="Amount (USD)"
               value={newCashout.amount}
-              onChange={(e) => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
+              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
               required
             />
             <button className="btn btn-primary" type="submit">Add Cashout</button>
@@ -273,7 +249,7 @@ export default function ProfitLoss() {
 
         <input
           className="input mt-md"
-          placeholder="Search by username"
+          placeholder="Search username"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -285,36 +261,24 @@ export default function ProfitLoss() {
         ) : (
           <div className="mt-md">
             {displayGroups.length === 0 ? (
-              <p className="text-center">No data found for the selected criteria.</p>
+              <p className="text-center">No data found</p>
             ) : (
-              displayGroups.map((group) => {
+              displayGroups.map(group => {
                 const all = [...group.deposits, ...group.cashouts].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
-                const totalDeposit = group.totalDeposit;
-                const totalCashout = group.totalCashout;
-                const net = group.net;
-                const profitMargin = group.profitMargin;
-                const fb = group.fbUsername ? `FB: ${group.fbUsername}` : '';
-
                 return (
                   <div key={group.username} className="card mt-md">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                      <h3 style={{ margin: 0 }}>
-                        <a href={`/admin/customer/${group.username}`} style={{ color: '#0984e3', fontWeight: 600 }}>
-                          {group.username}
-                        </a>
-                      </h3>
-                      <div style={{ fontSize: '0.85rem', color: '#888' }}>{fb}</div>
-                      <div>
-                        <span style={{ color: '#2ecc71' }}>{`Deposit: ${formatCurrency(totalDeposit)}`}</span>{' | '}
-                        <span style={{ color: '#e74c3c' }}>{`Cashout: ${formatCurrency(totalCashout)}`}</span>{' | '}
-                        <strong style={{ color: net >= 0 ? 'green' : 'red' }}>
-                          {net >= 0 ? `Profit: ${formatCurrency(net)}` : `Loss: ${formatCurrency(Math.abs(net))}`}
-                        </strong>
-                        {' | '}
-                        <span style={{ color: '#0984e3' }}>{`Margin: ${profitMargin}%`}</span>
-                      </div>
-                    </div>
-
+                    <h3>
+                      <a href={`/admin/customer/${group.username}`} style={{ color: '#0984e3' }}>{group.username}</a>
+                    </h3>
+                    <p style={{ color: '#888' }}>{group.fbUsername ? `FB: ${group.fbUsername}` : ''}</p>
+                    <p>
+                      <span style={{ color: '#2ecc71' }}>Deposit: {formatCurrency(group.totalDeposit)}</span> {' | '}
+                      <span style={{ color: '#e74c3c' }}>Cashout: {formatCurrency(group.totalCashout)}</span> {' | '}
+                      <strong style={{ color: group.net >= 0 ? 'green' : 'red' }}>
+                        {group.net >= 0 ? `Profit: ${formatCurrency(group.net)}` : `Loss: ${formatCurrency(Math.abs(group.net))}`}
+                      </strong>{' | '}
+                      <span style={{ color: '#0984e3' }}>Margin: {group.profitMargin}%</span>
+                    </p>
                     <table className="table mt-sm">
                       <thead>
                         <tr>
@@ -324,7 +288,7 @@ export default function ProfitLoss() {
                         </tr>
                       </thead>
                       <tbody>
-                        {all.map((entry) => (
+                        {all.map(entry => (
                           <tr key={entry.id}>
                             <td style={{ color: entry.type === 'deposit' ? 'green' : '#c0392b' }}>{entry.type}</td>
                             <td>{formatCurrency(entry.amount)}</td>
@@ -335,7 +299,7 @@ export default function ProfitLoss() {
                     </table>
                   </div>
                 );
-              })}
+              })
             )}
           </div>
         )}
