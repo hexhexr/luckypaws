@@ -2,19 +2,18 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '../../lib/firebaseClient'; // Assuming this path is correct and firebaseClient is configured
-import { fetchProfitLossData, addCashout } from '../../services/profitLossService'; // NEW: Import service functions
+import { fetchProfitLossData, addCashout } from '../../services/profitLossService'; // Import service functions
 
-// Helper for currency formatting for consistency (as suggested by best practices)
+// Helper for currency formatting for consistency
 const formatCurrency = (amount) => {
-  // Ensure amount is a number before formatting
   const numAmount = parseFloat(amount);
   if (isNaN(numAmount)) {
-    return '$0.00'; // Default for invalid numbers
+    return '$0.00';
   }
   return `$${numAmount.toFixed(2)}`;
 };
 
-// Simple Loading Skeleton Component for improved UX during data loading (NEW)
+// Simple Loading Skeleton Component for improved UX during data loading
 const LoadingSkeleton = () => (
   <div className="loading-skeleton mt-md">
     <div className="skeleton-line" style={{ width: '80%' }}></div>
@@ -45,24 +44,25 @@ const LoadingSkeleton = () => (
 
 export default function ProfitLoss() {
   const router = useRouter();
-  const = useState(); // Combined orders and cashouts // FIXED: Syntax error
+  // FIXED: Corrected useState declarations
+  const [allData, setAllData] = useState([]); // Combined orders and cashouts
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const = useState(''); // FIXED: Syntax error
+  const [search, setSearch] = useState('');
   const [newCashout, setNewCashout] = useState({ username: '', amount: '' });
-  const = useState({ // FIXED: Syntax error
+  const [range, setRange] = useState({
     from: new Date().toISOString().slice(0, 10),
     to: new Date().toISOString().slice(0, 10)
   });
 
   // Authentication check for admin pages
   useEffect(() => {
-    if (typeof window!== 'undefined' && localStorage.getItem('admin_auth')!== '1') {
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin'); // Redirect to the admin login page
     }
-  },); // FIXED: Trailing comma in dependency array
+  }, []); // Empty dependency array to run once on mount
 
-  // Refactored loadData to use the service layer (addresses "Tight Coupling of UI and Data Fetching Logic")
+  // Refactored loadData to use the service layer
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(''); // Clear previous errors
@@ -71,19 +71,17 @@ export default function ProfitLoss() {
       setAllData(combined);
     } catch (err) {
       console.error('Failed to load profit/loss data:', err);
-      // Improved error message for better user feedback (addresses "Limited Scope of Error Handling")
-      setError(`⚠️ ${err.message |
-| 'Failed to load financial data. Please check your network connection.'}`);
+      setError(`⚠️ ${err.message || 'Failed to load financial data. Please check your network connection.'}`);
     } finally {
       setLoading(false);
     }
-  },); // No dependencies, so it's stable and won't cause re-renders
+  }, []);
 
   useEffect(() => {
     loadData();
-  },); // Depend on loadData to re-fetch when it changes (though it's useCallback'd)
+  }, [loadData]);
 
-  // Refactored handleAddCashout to use the service layer (addresses "Tight Coupling of UI and Data Fetching Logic")
+  // Refactored handleAddCashout to use the service layer
   const handleAddCashout = async (e) => {
     e.preventDefault();
     setError(''); // Clear previous errors
@@ -91,10 +89,8 @@ export default function ProfitLoss() {
     const username = newCashout.username.trim();
     const amount = parseFloat(newCashout.amount);
 
-    // Robust runtime input validation (addresses "Lack of Robust Runtime Input Validation")
-    if (!username |
-| isNaN(amount) |
-| amount <= 0) {
+    // Robust runtime input validation
+    if (!username || isNaN(amount) || amount <= 0) {
       setError('Please enter a valid username and a positive cashout amount.');
       return;
     }
@@ -105,9 +101,7 @@ export default function ProfitLoss() {
       await loadData(); // Reload all data to reflect the new cashout
     } catch (err) {
       console.error('Error adding cashout:', err);
-      // Improved error message for better user feedback
-      setError(`⚠️ ${err.message |
-| 'Failed to add cashout.'}`);
+      setError(`⚠️ ${err.message || 'Failed to add cashout.'}`);
     }
   };
 
@@ -118,8 +112,7 @@ export default function ProfitLoss() {
     toDate.setHours(23, 59, 59, 999); // Include full 'to' day
 
     const filtered = allData.filter(entry => {
-      const entryDate = new Date(entry.time |
-| entry.created);
+      const entryDate = new Date(entry.time || entry.created);
       return entryDate >= fromDate && entryDate <= toDate;
     });
 
@@ -132,38 +125,33 @@ export default function ProfitLoss() {
       if (!groups[uname]) {
         groups[uname] = {
           username: entry.username, // Keep original casing
-          deposits:,
-          cashouts:,
+          deposits: [],
+          cashouts: [],
           totalDeposit: 0,
           totalCashout: 0,
-          net: 0, // Initialize net
-          profitMargin: 0, // NEW: Initialize profitMargin for each user
-          fbUsername: entry.fbUsername // Assuming fbUsername is available on both
+          net: 0,
+          profitMargin: 0,
+          fbUsername: entry.fbUsername
         };
       }
 
       if (entry.type === 'deposit') {
         groups[uname].deposits.push(entry);
-        groups[uname].totalDeposit += parseFloat(entry.amount |
-| 0);
-        overallDeposit += parseFloat(entry.amount |
-| 0);
+        groups[uname].totalDeposit += parseFloat(entry.amount || 0);
+        overallDeposit += parseFloat(entry.amount || 0);
       } else if (entry.type === 'cashout') {
         groups[uname].cashouts.push(entry);
-        groups[uname].totalCashout += parseFloat(entry.amount |
-| 0);
-        overallCashout += parseFloat(entry.amount |
-| 0);
+        groups[uname].totalCashout += parseFloat(entry.amount || 0);
+        overallCashout += parseFloat(entry.amount || 0);
       }
     });
 
-    // Calculate net and profit margin for each group (NEW: addresses "Critical Division by Zero")
+    // Calculate net and profit margin for each group
     Object.values(groups).forEach(group => {
       group.net = group.totalDeposit - group.totalCashout;
-      // Implement robust division by zero handling for profitMargin
       group.profitMargin = group.totalDeposit > 0
-       ? ((group.net / group.totalDeposit) * 100).toFixed(2) // Format to 2 decimal places
-        : 0; // If totalDeposit is 0, profit margin is 0
+        ? ((group.net / group.totalDeposit) * 100).toFixed(2)
+        : 0;
     });
 
     // Convert to array and sort by username
@@ -172,7 +160,7 @@ export default function ProfitLoss() {
     );
 
     return { sortedGroups, overallDeposit, overallCashout };
-  },); // Re-calculate when allData or range changes
+  }, [allData, range]);
 
   const displayGroups = groupedData.sortedGroups.filter(group =>
     group.username.toLowerCase().includes(search.toLowerCase())
@@ -189,19 +177,26 @@ export default function ProfitLoss() {
     }
   };
 
-  // NEW FEATURE: CSV Export Functionality
+  // CSV Export Functionality
   const exportToCSV = () => {
-    const headers =;
-    const rows = displayGroups.map(group =>);
+    const headers = ['Username', 'Facebook Username', 'Total Deposits', 'Total Cashouts', 'Net Profit/Loss', 'Profit Margin (%)'];
+    const rows = displayGroups.map(group => [
+      group.username,
+      group.fbUsername || 'N/A',
+      group.totalDeposit.toFixed(2),
+      group.totalCashout.toFixed(2),
+      group.net.toFixed(2),
+      group.profitMargin
+    ]);
 
     const csvContent = [
       headers.join(','),
-     ...rows.map(e => e.join(','))
+      ...rows.map(e => e.join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    if (link.download!== undefined) { // feature detection for download attribute
+    if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
       link.setAttribute('download', `profit_loss_report_${range.from}_to_${range.to}.csv`);
@@ -229,28 +224,27 @@ export default function ProfitLoss() {
           <h3>📍 Overall Summary (Date Range)</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
             <div>
-              From: <input type="date" value={range.from} onChange={e => setRange(prev => ({...prev, from: e.target.value }))} />
+              From: <input type="date" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
             </div>
             <div>
-              To: <input type="date" value={range.to} onChange={e => setRange(prev => ({...prev, to: e.target.value }))} />
+              To: <input type="date" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
             </div>
           </div>
           <div>
             <span style={{ color: '#2ecc71' }}>Total Deposits: <strong>{formatCurrency(groupedData.overallDeposit)}</strong></span> {' | '}
             <span style={{ color: '#e74c3c' }}>Total Cashouts: <strong>{formatCurrency(groupedData.overallCashout)}</strong></span> {' | '}
-            <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0? 'green' : 'red' }}>
+            <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'green' : 'red' }}>
               Net: {formatCurrency((groupedData.overallDeposit - groupedData.overallCashout))}
             </strong>
           </div>
-          {/* NEW: Display Overall Profit Margin with division by zero handling */}
           <div>
             <span style={{ color: '#0984e3' }}>Overall Profit Margin: <strong>
               {groupedData.overallDeposit > 0
-               ? `${((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2)}%`
+                ? `${((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2)}%`
                 : '0%'}
             </strong></span>
           </div>
-          <button onClick={exportToCSV} className="btn btn-secondary mt-sm">Export to CSV</button> {/* NEW: Export Button */}
+          <button onClick={exportToCSV} className="btn btn-secondary mt-sm">Export to CSV</button>
         </div>
 
         {/* Add Cashout Form */}
@@ -261,7 +255,7 @@ export default function ProfitLoss() {
               className="input"
               placeholder="Username"
               value={newCashout.username}
-              onChange={(e) => setNewCashout(prev => ({...prev, username: e.target.value }))}
+              onChange={(e) => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
               required
             />
             <input
@@ -270,7 +264,7 @@ export default function ProfitLoss() {
               step="0.01"
               placeholder="Amount (USD)"
               value={newCashout.amount}
-              onChange={(e) => setNewCashout(prev => ({...prev, amount: e.target.value }))}
+              onChange={(e) => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
               required
             />
             <button className="btn btn-primary" type="submit">Add Cashout</button>
@@ -284,25 +278,22 @@ export default function ProfitLoss() {
           onChange={e => setSearch(e.target.value)}
         />
 
-        {loading? (
-          <LoadingSkeleton /> // NEW: Use LoadingSkeleton for improved loading UX
-        ) : error? (
-          <div className="alert alert-danger mt-md">{error}</div> {/* Improved error display */}
+        {loading ? (
+          <LoadingSkeleton />
+        ) : error ? (
+          <div className="alert alert-danger mt-md">{error}</div>
         ) : (
           <div className="mt-md">
-            {displayGroups.length === 0? (
+            {displayGroups.length === 0 ? (
               <p className="text-center">No data found for the selected criteria.</p>
             ) : (
               displayGroups.map((group) => {
-                // Combine and sort individual user's transactions
-                const all = [...group.deposits,...group.cashouts].sort((a, b) => new Date(b.time |
-| b.created) - new Date(a.time |
-| a.created));
+                const all = [...group.deposits, ...group.cashouts].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
                 const totalDeposit = group.totalDeposit;
                 const totalCashout = group.totalCashout;
-                const net = group.net; // Use calculated net from useMemo
-                const profitMargin = group.profitMargin; // Use calculated profitMargin from useMemo
-                const fb = group.fbUsername? `FB: ${group.fbUsername}` : '';
+                const net = group.net;
+                const profitMargin = group.profitMargin;
+                const fb = group.fbUsername ? `FB: ${group.fbUsername}` : '';
 
                 return (
                   <div key={group.username} className="card mt-md">
@@ -316,11 +307,11 @@ export default function ProfitLoss() {
                       <div>
                         <span style={{ color: '#2ecc71' }}>{`Deposit: ${formatCurrency(totalDeposit)}`}</span>{' | '}
                         <span style={{ color: '#e74c3c' }}>{`Cashout: ${formatCurrency(totalCashout)}`}</span>{' | '}
-                        <strong style={{ color: net >= 0? 'green' : 'red' }}>
-                          {net >= 0? `Profit: ${formatCurrency(net)}` : `Loss: ${formatCurrency(Math.abs(net))}`}
+                        <strong style={{ color: net >= 0 ? 'green' : 'red' }}>
+                          {net >= 0 ? `Profit: ${formatCurrency(net)}` : `Loss: ${formatCurrency(Math.abs(net))}`}
                         </strong>
                         {' | '}
-                        <span style={{ color: '#0984e3' }}>{`Margin: ${profitMargin}%`}</span> {/* NEW: Display Profit Margin */}
+                        <span style={{ color: '#0984e3' }}>{`Margin: ${profitMargin}%`}</span>
                       </div>
                     </div>
 
@@ -335,10 +326,9 @@ export default function ProfitLoss() {
                       <tbody>
                         {all.map((entry) => (
                           <tr key={entry.id}>
-                            <td style={{ color: entry.type === 'deposit'? 'green' : '#c0392b' }}>{entry.type}</td>
+                            <td style={{ color: entry.type === 'deposit' ? 'green' : '#c0392b' }}>{entry.type}</td>
                             <td>{formatCurrency(entry.amount)}</td>
-                            <td>{new Date(entry.time |
-| entry.created).toLocaleString()}</td>
+                            <td>{new Date(entry.time || entry.created).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
