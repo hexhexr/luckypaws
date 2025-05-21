@@ -41,19 +41,19 @@ export default function CustomerProfile() {
 
   return (
     <div className="container mt-lg">
-      <div className="card">
-        <h2 className="text-center">👤 {username}'s Profile</h2>
-        <p className="text-center">
-          Total Deposits: <strong>${totals.usd.toFixed(2)}</strong> | 
-          <strong> {totals.btc.toFixed(8)} BTC</strong>
-        </p>
+      <div className="card customer-profile-card">
+        <h2 className="card-header">👤 {username}'s Profile</h2>
+        <div className="totals-summary text-center">
+          <p>Total Deposits: <strong className="text-success">${totals.usd.toFixed(2)}</strong></p>
+          <p className="btc-total">Total BTC: <strong> {totals.btc.toFixed(8)} BTC</strong></p>
+        </div>
 
         {loading ? (
           <p className="text-center mt-md">Loading orders...</p>
         ) : orders.length === 0 ? (
-          <p className="text-center mt-md">No orders found.</p>
+          <p className="text-center mt-md">No orders found for this user.</p>
         ) : (
-          <div className="mt-md">
+          <div className="table-responsive mt-md">
             <table className="table">
               <thead>
                 <tr>
@@ -70,7 +70,11 @@ export default function CustomerProfile() {
                     <td>{o.game}</td>
                     <td>${o.amount}</td>
                     <td>{o.btc}</td>
-                    <td style={{ color: o.status === 'paid' ? 'green' : '#d63031' }}>
+                    <td className={
+                      o.status === 'paid' ? 'status-paid' :
+                      o.status === 'pending' ? 'status-pending' :
+                      'status-cancelled'
+                    }>
                       {o.status}
                     </td>
                     <td>{new Date(o.created).toLocaleString()}</td>
@@ -81,8 +85,8 @@ export default function CustomerProfile() {
           </div>
         )}
 
-        <div className="text-center mt-md">
-          <button className="btn btn-primary" onClick={() => router.back()}>← Back to Dashboard</button>
+        <div className="text-center mt-xl"> {/* Increased margin for button */}
+          <button className="btn btn-secondary" onClick={() => router.back()}>← Back to Profit & Loss</button>
         </div>
       </div>
     </div>

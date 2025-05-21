@@ -56,7 +56,6 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Removed flex properties here to allow admin-dashboard to manage layout */
   min-height: 100vh; /* Minimum viewport height */
   padding: 0; /* Remove body padding, let admin-dashboard handle it */
   box-sizing: border-box;
@@ -74,7 +73,7 @@ body {
   background: var(--card-bg);
   border-radius: var(--radius-lg); /* More rounded */
   box-shadow: var(--shadow-md);
-  padding: var(--spacing-xl); /* Generous padding */
+  padding: var(--spacing-lg); /* Reduced padding for compactness */
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -85,8 +84,8 @@ body {
   font-weight: 700;
   text-align: center;
   color: var(--primary-green); /* Cash App green */
-  margin-bottom: var(--spacing-xl);
-  padding: 0; /* Let surrounding elements control padding */
+  margin-bottom: var(--spacing-md); /* Reduced margin */
+  padding: 0;
 }
 
 /* Form Elements */
@@ -101,11 +100,11 @@ label {
 .input,
 .select {
   width: 100%;
-  padding: 0.75rem;
-  margin: 0 0 var(--spacing-md) 0; /* Reduced margin */
+  padding: 0.65rem; /* Slightly reduced padding */
+  margin: 0 0 var(--spacing-md) 0;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 1rem;
+  font-size: 0.95rem; /* Slightly smaller font */
   color: var(--text-dark);
   background-color: #fcfcfc;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -144,20 +143,20 @@ label {
 
 /* Buttons */
 .btn {
-  padding: 0.85rem 1.5rem;
+  padding: 0.75rem 1.25rem; /* Reduced padding */
   border: none;
-  border-radius: var(--radius-md); /* Consistent rounding */
+  border-radius: var(--radius-md);
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.95rem; /* Slightly smaller font */
   cursor: pointer;
   transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
   width: 100%;
-  margin-top: var(--spacing-lg);
+  margin-top: var(--spacing-md); /* Reduced margin-top */
   display: flex;
   justify-content: center;
   align-items: center;
   gap: var(--spacing-sm);
-  box-shadow: var(--shadow-sm); /* Subtle shadow for buttons */
+  box-shadow: var(--shadow-sm);
 }
 
 .btn:disabled {
@@ -428,18 +427,22 @@ label {
 }
 
 
-/* Utility Classes for Spacing (already present in your CSS, just adjusting values) */
+/* Utility Classes for Spacing */
 .mt-sm { margin-top: var(--spacing-sm); }
 .mt-md { margin-top: var(--spacing-md); }
 .mt-lg { margin-top: var(--spacing-lg); }
 .mt-xl { margin-top: var(--spacing-xl); }
-.mt-xxl { margin-top: var(--spacing-xxl); } /* Added for larger spacing */
+.mt-xxl { margin-top: var(--spacing-xxl); }
 
 .mb-sm { margin-bottom: var(--spacing-sm); }
 .mb-md { margin-bottom: var(--spacing-md); }
 .mb-lg { margin-bottom: var(--spacing-lg); }
 .mb-xl { margin-bottom: var(--spacing-xl); }
-.mb-xxl { margin-bottom: var(--spacing-xxl); } /* Added for larger spacing */
+.mb-xxl { margin-bottom: var(--spacing-xxl); }
+
+.py-sm { padding-top: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
+.py-md { padding-top: var(--spacing-md); padding-bottom: var(--spacing-md); }
+.py-lg { padding-top: var(--spacing-lg); padding-bottom: var(--spacing-lg); }
 
 .text-center { text-align: center; }
 .text-success { color: var(--primary-green) !important; }
@@ -460,67 +463,65 @@ label {
 /* Media queries for larger screens */
 @media (min-width: 768px) {
   body {
-    align-items: flex-start; /* Reset align-items for desktop */
-    /* padding-top: var(--spacing-xl); // Not needed with full width admin-dashboard */
+    align-items: flex-start;
   }
   .container {
-    max-width: 500px; /* Slightly wider on desktop */
+    max-width: 500px;
   }
   .card {
-    padding: var(--spacing-xl);
+    padding: var(--spacing-xl); /* Restore slightly larger padding on desktop for cards */
   }
   .card-header {
     font-size: 2rem;
   }
   .modal {
-    max-width: 380px; /* Slightly wider modal on desktop if desired */
-    padding: var(--spacing-xl); /* More padding on desktop */
+    max-width: 380px;
+    padding: var(--spacing-xl);
   }
 }
 
-/* --- NEW STYLES FOR PROFIT & LOSS SECTION --- */
+/* --- NEW/UPDATED STYLES FOR ADMIN DASHBOARD & PROFIT & LOSS --- */
 
 /* Overall Dashboard Layout */
 .admin-dashboard {
   display: flex;
-  gap: var(--spacing-lg); /* Consistent gap between sidebar and content */
-  min-height: 100vh; /* Ensure it takes full height */
+  gap: var(--spacing-lg);
+  min-height: 100vh;
   padding: var(--spacing-lg); /* Padding around the entire dashboard */
-  box-sizing: border-box; /* Include padding in element's total width and height */
-  background-color: var(--bg-light); /* Ensure consistent background */
-  width: 100%; /* Ensure it spans full width for flex alignment */
+  box-sizing: border-box;
+  background-color: var(--bg-light);
+  width: 100%;
 }
 
 .main-content {
-  flex-grow: 1; /* Allows main content to take available space */
-  /* max-width: 1000px; /* REMOVED to allow full horizontal expansion */
-  margin: 0; /* REMOVED auto margin */
+  flex-grow: 1;
+  margin: 0;
 }
 
 .section-title {
   font-size: 2rem;
   color: var(--primary-green);
   margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-md); /* Added padding below title for border */
-  border-bottom: 2px solid var(--primary-green); /* Prominent horizontal line */
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--primary-green);
   text-align: center;
   font-weight: 700;
 }
 
 /* Sidebar Styles */
 .sidebar {
-  background-color: var(--card-bg); /* Use card background for sidebar */
+  background-color: var(--card-bg);
   padding: var(--spacing-lg);
-  min-width: 220px;
+  min-width: 200px; /* Slightly reduced min-width for more content space */
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  border-radius: var(--radius-lg); /* Rounded corners */
-  position: sticky; /* Make it sticky */
-  top: var(--spacing-lg); /* Stick to top with some margin */
-  align-self: flex-start; /* Align to start of flex container */
-  height: fit-content; /* Fit content height */
+  border-radius: var(--radius-lg);
+  position: sticky;
+  top: var(--spacing-lg);
+  align-self: flex-start;
+  height: fit-content;
 }
 .sidebar h1 {
   color: var(--primary-green);
@@ -538,15 +539,15 @@ label {
   color: var(--text-dark);
   font-weight: 500;
   transition: background-color 0.2s ease, color 0.2s ease;
-  background-color: transparent; /* Ensure button background is transparent by default */
-  border: none; /* Remove button default border */
-  cursor: pointer; /* Ensure cursor is pointer for buttons */
-  width: 100%; /* Full width */
-  text-align: left; /* Align text to left */
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
   font-size: 1rem;
 }
 .nav-btn:hover {
-  background-color: var(--bg-light); /* Lighter background on hover */
+  background-color: var(--bg-light);
   color: var(--primary-green);
 }
 .nav-btn.active {
@@ -555,16 +556,16 @@ label {
   font-weight: 600;
 }
 .nav-btn.active:hover {
-   background-color: var(--green-dark); /* Darker green on hover for active */
+   background-color: var(--green-dark);
 }
 
 /* Card Specifics */
 .card {
-  margin-bottom: var(--spacing-lg); /* Consistent margin between cards */
+  margin-bottom: var(--spacing-lg);
 }
 
 .card-subtitle {
-  font-size: 1.3rem;
+  font-size: 1.2rem; /* Slightly smaller subtitle */
   color: var(--text-dark);
   margin-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--border-subtle);
@@ -579,13 +580,13 @@ label {
 .date-range-controls {
   display: flex;
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  flex-wrap: wrap; /* Allow wrapping on small screens */
+  margin-bottom: var(--spacing-md); /* Reduced margin */
+  flex-wrap: wrap;
 }
 
 .date-input-group {
-  flex: 1; /* Distribute space evenly */
-  min-width: 150px; /* Minimum width for inputs */
+  flex: 1;
+  min-width: 120px; /* Smaller min-width for date inputs */
 }
 
 .date-input-group label {
@@ -595,10 +596,10 @@ label {
 
 .date-input-group input[type="date"] {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.65rem; /* Reduced padding */
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 1rem;
+  font-size: 0.95rem; /* Reduced font size */
   color: var(--text-dark);
   background-color: #fcfcfc;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -609,32 +610,32 @@ label {
   display: flex;
   justify-content: space-between;
   padding: var(--spacing-sm) 0;
-  border-bottom: 1px dashed var(--border-subtle); /* Emphasized dashed lines */
-  font-size: 1.1rem;
+  border-bottom: 1px dashed var(--border-subtle);
+  font-size: 1rem; /* Slightly smaller font */
   font-weight: 500;
   color: var(--text-dark);
 }
 .summary-numbers p:last-child {
   border-bottom: none;
-  font-weight: 700; /* Make net total stronger */
+  font-weight: 700;
 }
 
 .summary-deposit {
-  color: var(--primary-green); /* Highlight overall deposit */
+  color: var(--primary-green);
   font-weight: 600;
 }
 
 .summary-cashout {
-  color: var(--red-alert); /* Highlight overall cashout */
+  color: var(--red-alert);
   font-weight: 600;
 }
 
 .summary-net {
-  font-size: 1.2rem; /* Larger for net */
+  font-size: 1.1rem; /* Slightly smaller net font */
 }
 
 .summary-margin {
-  color: var(--green-dark); /* Highlight margin */
+  color: var(--green-dark);
   font-weight: 600;
 }
 
@@ -648,30 +649,30 @@ label {
 }
 
 .search-input {
-  margin-top: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg) !important; /* Important to override utility */
+  margin-top: var(--spacing-md); /* Reduced margin-top */
+  margin-bottom: var(--spacing-lg) !important;
 }
 
 /* User Profit/Loss List */
 .user-profit-loss-list {
   display: grid;
-  gap: var(--spacing-lg); /* Gap between user cards */
-  /* Adjusted minmax to allow cards to be wider */
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); /* Responsive grid, allowing wider cards */
+  gap: var(--spacing-md); /* Reduced gap between user cards */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Adjusted minmax for more cards per row */
 }
 
 .user-summary-card {
   background-color: var(--card-bg);
-  box-shadow: var(--shadow-sm); /* Lighter shadow for individual cards */
-  border: 1px solid var(--border-color); /* Subtle border */
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-md); /* Reduced padding for user cards */
 }
 
 .username-heading {
-  font-size: 1.5rem;
+  font-size: 1.3rem; /* Smaller heading */
   margin-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-subtle); /* Horizontal line below username */
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: var(--spacing-xs);
-  color: var(--primary-green); /* Highlight username */
+  color: var(--primary-green);
 }
 
 .username-link {
@@ -686,9 +687,9 @@ label {
 }
 
 .fb-username {
-  font-size: 0.9rem;
+  font-size: 0.85rem; /* Smaller font */
   color: var(--text-light);
-  margin-top: -var(--spacing-xs); /* Pull closer to username */
+  margin-top: -var(--spacing-xs);
   margin-bottom: var(--spacing-md);
 }
 
@@ -697,15 +698,15 @@ label {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-sm);
-  font-size: 1rem;
+  font-size: 0.95rem; /* Slightly smaller font */
 }
 
 .summary-deposit-individual {
-  color: var(--primary-green); /* Highlight individual deposit */
+  color: var(--primary-green);
   font-weight: 600;
 }
 .summary-cashout-individual {
-  color: var(--red-alert); /* Highlight individual cashout */
+  color: var(--red-alert);
   font-weight: 600;
 }
 .summary-margin-individual {
@@ -714,29 +715,29 @@ label {
 }
 
 .transaction-history-title {
-  font-size: 1.1rem;
-  margin-top: var(--spacing-lg);
-  margin-bottom: var(--spacing-md);
+  font-size: 1rem; /* Smaller font */
+  margin-top: var(--spacing-md); /* Reduced margin */
+  margin-bottom: var(--spacing-sm);
   color: var(--text-dark);
-  border-top: 1px dashed var(--border-subtle); /* Horizontal line above transaction history */
+  border-top: 1px dashed var(--border-subtle);
   padding-top: var(--spacing-md);
 }
 
 .table-responsive {
-  overflow-x: auto; /* Make table scrollable on small screens */
+  overflow-x: auto;
 }
 
-.table { /* Renamed from .transaction-table to just .table for more generic use, if other tables are present */
+.table {
   width: 100%;
   border-collapse: collapse;
   margin-top: var(--spacing-sm);
-  font-size: 0.9rem;
+  font-size: 0.85rem; /* Smaller font for tables */
 }
 
 .table th,
 .table td {
   padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--border-subtle); /* Consistent border for table cells */
+  border: 1px solid var(--border-subtle);
   text-align: left;
 }
 
@@ -747,11 +748,11 @@ label {
 }
 
 .table tr:nth-child(even) {
-  background-color: #f9f9f9; /* Subtle zebra striping */
+  background-color: #f9f9f9;
 }
 
 .table tr:hover {
-  background-color: #f0f0f0; /* Row hover effect */
+  background-color: #f0f0f0;
 }
 
 .deposit-row .transaction-type {
@@ -765,41 +766,87 @@ label {
 }
 
 .transaction-amount {
-  font-weight: 600; /* Make amounts bold */
+  font-weight: 600;
 }
 
 .transaction-time {
   color: var(--text-light);
-  font-size: 0.85rem;
+  font-size: 0.8rem; /* Even smaller time font */
 }
 
 
 /* Media queries for larger screens specific to admin dashboard */
 @media (max-width: 768px) {
   .admin-dashboard {
-    flex-direction: column; /* Stack sidebar and content on small screens */
-    padding: var(--spacing-md); /* Adjust padding for small screens */
+    flex-direction: column;
+    padding: var(--spacing-md);
   }
   .sidebar {
     width: 100%;
-    position: static; /* Remove sticky on small screens */
-    border-radius: var(--radius-md); /* Slightly less rounded */
+    position: static;
+    border-radius: var(--radius-md);
     margin-bottom: var(--spacing-md);
   }
   .main-content {
-    margin: 0; /* Remove auto margin on small screens */
+    margin: 0;
   }
   .section-title {
-    font-size: 1.8rem; /* Slightly smaller title on small screens */
+    font-size: 1.6rem; /* Smaller title on small screens */
     margin-bottom: var(--spacing-lg);
-    padding-bottom: var(--spacing-sm); /* Adjust padding below title for border */
-    border-bottom: 1px solid var(--primary-green); /* Thinner border on small screens */
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--primary-green);
   }
   .date-range-controls {
-    flex-direction: column; /* Stack date inputs on small screens */
+    flex-direction: column;
     gap: var(--spacing-sm);
   }
   .user-profit-loss-list {
-    grid-template-columns: 1fr; /* Single column on very small screens */
+    grid-template-columns: 1fr;
   }
+}
+
+/* Specific styles for Customer Profile */
+.customer-profile-card .card-header {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.customer-profile-card .totals-summary {
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.customer-profile-card .totals-summary strong {
+  color: var(--primary-green);
+}
+
+.customer-profile-card .totals-summary .btc-total {
+  color: var(--text-dark);
+}
+
+/* Ensure tables within customer profile use the general .table styles */
+.customer-profile-card .table th,
+.customer-profile-card .table td {
+  font-size: 0.9rem; /* Slightly larger table font for customer profile */
+}
+
+.customer-profile-card .table td[style] { /* Override inline style for status */
+  color: inherit !important;
+}
+.customer-profile-card .table .status-paid {
+  color: var(--primary-green);
+  font-weight: 500;
+}
+.customer-profile-card .table .status-pending {
+  color: var(--yellow-warning);
+  font-weight: 500;
+}
+.customer-profile-card .table .status-cancelled {
+  color: var(--red-alert);
+  font-weight: 500;
 }
