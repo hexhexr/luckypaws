@@ -18,18 +18,28 @@ export default function CustomerProfile() {
 
   // Fetch data for the specific user
   const loadUserData = useCallback(async () => {
-    if (!username) return;
+    if (!username) {
+      setLoading(false); // If no username, stop loading and show no data
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/user-orders?username=${username}`);
+      // Reverting to fetching all orders and filtering client-side
+      // This ensures data shows up if the /api/user-orders endpoint isn't fully implemented
+      const res = await fetch(`/api/orders`); // Fetch all orders
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || 'Failed to load user orders');
+        throw new Error(data.message || 'Failed to load orders');
       }
 
-      const userOrders = data;
+      // Filter orders by username locally
+      const userOrders = data.filter(o => o.username && o.username.toLowerCase() === username.toLowerCase());
+
+      console.log('Fetched all orders:', data); // Log all fetched data
+      console.log('Filtered user orders:', userOrders); // Log filtered data
+
       const usd = userOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
       const btc = userOrders.reduce((sum, o) => sum + Number(o.btc || 0), 0);
 
@@ -63,6 +73,7 @@ export default function CustomerProfile() {
       <div className="sidebar">
         <h1>Lucky Paw Admin</h1>
         <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        {/* Kept active for Profit & Loss if that's the primary path */}
         <a className="nav-btn active" href="/admin/profit-loss">📊 Profit & Loss</a>
         <a className="nav-btn" href="/admin/games">🎮 Games</a>
         <button className="nav-btn" onClick={logout}>🚪 Logout</button>
@@ -96,19 +107,19 @@ export default function CustomerProfile() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o, i) => (
-                    <tr key={o.id || i}>
-                      <td>{o.game}</td>
-                      <td>${o.amount}</td>
-                      <td>{o.btc}</td>
+                  {orders.map((o) => ( // Removed 'i' as key, using o.id or fallback
+                    <tr key={o.id || `${o.username}-${o.created}-${o.amount}`}>
+                      <td>{o.game || 'N/A'}</td> {/* Handle potentially missing 'game' */}
+                      <td>${o.amount ? o.amount.toFixed(2) : '0.00'}</td> {/* Ensure amount is formatted */}
+                      <td>{o.btc || '0'}</td> {/* Display 0 if BTC is missing */}
                       <td className={
                         o.status === 'paid' ? 'status-paid' :
                         o.status === 'pending' ? 'status-pending' :
                         'status-cancelled'
                       }>
-                        {o.status}
+                        {o.status || 'unknown'}
                       </td>
-                      <td>{new Date(o.created).toLocaleString()}</td>
+                      <td>{o.created ? new Date(o.created).toLocaleString() : 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -117,7 +128,7 @@ export default function CustomerProfile() {
           )}
 
           <div className="text-center mt-xl">
-            <button className="btn btn-secondary" onClick={() => router.back()}>← Back to Profit & Loss</button>
+            <button className="btn btn-secondary" onClick={() => router.back()}>← Back</button> {/* Changed button text */}
           </div>
         </div>
       </div>
