@@ -221,7 +221,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const tryspeedApiKey = process.env.TRYSPEED_API_KEY;
+    const tryspeedApiKey = process.env.SPEED_SECRET_KEY;
     if (!tryspeedApiKey) {
       console.error('CRITICAL: TrySpeed API key is not configured on the server.');
       return res.status(500).json({ message: 'Payment gateway configuration error. Please contact support.' });
