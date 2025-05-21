@@ -153,7 +153,7 @@ export default function ProfitLoss() {
 
   const logout = async () => {
     try {
-      await fetch('/api/admin/logout', { method: 'POST' });
+      await fetch('/api/admin/logout', { method: 'POST' }); // Added await here
     } catch (err) {
       console.error(err);
     } finally {
