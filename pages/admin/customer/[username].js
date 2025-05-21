@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState, useCallback } from 'react'; // Added useCallback
-import { db } from '../../lib/firebaseClient'; // Assuming this is correctly configured
+import { useEffect, useState, useCallback } from 'react';
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -19,12 +18,10 @@ export default function CustomerProfile() {
 
   // Fetch data for the specific user
   const loadUserData = useCallback(async () => {
-    if (!username) return; // Ensure username is available
+    if (!username) return;
 
     setLoading(true);
     try {
-      // Assuming a dedicated API endpoint for a single user's orders for efficiency
-      // If not available, we filter locally as before, but this is better for performance.
       const res = await fetch(`/api/user-orders?username=${username}`);
       const data = await res.json();
 
@@ -32,7 +29,7 @@ export default function CustomerProfile() {
         throw new Error(data.message || 'Failed to load user orders');
       }
 
-      const userOrders = data; // Data should already be filtered for this username
+      const userOrders = data;
       const usd = userOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
       const btc = userOrders.reduce((sum, o) => sum + Number(o.btc || 0), 0);
 
@@ -44,11 +41,11 @@ export default function CustomerProfile() {
     } finally {
       setLoading(false);
     }
-  }, [username]); // Depend on username to re-fetch if it changes
+  }, [username]);
 
   useEffect(() => {
     loadUserData();
-  }, [loadUserData]); // Re-run when loadUserData is re-created (username changes)
+  }, [loadUserData]);
 
   const logout = async () => {
     try {
@@ -66,7 +63,6 @@ export default function CustomerProfile() {
       <div className="sidebar">
         <h1>Lucky Paw Admin</h1>
         <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        {/* Highlight Profit & Loss if coming from there, or keep it consistent */}
         <a className="nav-btn active" href="/admin/profit-loss">📊 Profit & Loss</a>
         <a className="nav-btn" href="/admin/games">🎮 Games</a>
         <button className="nav-btn" onClick={logout}>🚪 Logout</button>
@@ -101,7 +97,7 @@ export default function CustomerProfile() {
                 </thead>
                 <tbody>
                   {orders.map((o, i) => (
-                    <tr key={o.id || i}> {/* Use o.id if available for better keying */}
+                    <tr key={o.id || i}>
                       <td>{o.game}</td>
                       <td>${o.amount}</td>
                       <td>{o.btc}</td>
