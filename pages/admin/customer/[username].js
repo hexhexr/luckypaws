@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState, useCallback } from 'react';
+import { db } from '../../../lib/firebaseClient'; // ✅ Ensure correct path
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -9,36 +10,26 @@ export default function CustomerProfile() {
   const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ usd: 0, btc: 0 });
 
-  // Authentication check
+  // 🔐 Auth check
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin/login');
     }
   }, []);
 
-  // Fetch data for the specific user
+  // ✅ Load only paid orders for this user from Firebase
   const loadUserData = useCallback(async () => {
-    if (!username) {
-      setLoading(false); // If no username, stop loading and show no data
-      return;
-    }
+    if (!username) return;
 
     setLoading(true);
     try {
-      // Reverting to fetching all orders and filtering client-side
-      // This ensures data shows up if the /api/user-orders endpoint isn't fully implemented
-      const res = await fetch(`/api/orders`); // Fetch all orders
-      const data = await res.json();
+      const snap = await db
+        .collection('orders')
+        .where('username', '==', username)
+        .where('status', '==', 'paid')
+        .get();
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to load orders');
-      }
-
-      // Filter orders by username locally
-      const userOrders = data.filter(o => o.username && o.username.toLowerCase() === username.toLowerCase());
-
-      console.log('Fetched all orders:', data); // Log all fetched data
-      console.log('Filtered user orders:', userOrders); // Log filtered data
+      const userOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       const usd = userOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
       const btc = userOrders.reduce((sum, o) => sum + Number(o.btc || 0), 0);
@@ -46,8 +37,7 @@ export default function CustomerProfile() {
       setOrders(userOrders);
       setTotals({ usd, btc });
     } catch (err) {
-      console.error('Failed to load user data:', err);
-      // Optionally set an error state to display to the user
+      console.error('Error loading user orders:', err);
     } finally {
       setLoading(false);
     }
@@ -73,22 +63,21 @@ export default function CustomerProfile() {
       <div className="sidebar">
         <h1>Lucky Paw Admin</h1>
         <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        {/* Kept active for Profit & Loss if that's the primary path */}
-        <a className="nav-btn active" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
         <a className="nav-btn" href="/admin/games">🎮 Games</a>
         <button className="nav-btn" onClick={logout}>🚪 Logout</button>
       </div>
 
       <div className="main-content">
-        <h2 className="section-title">👤 Customer Profile: {username}</h2>
+        <h2 className="section-title">Customer Profile: {username}</h2>
 
         <div className="card customer-profile-card mt-md">
           <div className="totals-summary text-center">
             <p>Total Deposits: <strong className="text-success">${totals.usd.toFixed(2)}</strong></p>
-            <p className="btc-total">Total BTC: <strong> {totals.btc.toFixed(8)} BTC</strong></p>
+            <p>Total BTC: <strong>{totals.btc.toFixed(8)} BTC</strong></p>
           </div>
 
-          <h3 className="card-subtitle">Transaction History</h3>
+          <h3 className="card-subtitle mt-md">Transaction History</h3>
 
           {loading ? (
             <p className="text-center mt-md">Loading orders...</p>
@@ -107,15 +96,14 @@ export default function CustomerProfile() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o) => ( // Removed 'i' as key, using o.id or fallback
-                    <tr key={o.id || `${o.username}-${o.created}-${o.amount}`}>
-                      <td>{o.game || 'N/A'}</td> {/* Handle potentially missing 'game' */}
-                      <td>${o.amount ? o.amount.toFixed(2) : '0.00'}</td> {/* Ensure amount is formatted */}
-                      <td>{o.btc || '0'}</td> {/* Display 0 if BTC is missing */}
+                  {orders.map((o) => (
+                    <tr key={o.id || `${o.username}-${o.created}`}>
+                      <td>{o.game || 'N/A'}</td>
+                      <td>${Number(o.amount || 0).toFixed(2)}</td>
+                      <td>{Number(o.btc || 0).toFixed(8)}</td>
                       <td className={
                         o.status === 'paid' ? 'status-paid' :
-                        o.status === 'pending' ? 'status-pending' :
-                        'status-cancelled'
+                        o.status === 'pending' ? 'status-pending' : 'status-cancelled'
                       }>
                         {o.status || 'unknown'}
                       </td>
@@ -128,7 +116,9 @@ export default function CustomerProfile() {
           )}
 
           <div className="text-center mt-xl">
-            <button className="btn btn-secondary" onClick={() => router.back()}>← Back</button> {/* Changed button text */}
+            <button className="btn btn-secondary" onClick={() => router.back()}>
+              Back
+            </button>
           </div>
         </div>
       </div>
