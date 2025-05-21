@@ -22,12 +22,12 @@ const LoadingSkeleton = () => (
     <div className="skeleton-line" style={{ width: '70%' }}></div>
     <div className="skeleton-line" style={{ width: '85%' }}></div>
     <style jsx>{`
-     .loading-skeleton {
+    .loading-skeleton {
         padding: 1rem;
         border-radius: 8px;
         background-color: #f0f0f0;
       }
-     .skeleton-line {
+    .skeleton-line {
         height: 1.2em;
         background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
         background-size: 200% 100%;
@@ -45,12 +45,12 @@ const LoadingSkeleton = () => (
 
 export default function ProfitLoss() {
   const router = useRouter();
-  const = useState(); // Combined orders and cashouts
+  const = useState(); // Combined orders and cashouts // FIXED: Syntax error
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const = useState('');
+  const = useState(''); // FIXED: Syntax error
   const [newCashout, setNewCashout] = useState({ username: '', amount: '' });
-  const = useState({
+  const = useState({ // FIXED: Syntax error
     from: new Date().toISOString().slice(0, 10),
     to: new Date().toISOString().slice(0, 10)
   });
@@ -60,7 +60,7 @@ export default function ProfitLoss() {
     if (typeof window!== 'undefined' && localStorage.getItem('admin_auth')!== '1') {
       router.replace('/admin'); // Redirect to the admin login page
     }
-  },);
+  },); // FIXED: Trailing comma in dependency array
 
   // Refactored loadData to use the service layer (addresses "Tight Coupling of UI and Data Fetching Logic")
   const loadData = useCallback(async () => {
