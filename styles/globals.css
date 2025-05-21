@@ -30,7 +30,7 @@
   --spacing-md: 12px;
   --spacing-lg: 16px;
   --spacing-xl: 20px;
-  --spacing-xxl: 24px; /* Added for more generous spacing */
+  --spacing-xxl: 24px;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -57,23 +57,23 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh; /* Minimum viewport height */
-  padding: 0; /* Remove body padding, let admin-dashboard handle it */
+  padding: 0;
   box-sizing: border-box;
 }
 
 .container {
-  max-width: 420px; /* Optimized for a tighter, app-like feel */
+  max-width: 420px;
   width: 100%;
   margin: 0 auto;
-  padding: 0; /* Card will handle padding */
+  padding: 0;
 }
 
 /* Card Layout */
 .card {
   background: var(--card-bg);
-  border-radius: var(--radius-lg); /* More rounded */
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: var(--spacing-lg); /* Reduced padding for compactness */
+  padding: var(--spacing-lg); /* Base card padding */
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -83,8 +83,8 @@ body {
   font-size: 1.8rem;
   font-weight: 700;
   text-align: center;
-  color: var(--primary-green); /* Cash App green */
-  margin-bottom: var(--spacing-md); /* Reduced margin */
+  color: var(--primary-green);
+  margin-bottom: var(--spacing-md);
   padding: 0;
 }
 
@@ -100,11 +100,11 @@ label {
 .input,
 .select {
   width: 100%;
-  padding: 0.65rem; /* Slightly reduced padding */
+  padding: 0.65rem;
   margin: 0 0 var(--spacing-md) 0;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 0.95rem; /* Slightly smaller font */
+  font-size: 0.95rem;
   color: var(--text-dark);
   background-color: #fcfcfc;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -114,7 +114,7 @@ label {
 .input:focus,
 .select:focus {
   border-color: var(--primary-green);
-  box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.2); /* Green glow */
+  box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.2);
   outline: none;
 }
 
@@ -138,20 +138,20 @@ label {
 .radio-group input[type="radio"] {
   margin-right: var(--spacing-sm);
   accent-color: var(--primary-green);
-  transform: scale(1.1); /* Slightly larger radio button */
+  transform: scale(1.1);
 }
 
 /* Buttons */
 .btn {
-  padding: 0.75rem 1.25rem; /* Reduced padding */
+  padding: 0.75rem 1.25rem;
   border: none;
   border-radius: var(--radius-md);
   font-weight: 600;
-  font-size: 0.95rem; /* Slightly smaller font */
+  font-size: 0.95rem;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
   width: 100%;
-  margin-top: var(--spacing-md); /* Reduced margin-top */
+  margin-top: var(--spacing-md);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -178,7 +178,7 @@ label {
   box-shadow: var(--shadow-md);
 }
 
-.btn-secondary { /* Added for Export to CSV button */
+.btn-secondary {
   background-color: #6c757d;
   color: white;
 }
@@ -191,7 +191,7 @@ label {
 
 
 .btn-success {
-  background-color: var(--green-light); /* Lighter green for success actions */
+  background-color: var(--green-light);
   color: white;
 }
 
@@ -241,7 +241,7 @@ label {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.6); /* Slightly darker overlay */
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -251,19 +251,19 @@ label {
 
 .modal {
   background: var(--card-bg);
-  border-radius: var(--radius-xl); /* Very rounded for app feel */
-  padding: var(--spacing-lg); /* Reduced padding */
-  max-width: 340px; /* Even more compact for mobile */
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  max-width: 340px;
   width: 90%;
-  box-shadow: var(--shadow-lg); /* Stronger shadow */
+  box-shadow: var(--shadow-lg);
   animation: slideInUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm); /* Reduced spacing between elements */
+  gap: var(--spacing-sm);
   box-sizing: border-box;
-  max-height: 95vh; /* Allow more vertical space if needed */
-  overflow-y: auto; /* Enable scrolling for content overflow */
+  max-height: 95vh;
+  overflow-y: auto;
 }
 
 .modal-close-btn {
@@ -286,12 +286,12 @@ label {
 
 /* Modal Titles */
 .modal-title {
-  font-size: 1.4rem; /* Slightly smaller title */
+  font-size: 1.4rem;
   font-weight: 700;
-  color: var(--primary-green); /* Green for main titles */
+  color: var(--primary-green);
   text-align: center;
-  margin-bottom: var(--spacing-sm); /* Reduced margin for compactness */
-  margin-top: var(--spacing-xs); /* Added slight top margin */
+  margin-bottom: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
 }
 
 .modal-title.text-danger {
@@ -305,27 +305,27 @@ label {
 /* Amount Display (Invoice & Receipt) */
 .amount-display {
   background: linear-gradient(135deg, var(--green-light) 0%, var(--primary-green) 100%);
-  border-radius: var(--radius-md); /* Slightly less rounded */
-  padding: var(--spacing-md); /* Reduced padding */
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
   text-align: center;
   color: white;
   box-shadow: var(--shadow-sm);
-  margin-bottom: var(--spacing-md); /* Consistent spacing */
+  margin-bottom: var(--spacing-md);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .amount-display .usd-amount {
-  font-size: 2.2rem; /* Smaller USD font size */
+  font-size: 2.2rem;
   font-weight: 700;
   line-height: 1.2;
-  margin-bottom: var(--spacing-xxs); /* Very small margin */
+  margin-bottom: var(--spacing-xxs);
   display: block;
 }
 
 .amount-display .btc-amount {
-  font-size: 1rem; /* Smaller BTC font size */
+  font-size: 1rem;
   opacity: 0.9;
   display: block;
   font-family: var(--font-family-mono);
@@ -333,13 +333,13 @@ label {
 
 /* Information Sections (Invoice & Receipt) */
 .info-section {
-  background: #f8fcf8; /* Very light green tinted background */
+  background: #f8fcf8;
   border-radius: var(--radius-md);
-  padding: var(--spacing-sm) var(--spacing-md); /* Reduced padding */
+  padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xxs); /* Reduced gap */
+  gap: var(--spacing-xxs);
   margin-bottom: var(--spacing-md);
 }
 
@@ -347,10 +347,10 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem; /* Slightly smaller text */
+  font-size: 0.9rem;
   color: var(--text-dark);
-  padding: var(--spacing-xs) 0; /* Reduced padding */
-  border-bottom: 1px dashed var(--border-subtle); /* Subtle separator */
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px dashed var(--border-subtle);
 }
 
 .info-section p:last-child {
@@ -358,20 +358,20 @@ label {
 }
 
 .info-section strong {
-  color: var(--text-dark); /* Keep bold but not overly dark */
+  color: var(--text-dark);
   font-weight: 600;
 }
 
 /* Countdown Timer */
 .invoice-countdown {
   position: absolute;
-  top: var(--spacing-sm); /* Adjusted closer to top */
-  left: var(--spacing-sm); /* Adjusted closer to left */
-  font-size: 0.85rem; /* Slightly smaller font */
+  top: var(--spacing-sm);
+  left: var(--spacing-sm);
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--red-alert);
-  background: #fff3e0; /* Light orange for expiry */
-  padding: 0.2rem 0.5rem; /* Reduced padding */
+  background: #fff3e0;
+  padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   z-index: 10;
@@ -383,37 +383,37 @@ label {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-md); /* Reduced padding */
-  background: #f0f7f0; /* Light green tint */
+  padding: var(--spacing-md);
+  background: #f0f7f0;
   border-radius: var(--radius-md);
   border: 1px solid #d4edda;
-  margin-bottom: var(--spacing-md); /* Reduced margin */
+  margin-bottom: var(--spacing-md);
 }
 
 .qr-container img {
-  border: 5px solid var(--primary-green); /* Thicker, prominent border */
+  border: 5px solid var(--primary-green);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
-  width: 140px; /* Smaller QR for more space */
+  width: 140px;
   height: 140px;
 }
 
 .qr-text {
   font-family: var(--font-family-mono);
-  font-size: 0.75rem; /* Smaller font for invoice text */
+  font-size: 0.75rem;
   word-break: break-all;
   text-align: center;
-  margin-top: var(--spacing-sm); /* Reduced margin */
+  margin-top: var(--spacing-sm);
   color: var(--text-light);
   background: #fcfcfc;
-  padding: var(--spacing-xs); /* Reduced padding */
+  padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
 /* Short Invoice Display (for receipt) */
 .short-invoice-display {
-  background: #e0f2f7; /* Light blue-greenish */
+  background: #e0f2f7;
   padding: var(--spacing-md);
   border-radius: var(--radius-sm);
   font-family: var(--font-family-mono);
@@ -440,9 +440,22 @@ label {
 .mb-xl { margin-bottom: var(--spacing-xl); }
 .mb-xxl { margin-bottom: var(--spacing-xxl); }
 
+.mr-sm { margin-right: var(--spacing-sm); }
+.ml-sm { margin-left: var(--spacing-sm); }
+.mr-md { margin-right: var(--spacing-md); }
+.ml-md { margin-left: var(--spacing-md); }
+.mr-lg { margin-right: var(--spacing-lg); }
+.ml-lg { margin-left: var(--spacing-lg); }
+
+
 .py-sm { padding-top: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
 .py-md { padding-top: var(--spacing-md); padding-bottom: var(--spacing-md); }
 .py-lg { padding-top: var(--spacing-lg); padding-bottom: var(--spacing-lg); }
+
+.px-sm { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
+.px-md { padding-left: var(--spacing-md); padding-right: var(--spacing-md); }
+.px-lg { padding-left: var(--spacing-lg); padding-right: var(--spacing-lg); }
+
 
 .text-center { text-align: center; }
 .text-success { color: var(--primary-green) !important; }
@@ -469,7 +482,7 @@ label {
     max-width: 500px;
   }
   .card {
-    padding: var(--spacing-xl); /* Restore slightly larger padding on desktop for cards */
+    padding: var(--spacing-xl);
   }
   .card-header {
     font-size: 2rem;
@@ -487,7 +500,7 @@ label {
   display: flex;
   gap: var(--spacing-lg);
   min-height: 100vh;
-  padding: var(--spacing-lg); /* Padding around the entire dashboard */
+  padding: var(--spacing-lg);
   box-sizing: border-box;
   background-color: var(--bg-light);
   width: 100%;
@@ -512,7 +525,7 @@ label {
 .sidebar {
   background-color: var(--card-bg);
   padding: var(--spacing-lg);
-  min-width: 200px; /* Slightly reduced min-width for more content space */
+  min-width: 200px;
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
@@ -565,7 +578,7 @@ label {
 }
 
 .card-subtitle {
-  font-size: 1.2rem; /* Slightly smaller subtitle */
+  font-size: 1.2rem;
   color: var(--text-dark);
   margin-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--border-subtle);
@@ -580,13 +593,13 @@ label {
 .date-range-controls {
   display: flex;
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-md); /* Reduced margin */
+  margin-bottom: var(--spacing-md);
   flex-wrap: wrap;
 }
 
 .date-input-group {
   flex: 1;
-  min-width: 120px; /* Smaller min-width for date inputs */
+  min-width: 120px;
 }
 
 .date-input-group label {
@@ -596,10 +609,10 @@ label {
 
 .date-input-group input[type="date"] {
   width: 100%;
-  padding: 0.65rem; /* Reduced padding */
+  padding: 0.65rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 0.95rem; /* Reduced font size */
+  font-size: 0.95rem;
   color: var(--text-dark);
   background-color: #fcfcfc;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -611,7 +624,7 @@ label {
   justify-content: space-between;
   padding: var(--spacing-sm) 0;
   border-bottom: 1px dashed var(--border-subtle);
-  font-size: 1rem; /* Slightly smaller font */
+  font-size: 1rem;
   font-weight: 500;
   color: var(--text-dark);
 }
@@ -631,7 +644,7 @@ label {
 }
 
 .summary-net {
-  font-size: 1.1rem; /* Slightly smaller net font */
+  font-size: 1.1rem;
 }
 
 .summary-margin {
@@ -649,78 +662,14 @@ label {
 }
 
 .search-input {
-  margin-top: var(--spacing-md); /* Reduced margin-top */
+  margin-top: var(--spacing-md);
   margin-bottom: var(--spacing-lg) !important;
 }
 
-/* User Profit/Loss List */
-.user-profit-loss-list {
-  display: grid;
-  gap: var(--spacing-md); /* Reduced gap between user cards */
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Adjusted minmax for more cards per row */
-}
-
-.user-summary-card {
-  background-color: var(--card-bg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-color);
-  padding: var(--spacing-md); /* Reduced padding for user cards */
-}
-
-.username-heading {
-  font-size: 1.3rem; /* Smaller heading */
-  margin-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: var(--spacing-xs);
-  color: var(--primary-green);
-}
-
-.username-link {
-  text-decoration: none;
-  color: var(--primary-green);
-  transition: color 0.2s ease;
-}
-
-.username-link:hover {
-  color: var(--green-dark);
-  text-decoration: underline;
-}
-
-.fb-username {
-  font-size: 0.85rem; /* Smaller font */
-  color: var(--text-light);
-  margin-top: -var(--spacing-xs);
-  margin-bottom: var(--spacing-md);
-}
-
-.summary-line {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-sm);
-  font-size: 0.95rem; /* Slightly smaller font */
-}
-
-.summary-deposit-individual {
-  color: var(--primary-green);
-  font-weight: 600;
-}
-.summary-cashout-individual {
-  color: var(--red-alert);
-  font-weight: 600;
-}
-.summary-margin-individual {
-  color: var(--green-dark);
-  font-weight: 600;
-}
-
-.transaction-history-title {
-  font-size: 1rem; /* Smaller font */
-  margin-top: var(--spacing-md); /* Reduced margin */
-  margin-bottom: var(--spacing-sm);
-  color: var(--text-dark);
-  border-top: 1px dashed var(--border-subtle);
-  padding-top: var(--spacing-md);
+/* User Profit/Loss List (Table) */
+.user-profit-loss-table-card { /* New class for the table card */
+    padding: var(--spacing-md); /* Smaller padding for this card */
+    border-radius: var(--radius-md);
 }
 
 .table-responsive {
@@ -731,7 +680,7 @@ label {
   width: 100%;
   border-collapse: collapse;
   margin-top: var(--spacing-sm);
-  font-size: 0.85rem; /* Smaller font for tables */
+  font-size: 0.85rem;
 }
 
 .table th,
@@ -771,7 +720,7 @@ label {
 
 .transaction-time {
   color: var(--text-light);
-  font-size: 0.8rem; /* Even smaller time font */
+  font-size: 0.8rem;
 }
 
 
@@ -791,7 +740,7 @@ label {
     margin: 0;
   }
   .section-title {
-    font-size: 1.6rem; /* Smaller title on small screens */
+    font-size: 1.6rem;
     margin-bottom: var(--spacing-lg);
     padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--primary-green);
@@ -800,7 +749,7 @@ label {
     flex-direction: column;
     gap: var(--spacing-sm);
   }
-  .user-profit-loss-list {
+  .user-profit-loss-list { /* This class is no longer used for grid, but keeping for reference */
     grid-template-columns: 1fr;
   }
 }
@@ -829,13 +778,12 @@ label {
   color: var(--text-dark);
 }
 
-/* Ensure tables within customer profile use the general .table styles */
 .customer-profile-card .table th,
 .customer-profile-card .table td {
-  font-size: 0.9rem; /* Slightly larger table font for customer profile */
+  font-size: 0.9rem;
 }
 
-.customer-profile-card .table td[style] { /* Override inline style for status */
+.customer-profile-card .table td[style] {
   color: inherit !important;
 }
 .customer-profile-card .table .status-paid {
@@ -849,4 +797,161 @@ label {
 .customer-profile-card .table .status-cancelled {
   color: var(--red-alert);
   font-weight: 500;
+}
+
+/* --- New Compact Styles for Profit & Loss Sections --- */
+
+/* Compact Card base style */
+.compact-card {
+    padding: var(--spacing-md); /* Reduced padding */
+    margin-bottom: var(--spacing-md); /* Consistent spacing between cards */
+    box-shadow: var(--shadow-sm); /* Keep subtle shadow */
+    border-radius: var(--radius-sm); /* Consistent border radius */
+    background-color: var(--card-bg);
+}
+
+/* Overall Summary Grid */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Even smaller minmax */
+    gap: var(--spacing-sm) var(--spacing-md); /* Smaller gap for compactness */
+    align-items: center;
+    margin-top: var(--spacing-sm); /* Reduced margin-top */
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--bg-light);
+    border-radius: var(--radius-xs);
+    font-size: 0.85em; /* Even smaller font size */
+    flex-wrap: wrap;
+    border: 1px solid var(--border-subtle); /* Added subtle border to items */
+}
+
+.summary-item span:first-child {
+    font-weight: 500;
+    color: var(--text-dark);
+    margin-right: var(--spacing-xs);
+}
+
+.summary-item .summary-deposit,
+.summary-item .summary-cashout,
+.summary-item .summary-net,
+.summary-item .summary-margin {
+    font-weight: bold;
+    font-size: 0.95em; /* Keep value font size readable */
+}
+
+/* Date Range Controls within Summary */
+.summary-grid .date-range-controls {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    justify-content: center;
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-xs); /* Added padding */
+    background-color: #f8f8f8; /* Slightly different background */
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.summary-grid .date-range-controls label {
+    font-size: 0.8em; /* Even smaller label for date inputs */
+    color: var(--text-light);
+    margin-right: var(--spacing-xxs); /* Very small margin */
+}
+
+.summary-grid .date-range-controls input[type="date"] {
+    flex-grow: 1;
+    max-width: 140px; /* Slightly smaller max width */
+    padding: var(--spacing-xxs) var(--spacing-sm); /* Very small padding */
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    font-size: 0.85em;
+    color: var(--text-dark);
+}
+
+/* Export Button within Summary */
+.summary-grid .btn-export {
+    grid-column: 1 / -1;
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 0.85em; /* Smaller font for export button */
+}
+
+/* Compact Cashout Form */
+.cashout-form-compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--spacing-sm);
+    align-items: center;
+    margin-top: var(--spacing-sm); /* Reduced margin-top */
+}
+
+.cashout-form-compact .input {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.9em;
+    height: auto;
+    margin-bottom: 0; /* Remove default input margin */
+}
+
+.cashout-form-compact .btn-add-cashout {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 0.9em;
+    margin-top: 0; /* Remove default button margin-top */
+}
+
+/* Sorting Controls */
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.sort-controls label {
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0; /* Remove default label margin */
+}
+
+.sort-controls .select {
+    flex-grow: 1;
+    max-width: 200px; /* Limit width of select */
+    margin-bottom: 0; /* Remove default select margin */
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.9em;
+}
+
+/* Media queries for compact sections */
+@media (max-width: 768px) {
+    .summary-grid {
+        grid-template-columns: 1fr; /* Single column on small screens for summary items */
+    }
+    .summary-grid .date-range-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .summary-grid .date-range-controls input[type="date"] {
+        max-width: none;
+    }
+    .cashout-form-compact {
+        grid-template-columns: 1fr; /* Stack elements on very small screens */
+    }
+    .cashout-form-compact .btn-add-cashout {
+        width: 100%;
+    }
+    .sort-controls {
+        flex-direction: column; /* Stack sort controls */
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+    .sort-controls .select {
+        max-width: 100%;
+    }
 }

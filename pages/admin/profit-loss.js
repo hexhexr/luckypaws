@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-// import { db } from '../../lib/firebaseClient'; // Removed as per previous fix
 import { fetchProfitLossData, addCashout } from '../../services/profitLossService';
 
 const formatCurrency = (amount) => {
@@ -53,6 +52,9 @@ export default function ProfitLoss() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10); // You can adjust this number
 
+  // Sorting state
+  const [sortOption, setSortOption] = useState('username_asc'); // Default sort by username A-Z
+
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin/login');
@@ -99,42 +101,52 @@ export default function ProfitLoss() {
     }
   };
 
-  const groupedData = useMemo(() => {
+  // --- Grouped Data for Overall Summary (Date Filtered) ---
+  const overallSummaryData = useMemo(() => {
     const fromDate = new Date(range.from);
     const toDate = new Date(range.to);
     toDate.setHours(23, 59, 59, 999);
 
     const filtered = allData.filter(entry => {
-      // Ensure entry.time or entry.created exists and is a valid date
       const entryDate = new Date(entry.time || entry.created);
       return !isNaN(entryDate.getTime()) && entryDate >= fromDate && entryDate <= toDate;
     });
 
-    const groups = {};
     let overallDeposit = 0;
     let overallCashout = 0;
 
     filtered.forEach(entry => {
-      const uname = entry.username ? entry.username.toLowerCase() : 'unknown'; // Handle missing username
+      const amount = parseFloat(entry.amount || 0);
+      if (entry.type === 'deposit') {
+        overallDeposit += amount;
+      } else if (entry.type === 'cashout') {
+        overallCashout += amount;
+      }
+    });
+
+    return { overallDeposit, overallCashout };
+  }, [allData, range]);
+
+  // --- Grouped Data for User Table (All Time) ---
+  const allTimeGroupedUsers = useMemo(() => {
+    const groups = {};
+    allData.forEach(entry => {
+      const uname = entry.username ? entry.username.toLowerCase() : 'unknown';
       if (!groups[uname]) {
         groups[uname] = {
           username: entry.username || 'Unknown User',
-          fbUsername: entry.fbUsername || 'N/A', // Default N/A if not present
+          fbUsername: entry.fbUsername || 'N/A',
           totalDeposit: 0,
           totalCashout: 0,
           net: 0,
           profitMargin: 0
         };
       }
-
       const amount = parseFloat(entry.amount || 0);
-
       if (entry.type === 'deposit') {
         groups[uname].totalDeposit += amount;
-        overallDeposit += amount;
       } else if (entry.type === 'cashout') {
         groups[uname].totalCashout += amount;
-        overallCashout += amount;
       }
     });
 
@@ -145,27 +157,43 @@ export default function ProfitLoss() {
         : 0;
     });
 
-    const sortedGroups = Object.values(groups).sort((a, b) =>
-      a.username.localeCompare(b.username)
-    );
+    return Object.values(groups);
+  }, [allData]);
 
-    return { sortedGroups, overallDeposit, overallCashout };
-  }, [allData, range]);
-
-  const filteredAndSortedGroups = useMemo(() => {
-    return groupedData.sortedGroups.filter(group =>
+  // --- Filtered and Sorted Users for Table ---
+  const filteredAndSortedUsersForTable = useMemo(() => {
+    let users = allTimeGroupedUsers.filter(group =>
       group.username.toLowerCase().includes(search.toLowerCase()) ||
-      group.fbUsername.toLowerCase().includes(search.toLowerCase()) // Also search by FB username
+      group.fbUsername.toLowerCase().includes(search.toLowerCase())
     );
-  }, [groupedData.sortedGroups, search]);
+
+    // Apply sorting
+    users.sort((a, b) => {
+      if (sortOption === 'net_desc') {
+        return b.net - a.net; // Highest profit first
+      } else if (sortOption === 'net_asc') {
+        return a.net - b.net; // Highest loss first (or least profit)
+      } else if (sortOption === 'username_asc') {
+        return a.username.localeCompare(b.username); // A-Z
+      } else if (sortOption === 'username_desc') {
+        return b.username.localeCompare(a.username); // Z-A
+      }
+      return 0; // No sort
+    });
+
+    return users;
+  }, [allTimeGroupedUsers, search, sortOption]);
 
   // Pagination Logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentUsers = filteredAndSortedGroups.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredAndSortedGroups.length / itemsPerPage);
+  const currentUsers = filteredAndSortedUsersForTable.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAndSortedUsersForTable.length / itemsPerPage);
 
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const handleSortChange = (e) => {
+    setSortOption(e.target.value);
+    setCurrentPage(1); // Reset to first page on sort change
+  };
 
   const nextPage = () => {
     if (currentPage < totalPages) {
@@ -179,23 +207,23 @@ export default function ProfitLoss() {
     }
   };
 
-  // New function to export data to CSV
+  // Function to export data to CSV
   const exportToCSV = useCallback(() => {
     const headers = ["Username", "FB Username", "Deposits (USD)", "Cashouts (USD)", "Net P/L (USD)", "Profit Margin (%)"];
-    const rows = filteredAndSortedGroups.map(user => [
+    const rows = filteredAndSortedUsersForTable.map(user => [ // Use the sorted/filtered data
       user.username,
       user.fbUsername,
       user.totalDeposit.toFixed(2),
       user.totalCashout.toFixed(2),
       user.net.toFixed(2),
       user.profitMargin,
-    ].join(',')); // Join columns with a comma
+    ].join(','));
 
-    const csvContent = [headers.join(','), ...rows].join('\n'); // Join header and rows with a newline
+    const csvContent = [headers.join(','), ...rows].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    if (link.download !== undefined) { // Feature detection
+    if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
       link.setAttribute('download', `profit-loss-report-${new Date().toISOString().slice(0, 10)}.csv`);
@@ -204,7 +232,7 @@ export default function ProfitLoss() {
       link.click();
       document.body.removeChild(link);
     }
-  }, [filteredAndSortedGroups]);
+  }, [filteredAndSortedUsersForTable]);
 
 
   const logout = async () => {
@@ -231,140 +259,143 @@ export default function ProfitLoss() {
       <div className="main-content">
         <h2 className="section-title">📊 Profit & Loss Overview</h2>
 
-        <div className="card summary-card mt-md">
+        {/* Overall Summary Card - Compacted */}
+        <div className="card summary-card compact-card">
           <h3 className="card-subtitle">Overall Summary</h3>
-          <div className="date-range-controls">
-            <div className="date-input-group">
+          <div className="summary-grid">
+            <div className="date-range-controls">
               <label htmlFor="fromDate">From:</label>
               <input type="date" id="fromDate" value={range.from} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, from: e.target.value }))} />
-            </div>
-            <div className="date-input-group">
               <label htmlFor="toDate">To:</label>
               <input type="date" id="toDate" value={range.to} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, to: e.target.value }))} />
             </div>
-          </div>
-          <div className="summary-numbers">
-            <p>
+            <div className="summary-item">
               <span>Total Deposits:</span>
-              <span className="summary-deposit">{formatCurrency(groupedData.overallDeposit)}</span>
-            </p>
-            <p>
+              <span className="summary-deposit">{formatCurrency(overallSummaryData.overallDeposit)}</span>
+            </div>
+            <div className="summary-item">
               <span>Total Cashouts:</span>
-              <span className="summary-cashout">{formatCurrency(groupedData.overallCashout)}</span>
-            </p>
-            <p>
+              <span className="summary-cashout">{formatCurrency(overallSummaryData.overallCashout)}</span>
+            </div>
+            <div className="summary-item">
               <span>Net Profit/Loss:</span>
-              <span className="summary-net" style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
-                {formatCurrency(groupedData.overallDeposit - groupedData.overallCashout)}
+              <span className="summary-net" style={{ color: (overallSummaryData.overallDeposit - overallSummaryData.overallCashout) >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
+                {formatCurrency(overallSummaryData.overallDeposit - overallSummaryData.overallCashout)}
               </span>
-            </p>
-            <p>
+            </div>
+            <div className="summary-item">
               <span>Profit Margin:</span>
               <span className="summary-margin">
-                {groupedData.overallDeposit > 0 ? ((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2) : '0'}%
+                {overallSummaryData.overallDeposit > 0 ? ((overallSummaryData.overallDeposit - overallSummaryData.overallCashout) / overallSummaryData.overallDeposit * 100).toFixed(2) : '0'}%
               </span>
-            </p>
+            </div>
+            <button onClick={exportToCSV} className="btn btn-secondary btn-export">Export All to CSV</button>
           </div>
-          <button onClick={exportToCSV} className="btn btn-secondary mt-md">Export to CSV</button>
         </div>
 
-        <div className="card add-cashout-card mt-lg">
+        {/* Add New Cashout Card - Compacted */}
+        <div className="card add-cashout-card compact-card mt-md">
           <h3 className="card-subtitle">💰 Add New Cashout</h3>
-          <form onSubmit={handleAddCashout}>
-            <div className="form-group">
-              <input
-                className="input"
-                placeholder="Username"
-                value={newCashout.username}
-                onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <input
-                className="input"
-                type="number"
-                step="0.01"
-                placeholder="Amount (USD)"
-                value={newCashout.amount}
-                onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
-                required
-              />
-            </div>
-            <button className="btn btn-primary" type="submit">Add Cashout</button>
+          <form onSubmit={handleAddCashout} className="cashout-form-compact">
+            <input
+              className="input"
+              placeholder="Username"
+              value={newCashout.username}
+              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
+              required
+            />
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              placeholder="Amount (USD)"
+              value={newCashout.amount}
+              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
+              required
+            />
+            <button className="btn btn-primary btn-add-cashout" type="submit">Add Cashout</button>
           </form>
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
+          {error && <div className="alert alert-danger mt-sm">{error}</div>}
         </div>
 
-        <input
-          className="input search-input"
-          placeholder="Search username or FB username"
-          value={search}
-          onChange={e => setCurrentPage(1) || setSearch(e.target.value)} // Reset page on search
-        />
+        {/* User Profit & Loss Details Table */}
+        <div className="card user-profit-loss-table-card mt-md">
+          <h3 className="card-subtitle">User Profit & Loss Details (All Time)</h3>
 
-        {loading ? (
-          <LoadingSkeleton />
-        ) : (
-          <div className="card mt-md"> {/* Consolidated table within a single card */}
-            <h3 className="card-subtitle">User Profit & Loss Details</h3>
-            {currentUsers.length === 0 ? (
-              <p className="text-center mt-md">No user data found for the selected range or search.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Username</th>
-                      <th>FB Username</th>
-                      <th>Deposits</th>
-                      <th>Cashouts</th>
-                      <th>Net P/L</th>
-                      <th>Margin</th>
-                      <th>Actions</th> {/* Added actions column */}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentUsers.map(user => (
-                      <tr key={user.username}> {/* Using username as key */}
-                        <td><a href={`/admin/customer/${user.username}`} className="username-link">{user.username}</a></td>
-                        <td>{user.fbUsername}</td>
-                        <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
-                        <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
-                        <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
-                        <td>{user.profitMargin}%</td>
-                        <td>
-                          <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Pagination Controls */}
-            {filteredAndSortedGroups.length > itemsPerPage && (
-              <div className="pagination-controls mt-lg text-center">
-                <button
-                  className="btn btn-secondary mr-md"
-                  onClick={prevPage}
-                  disabled={currentPage === 1}
-                >
-                  ← Previous
-                </button>
-                <span>Page {currentPage} of {totalPages}</span>
-                <button
-                  className="btn btn-secondary ml-md"
-                  onClick={nextPage}
-                  disabled={currentPage === totalPages}
-                >
-                  Next →
-                </button>
-              </div>
-            )}
+          <div className="sort-controls">
+            <label htmlFor="sort-by">Sort by:</label>
+            <select id="sort-by" className="select" value={sortOption} onChange={handleSortChange}>
+              <option value="net_desc">Highest Profit</option>
+              <option value="net_asc">Highest Loss</option>
+              <option value="username_asc">Username (A-Z)</option>
+              <option value="username_desc">Username (Z-A)</option>
+            </select>
+            <input
+              className="input search-input"
+              placeholder="Search username or FB username"
+              value={search}
+              onChange={e => setCurrentPage(1) || setSearch(e.target.value)}
+            />
           </div>
-        )}
+
+          {loading ? (
+            <LoadingSkeleton />
+          ) : currentUsers.length === 0 ? (
+            <p className="text-center mt-md">No user data found.</p>
+          ) : (
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>FB Username</th>
+                    <th>Deposits</th>
+                    <th>Cashouts</th>
+                    <th>Net P/L</th>
+                    <th>Margin</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentUsers.map(user => (
+                    <tr key={user.username}>
+                      <td><a href={`/admin/customer/${user.username}`} className="username-link">{user.username}</a></td>
+                      <td>{user.fbUsername}</td>
+                      <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
+                      <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
+                      <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
+                      <td>{user.profitMargin}%</td>
+                      <td>
+                        <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredAndSortedUsersForTable.length > itemsPerPage && (
+            <div className="pagination-controls mt-lg text-center">
+              <button
+                className="btn btn-secondary mr-md"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </button>
+              <span>Page {currentPage} of {totalPages}</span>
+              <button
+                className="btn btn-secondary ml-md"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
