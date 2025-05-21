@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../../lib/firebaseClient'; // Assuming this is correctly configured
-import { fetchProfitLossData, addCashout } from '../../services/profitLossService'; // Assuming this service exists
+// import { db } from '../../lib/firebaseClient'; // Removed as per previous fix
+import { fetchProfitLossData, addCashout } from '../../services/profitLossService';
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -49,6 +49,10 @@ export default function ProfitLoss() {
     to: new Date().toISOString().slice(0, 10)
   });
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10); // You can adjust this number
+
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin/login');
@@ -87,7 +91,7 @@ export default function ProfitLoss() {
     try {
       await addCashout(username, amount);
       setNewCashout({ username: '', amount: '' });
-      await loadData();
+      await loadData(); // Reload data after successful cashout
     } catch (err) {
       console.error(err);
       setError('⚠️ Failed to add cashout.');
@@ -100,8 +104,9 @@ export default function ProfitLoss() {
     toDate.setHours(23, 59, 59, 999);
 
     const filtered = allData.filter(entry => {
+      // Ensure entry.time or entry.created exists and is a valid date
       const entryDate = new Date(entry.time || entry.created);
-      return entryDate >= fromDate && entryDate <= toDate;
+      return !isNaN(entryDate.getTime()) && entryDate >= fromDate && entryDate <= toDate;
     });
 
     const groups = {};
@@ -109,28 +114,26 @@ export default function ProfitLoss() {
     let overallCashout = 0;
 
     filtered.forEach(entry => {
-      const uname = entry.username.toLowerCase();
+      const uname = entry.username ? entry.username.toLowerCase() : 'unknown'; // Handle missing username
       if (!groups[uname]) {
         groups[uname] = {
-          username: entry.username,
-          deposits: [],
-          cashouts: [],
+          username: entry.username || 'Unknown User',
+          fbUsername: entry.fbUsername || 'N/A', // Default N/A if not present
           totalDeposit: 0,
           totalCashout: 0,
           net: 0,
-          profitMargin: 0,
-          fbUsername: entry.fbUsername // Assuming fbUsername is available in entry
+          profitMargin: 0
         };
       }
 
+      const amount = parseFloat(entry.amount || 0);
+
       if (entry.type === 'deposit') {
-        groups[uname].deposits.push(entry);
-        groups[uname].totalDeposit += parseFloat(entry.amount || 0);
-        overallDeposit += parseFloat(entry.amount || 0);
+        groups[uname].totalDeposit += amount;
+        overallDeposit += amount;
       } else if (entry.type === 'cashout') {
-        groups[uname].cashouts.push(entry);
-        groups[uname].totalCashout += parseFloat(entry.amount || 0);
-        overallCashout += parseFloat(entry.amount || 0);
+        groups[uname].totalCashout += amount;
+        overallCashout += amount;
       }
     });
 
@@ -148,9 +151,32 @@ export default function ProfitLoss() {
     return { sortedGroups, overallDeposit, overallCashout };
   }, [allData, range]);
 
-  const displayGroups = groupedData.sortedGroups.filter(group =>
-    group.username.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredAndSortedGroups = useMemo(() => {
+    return groupedData.sortedGroups.filter(group =>
+      group.username.toLowerCase().includes(search.toLowerCase()) ||
+      group.fbUsername.toLowerCase().includes(search.toLowerCase()) // Also search by FB username
+    );
+  }, [groupedData.sortedGroups, search]);
+
+  // Pagination Logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentUsers = filteredAndSortedGroups.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAndSortedGroups.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
 
   const logout = async () => {
     try {
@@ -161,32 +187,6 @@ export default function ProfitLoss() {
       localStorage.removeItem('admin_auth');
       router.replace('/admin');
     }
-  };
-
-  const exportToCSV = () => {
-    const headers = ['Username', 'Facebook Username', 'Total Deposits', 'Total Cashouts', 'Net Profit/Loss', 'Profit Margin (%)'];
-    const rows = displayGroups.map(group => [
-      group.username,
-      group.fbUsername || 'N/A',
-      group.totalDeposit.toFixed(2),
-      group.totalCashout.toFixed(2),
-      group.net.toFixed(2),
-      group.profitMargin
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(e => e.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `profit_loss_${range.from}_to_${range.to}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   return (
@@ -207,11 +207,11 @@ export default function ProfitLoss() {
           <div className="date-range-controls">
             <div className="date-input-group">
               <label htmlFor="fromDate">From:</label>
-              <input type="date" id="fromDate" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
+              <input type="date" id="fromDate" value={range.from} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, from: e.target.value }))} />
             </div>
             <div className="date-input-group">
               <label htmlFor="toDate">To:</label>
-              <input type="date" id="toDate" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
+              <input type="date" id="toDate" value={range.to} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, to: e.target.value }))} />
             </div>
           </div>
           <div className="summary-numbers">
@@ -239,7 +239,7 @@ export default function ProfitLoss() {
           <button onClick={exportToCSV} className="btn btn-secondary mt-md">Export to CSV</button>
         </div>
 
-        <div className="card add-cashout-card mt-lg"> {/* Increased margin-top for separation */}
+        <div className="card add-cashout-card mt-lg">
           <h3 className="card-subtitle">💰 Add New Cashout</h3>
           <form onSubmit={handleAddCashout}>
             <div className="form-group">
@@ -269,80 +269,70 @@ export default function ProfitLoss() {
 
         <input
           className="input search-input"
-          placeholder="Search username"
+          placeholder="Search username or FB username"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => setCurrentPage(1) || setSearch(e.target.value)} // Reset page on search
         />
 
         {loading ? (
           <LoadingSkeleton />
         ) : (
-          <div className="user-profit-loss-list">
-            {displayGroups.length === 0 ? (
-              <p className="text-center mt-md">No data found for the selected range or search.</p>
+          <div className="card mt-md"> {/* Consolidated table within a single card */}
+            <h3 className="card-subtitle">User Profit & Loss Details</h3>
+            {currentUsers.length === 0 ? (
+              <p className="text-center mt-md">No user data found for the selected range or search.</p>
             ) : (
-              displayGroups.map(group => {
-                const allTransactions = [...group.deposits, ...group.cashouts].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
-                return (
-                  <div key={group.username} className="card user-summary-card">
-                    <h4 className="username-heading">
-                      <a href={`/admin/customer/${group.username}`} className="username-link">{group.username}</a>
-                    </h4>
-                    {group.fbUsername && <p className="fb-username">FB: {group.fbUsername}</p>}
-                    <div className="summary-numbers">
-                      <p>
-                        <span>Deposits:</span>
-                        <span className="summary-deposit-individual">{formatCurrency(group.totalDeposit)}</span>
-                      </p>
-                      <p>
-                        <span>Cashouts:</span>
-                        <span className="summary-cashout-individual">{formatCurrency(group.totalCashout)}</span>
-                      </p>
-                      <p>
-                        <span>Net P/L:</span>
-                        <span className="summary-net" style={{ color: group.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
-                          {formatCurrency(group.net)}
-                        </span>
-                      </p>
-                      <p>
-                        <span>Margin:</span>
-                        <span className="summary-margin-individual">{group.profitMargin}%</span>
-                      </p>
-                    </div>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>FB Username</th>
+                      <th>Deposits</th>
+                      <th>Cashouts</th>
+                      <th>Net P/L</th>
+                      <th>Margin</th>
+                      <th>Actions</th> {/* Added actions column */}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentUsers.map(user => (
+                      <tr key={user.username}> {/* Using username as key */}
+                        <td><a href={`/admin/customer/${user.username}`} className="username-link">{user.username}</a></td>
+                        <td>{user.fbUsername}</td>
+                        <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
+                        <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
+                        <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
+                        <td>{user.profitMargin}%</td>
+                        <td>
+                          <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-                    <h5 className="transaction-history-title">Recent Transactions</h5>
-                    {allTransactions.length === 0 ? (
-                      <p className="text-center">No transactions for this user.</p>
-                    ) : (
-                      <div className="table-responsive">
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Type</th>
-                              <th>Amount</th>
-                              <th>Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {allTransactions.slice(0, 5).map(entry => ( // Show only top 5 recent transactions
-                              <tr key={entry.id} className={entry.type === 'deposit' ? 'deposit-row' : 'cashout-row'}>
-                                <td className="transaction-type">{entry.type}</td>
-                                <td className="transaction-amount">{formatCurrency(entry.amount)}</td>
-                                <td className="transaction-time">{new Date(entry.time || entry.created).toLocaleDateString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {allTransactions.length > 5 && (
-                          <p className="text-center mt-sm">
-                            <a href={`/admin/customer/${group.username}`} className="username-link">View all {allTransactions.length} transactions</a>
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+            {/* Pagination Controls */}
+            {filteredAndSortedGroups.length > itemsPerPage && (
+              <div className="pagination-controls mt-lg text-center">
+                <button
+                  className="btn btn-secondary mr-md"
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                >
+                  ← Previous
+                </button>
+                <span>Page {currentPage} of {totalPages}</span>
+                <button
+                  className="btn btn-secondary ml-md"
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next →
+                </button>
+              </div>
             )}
           </div>
         )}
