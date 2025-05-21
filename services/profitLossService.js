@@ -9,7 +9,7 @@ export const fetchProfitLossData = async () => {
     const orderSnap = await db.collection('orders').where('status', '==', 'paid').get();
     const depositList = orderSnap.docs.map(doc => ({
       id: doc.id,
-     ...doc.data(),
+      ...doc.data(),
       type: 'deposit',
       time: doc.data().created // Use 'created' for deposits
     }));
@@ -18,16 +18,13 @@ export const fetchProfitLossData = async () => {
     const cashoutSnap = await db.collection('profitLoss').where('type', '==', 'cashout').get();
     const cashoutList = cashoutSnap.docs.map(doc => ({
       id: doc.id,
-     ...doc.data(),
+      ...doc.data(),
       type: 'cashout',
-      time: doc.data().time |
-| doc.data().created // Use 'time' or fallback to 'created'
+      time: doc.data().time || doc.data().created // Use 'time' or fallback to 'created'
     }));
 
     // Combine and sort by time/created for consistent processing
-    const combined = [...depositList,...cashoutList].sort((a, b) => new Date(b.time |
-| b.created) - new Date(a.time |
-| a.created));
+    const combined = [...depositList, ...cashoutList].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
     return combined;
   } catch (err) {
     console.error('Error fetching profit/loss data:', err);
@@ -48,8 +45,7 @@ export const addCashout = async (username, amount) => {
     const data = await res.json();
     if (!res.ok) {
       // Propagate specific error message from API if available
-      throw new Error(data.message |
-| 'Failed to add cashout due to a server error.');
+      throw new Error(data.message || 'Failed to add cashout due to a server error.');
     }
     return data; // Return success data if needed
   } catch (err) {
