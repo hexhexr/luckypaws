@@ -65,7 +65,8 @@ export default function ProfitLoss() {
     try {
       const combined = await fetchProfitLossData();
       setAllData(combined);
-    } catch (err) {
+    }
+    catch (err) {
       setError('⚠️ Failed to load data');
       console.error(err);
     } finally {
@@ -177,6 +178,34 @@ export default function ProfitLoss() {
       setCurrentPage(prev => prev - 1);
     }
   };
+
+  // New function to export data to CSV
+  const exportToCSV = useCallback(() => {
+    const headers = ["Username", "FB Username", "Deposits (USD)", "Cashouts (USD)", "Net P/L (USD)", "Profit Margin (%)"];
+    const rows = filteredAndSortedGroups.map(user => [
+      user.username,
+      user.fbUsername,
+      user.totalDeposit.toFixed(2),
+      user.totalCashout.toFixed(2),
+      user.net.toFixed(2),
+      user.profitMargin,
+    ].join(',')); // Join columns with a comma
+
+    const csvContent = [headers.join(','), ...rows].join('\n'); // Join header and rows with a newline
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) { // Feature detection
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `profit-loss-report-${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }, [filteredAndSortedGroups]);
+
 
   const logout = async () => {
     try {
