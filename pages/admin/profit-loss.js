@@ -14,11 +14,13 @@ const LoadingSkeleton = () => (
     <div className="skeleton-line" style={{ width: '90%' }}></div>
     <div className="skeleton-line" style={{ width: '70%' }}></div>
     <div className="skeleton-line" style={{ width: '85%' }}></div>
+    {/* Keep this styled-jsx as it's specific to the skeleton's animation and appearance */}
     <style jsx>{`
       .loading-skeleton {
         padding: 1rem;
-        border-radius: 8px;
-        background-color: #f0f0f0;
+        border-radius: var(--radius-md); /* Consistent with card radius */
+        background-color: var(--bg-light); /* Lighter background for skeleton */
+        box-shadow: var(--shadow-sm); /* Subtle shadow */
       }
       .skeleton-line {
         height: 1.2em;
@@ -86,7 +88,7 @@ export default function ProfitLoss() {
     try {
       await addCashout(username, amount);
       setNewCashout({ username: '', amount: '' });
-      await loadData();
+      await loadData(); // Reload data after successful cashout
     } catch (err) {
       console.error(err);
       setError('⚠️ Failed to add cashout.');
@@ -118,7 +120,7 @@ export default function ProfitLoss() {
           totalCashout: 0,
           net: 0,
           profitMargin: 0,
-          fbUsername: entry.fbUsername
+          fbUsername: entry.fbUsername // Assuming fbUsername is available
         };
       }
 
@@ -153,7 +155,7 @@ export default function ProfitLoss() {
 
   const logout = async () => {
     try {
-      await fetch('/api/admin/logout', { method: 'POST' }); // Added await here
+      await fetch('/api/admin/logout', { method: 'POST' });
     } catch (err) {
       console.error(err);
     } finally {
@@ -194,109 +196,142 @@ export default function ProfitLoss() {
         <h1>Lucky Paw Admin</h1>
         <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
         <a className="nav-btn" href="/admin/games">🎮 Games</a>
-        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <a className="nav-btn active" href="/admin/profit-loss">📊 Profit & Loss</a> {/* Added active class */}
         <button className="nav-btn" onClick={logout}>🚪 Logout</button>
       </div>
 
       <div className="main-content">
-        <h2 className="text-center mt-lg">📊 Profit & Loss</h2>
+        <h2 className="section-title">📊 Profit & Loss Overview</h2>
 
-        <div className="card mt-md">
-          <h3>📍 Overall Summary</h3>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <div>
-              From: <input type="date" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
+        <div className="card summary-card"> {/* Added summary-card class for specific styling */}
+          <h3 className="card-subtitle">📍 Overall Summary</h3>
+          <div className="date-range-controls">
+            <div className="date-input-group">
+              <label htmlFor="fromDate">From:</label>
+              <input type="date" id="fromDate" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
             </div>
-            <div>
-              To: <input type="date" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
+            <div className="date-input-group">
+              <label htmlFor="toDate">To:</label>
+              <input type="date" id="toDate" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
             </div>
           </div>
-          <div>
-            <span style={{ color: '#2ecc71' }}>Total Deposits: {formatCurrency(groupedData.overallDeposit)}</span>{' | '}
-            <span style={{ color: '#e74c3c' }}>Total Cashouts: {formatCurrency(groupedData.overallCashout)}</span>{' | '}
-            <strong style={{ color: (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'green' : 'red' }}>
-              Net: {formatCurrency(groupedData.overallDeposit - groupedData.overallCashout)}
-            </strong>{' | '}
-            <span style={{ color: '#0984e3' }}>
-              Margin: {groupedData.overallDeposit > 0 ? ((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2) : '0'}%
-            </span>
+          <div className="summary-numbers">
+            <p>
+              <span className="summary-deposit">Deposits: {formatCurrency(groupedData.overallDeposit)}</span>
+            </p>
+            <p>
+              <span className="summary-cashout">Cashouts: {formatCurrency(groupedData.overallCashout)}</span>
+            </p>
+            <p className="summary-net">
+              <strong className={ (groupedData.overallDeposit - groupedData.overallCashout) >= 0 ? 'text-success' : 'text-danger'}>
+                Net: {formatCurrency(groupedData.overallDeposit - groupedData.overallCashout)}
+              </strong>
+            </p>
+            <p>
+              <span className="summary-margin">
+                Margin: {groupedData.overallDeposit > 0 ? ((groupedData.overallDeposit - groupedData.overallCashout) / groupedData.overallDeposit * 100).toFixed(2) : '0'}%
+              </span>
+            </p>
           </div>
-          <button onClick={exportToCSV} className="btn btn-secondary mt-sm">Export to CSV</button>
+          <button onClick={exportToCSV} className="btn btn-secondary mt-md">Export to CSV</button> {/* mt-md for consistent spacing */}
         </div>
 
-        <div className="card mt-md">
-          <h3>💰 Add Cashout</h3>
+        <div className="card add-cashout-card"> {/* Added add-cashout-card class */}
+          <h3 className="card-subtitle">💰 Add New Cashout</h3>
           <form onSubmit={handleAddCashout}>
-            <input
-              className="input"
-              placeholder="Username"
-              value={newCashout.username}
-              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
-              required
-            />
-            <input
-              className="input"
-              type="number"
-              step="0.01"
-              placeholder="Amount (USD)"
-              value={newCashout.amount}
-              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
-              required
-            />
+            <div className="form-group">
+              <label htmlFor="cashoutUsername">Username</label>
+              <input
+                className="input"
+                id="cashoutUsername"
+                placeholder="Enter username"
+                value={newCashout.username}
+                onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="cashoutAmount">Amount (USD)</label>
+              <input
+                className="input"
+                id="cashoutAmount"
+                type="number"
+                step="0.01"
+                placeholder="e.g., 50.00"
+                value={newCashout.amount}
+                onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
+                required
+              />
+            </div>
             <button className="btn btn-primary" type="submit">Add Cashout</button>
           </form>
         </div>
 
         <input
-          className="input mt-md"
-          placeholder="Search username"
+          className="input search-input"
+          placeholder="Search username..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
 
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+
         {loading ? (
           <LoadingSkeleton />
-        ) : error ? (
-          <div className="alert alert-danger mt-md">{error}</div>
         ) : (
-          <div className="mt-md">
+          <div className="user-profit-loss-list">
             {displayGroups.length === 0 ? (
-              <p className="text-center">No data found</p>
+              <p className="text-center mt-md">No data found for the selected range or search.</p>
             ) : (
               displayGroups.map(group => {
                 const all = [...group.deposits, ...group.cashouts].sort((a, b) => new Date(b.time || b.created) - new Date(a.time || a.created));
                 return (
-                  <div key={group.username} className="card mt-md">
-                    <h3>
-                      <a href={`/admin/customer/${group.username}`} style={{ color: '#0984e3' }}>{group.username}</a>
+                  <div key={group.username} className="card user-summary-card"> {/* Added user-summary-card */}
+                    <h3 className="username-heading">
+                      <a href={`/admin/customer/${group.username}`} className="username-link">
+                        {group.username}
+                      </a>
                     </h3>
-                    <p style={{ color: '#888' }}>{group.fbUsername ? `FB: ${group.fbUsername}` : ''}</p>
-                    <p>
-                      <span style={{ color: '#2ecc71' }}>Deposit: {formatCurrency(group.totalDeposit)}</span> {' | '}
-                      <span style={{ color: '#e74c3c' }}>Cashout: {formatCurrency(group.totalCashout)}</span> {' | '}
-                      <strong style={{ color: group.net >= 0 ? 'green' : 'red' }}>
-                        {group.net >= 0 ? `Profit: ${formatCurrency(group.net)}` : `Loss: ${formatCurrency(Math.abs(group.net))}`}
-                      </strong>{' | '}
-                      <span style={{ color: '#0984e3' }}>Margin: {group.profitMargin}%</span>
+                    {group.fbUsername && <p className="fb-username">FB: {group.fbUsername}</p>}
+                    <p className="summary-line">
+                      <span className="summary-deposit-individual">Deposit: {formatCurrency(group.totalDeposit)}</span>
+                      <span className="summary-cashout-individual">Cashout: {formatCurrency(group.totalCashout)}</span>
                     </p>
-                    <table className="table mt-sm">
-                      <thead>
-                        <tr>
-                          <th>Type</th>
-                          <th>Amount</th>
-                          <th>Time</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {all.map(entry => (
-                          <tr key={entry.id}>
-                            <td style={{ color: entry.type === 'deposit' ? 'green' : '#c0392b' }}>{entry.type}</td>
-                            <td>{formatCurrency(entry.amount)}</td>
-                            <td>{new Date(entry.time || entry.created).toLocaleString()}</td>
+                    <p className="summary-line">
+                       <strong className={group.net >= 0 ? 'text-success' : 'text-danger'}>
+                        {group.net >= 0 ? `Profit: ${formatCurrency(group.net)}` : `Loss: ${formatCurrency(Math.abs(group.net))}`}
+                      </strong>
+                      <span className="summary-margin-individual">Margin: {group.profitMargin}%</span>
+                    </p>
+
+                    <h4 className="transaction-history-title">Transaction History</h4>
+                    <div className="table-responsive"> {/* Added for better table overflow */}
+                      <table className="table mt-sm">
+                        <thead>
+                          <tr>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Time</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {all.map(entry => (
+                            <tr key={entry.id} className={entry.type === 'deposit' ? 'deposit-row' : 'cashout-row'}>
+                              <td className="transaction-type">{entry.type}</td>
+                              <td className={`transaction-amount ${entry.type === 'deposit' ? 'text-success' : 'text-danger'}`}>
+                                {formatCurrency(entry.amount)}
+                              </td>
+                              <td className="transaction-time">{new Date(entry.time || entry.created).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                          {all.length === 0 && (
+                            <tr>
+                                <td colSpan="3" className="text-center">No transactions found for this user in the selected range.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })
