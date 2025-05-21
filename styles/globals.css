@@ -12,7 +12,7 @@
   --bg-light: #f5f6fa;     /* Light grayish background */
   --card-bg: #fff;
   --border-color: #eee;
-  --border-subtle: #e0e0e0;
+  --border-subtle: #e0e0e0; /* Lighter border for subtle lines */
 
   --red-alert: #e53935;
   --red-light: #ffebee;
@@ -28,8 +28,9 @@
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
-  --spacing-lg: 16px; /* Slightly reduced for overall height */
-  --spacing-xl: 20px; /* Reduced for overall height */
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-xxl: 24px; /* Added for more generous spacing */
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -55,11 +56,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  display: flex; /* Use flexbox to center content */
-  justify-content: center;
-  align-items: center; /* Center vertically on smaller content */
+  /* Removed flex properties here to allow admin-dashboard to manage layout */
   min-height: 100vh; /* Minimum viewport height */
-  padding: var(--spacing-md);
+  padding: 0; /* Remove body padding, let admin-dashboard handle it */
   box-sizing: border-box;
 }
 
@@ -179,6 +178,18 @@ label {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
+
+.btn-secondary { /* Added for Export to CSV button */
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
 
 .btn-success {
   background-color: var(--green-light); /* Lighter green for success actions */
@@ -422,14 +433,18 @@ label {
 .mt-md { margin-top: var(--spacing-md); }
 .mt-lg { margin-top: var(--spacing-lg); }
 .mt-xl { margin-top: var(--spacing-xl); }
+.mt-xxl { margin-top: var(--spacing-xxl); } /* Added for larger spacing */
 
 .mb-sm { margin-bottom: var(--spacing-sm); }
 .mb-md { margin-bottom: var(--spacing-md); }
 .mb-lg { margin-bottom: var(--spacing-lg); }
 .mb-xl { margin-bottom: var(--spacing-xl); }
+.mb-xxl { margin-bottom: var(--spacing-xxl); } /* Added for larger spacing */
 
 .text-center { text-align: center; }
-.text-danger { color: var(--red-alert); }
+.text-success { color: var(--primary-green) !important; }
+.text-danger { color: var(--red-alert) !important; }
+
 
 /* Animations */
 @keyframes fadeInOverlay {
@@ -446,7 +461,7 @@ label {
 @media (min-width: 768px) {
   body {
     align-items: flex-start; /* Reset align-items for desktop */
-    padding-top: var(--spacing-xl);
+    /* padding-top: var(--spacing-xl); // Not needed with full width admin-dashboard */
   }
   .container {
     max-width: 500px; /* Slightly wider on desktop */
@@ -478,14 +493,16 @@ label {
 
 .main-content {
   flex-grow: 1; /* Allows main content to take available space */
-  max-width: 1000px; /* Max width for content on large screens */
-  margin: 0 auto; /* Center content */
+  /* max-width: 1000px; /* REMOVED to allow full horizontal expansion */
+  margin: 0; /* REMOVED auto margin */
 }
 
 .section-title {
   font-size: 2rem;
   color: var(--primary-green);
   margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-md); /* Added padding below title for border */
+  border-bottom: 2px solid var(--primary-green); /* Prominent horizontal line */
   text-align: center;
   font-weight: 700;
 }
@@ -592,7 +609,7 @@ label {
   display: flex;
   justify-content: space-between;
   padding: var(--spacing-sm) 0;
-  border-bottom: 1px dashed var(--border-subtle);
+  border-bottom: 1px dashed var(--border-subtle); /* Emphasized dashed lines */
   font-size: 1.1rem;
   font-weight: 500;
   color: var(--text-dark);
@@ -639,7 +656,8 @@ label {
 .user-profit-loss-list {
   display: grid;
   gap: var(--spacing-lg); /* Gap between user cards */
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive grid */
+  /* Adjusted minmax to allow cards to be wider */
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); /* Responsive grid, allowing wider cards */
 }
 
 .user-summary-card {
@@ -651,7 +669,7 @@ label {
 .username-heading {
   font-size: 1.5rem;
   margin-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle); /* Horizontal line below username */
   padding-bottom: var(--spacing-xs);
   color: var(--primary-green); /* Highlight username */
 }
@@ -700,7 +718,7 @@ label {
   margin-top: var(--spacing-lg);
   margin-bottom: var(--spacing-md);
   color: var(--text-dark);
-  border-top: 1px dashed var(--border-subtle);
+  border-top: 1px dashed var(--border-subtle); /* Horizontal line above transaction history */
   padding-top: var(--spacing-md);
 }
 
@@ -718,7 +736,7 @@ label {
 .table th,
 .table td {
   padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle); /* Consistent border for table cells */
   text-align: left;
 }
 
@@ -755,12 +773,6 @@ label {
   font-size: 0.85rem;
 }
 
-.text-success {
-  color: var(--primary-green) !important; /* Ensure strong green for success */
-}
-.text-danger {
-  color: var(--red-alert) !important; /* Ensure strong red for danger */
-}
 
 /* Media queries for larger screens specific to admin dashboard */
 @media (max-width: 768px) {
@@ -780,6 +792,8 @@ label {
   .section-title {
     font-size: 1.8rem; /* Slightly smaller title on small screens */
     margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm); /* Adjust padding below title for border */
+    border-bottom: 1px solid var(--primary-green); /* Thinner border on small screens */
   }
   .date-range-controls {
     flex-direction: column; /* Stack date inputs on small screens */
