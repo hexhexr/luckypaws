@@ -217,10 +217,10 @@ export default async function handler(req, res) {
   }
 
   let usdAmount = null;
-  if (usdAmountString) { // Only parse if provided by the client
+  if (usdAmountString !== null && usdAmountString !== undefined) { // Check for explicit null/undefined to allow 0
     usdAmount = parseFloat(usdAmountString);
-    if (isNaN(usdAmount) || usdAmount <= 0) {
-      return res.status(400).json({ message: 'Invalid or non-positive USD amount provided.' });
+    if (isNaN(usdAmount) || usdAmount < 0) { // Allow 0 for initial amount, validation for >0 happens later if needed
+      return res.status(400).json({ message: 'Invalid USD amount provided.' });
     }
   }
 
@@ -236,15 +236,12 @@ export default async function handler(req, res) {
 
     if (isLightningAddress(destination)) {
       console.log(`[Handler] Processing as Lightning Address: ${destination}`);
-      if (usdAmount === null) {
-          return res.status(400).json({ message: 'USD amount is required for Lightning Address cashouts.' });
+      if (usdAmount === null || usdAmount <= 0) { // Amount is absolutely required and > 0 for LN Address
+          return res.status(400).json({ message: 'USD amount is required and must be positive for Lightning Address cashouts.' });
       }
       const satoshisToRequest = await getSatoshisForUsd(usdAmount);
       const msatsToRequest = satoshisToRequest * 1000; // LNURL usually expects millisatoshis
       
-      if (msatsToRequest <= 0) { // Should be caught by getSatoshisForUsd, but double check
-        return res.status(400).json({ message: 'Calculated millisatoshi amount for Lightning Address is not positive.' });
-      }
       btcAmountSourceEstimate = satoshisToRequest / 100000000; // Store estimated BTC
 
       finalBolt11InvoiceToPay = await fetchInvoiceFromLightningAddress(destination, msatsToRequest);
@@ -271,28 +268,19 @@ export default async function handler(req, res) {
         if (invoiceSats !== null && invoiceSats > 0) { // Invoice has a fixed amount
           btcAmountSourceEstimate = invoiceSats / 100000000;
           console.log(`[Handler] Bolt11 Invoice has fixed amount: ${invoiceSats} satoshis (${btcAmountSourceEstimate} BTC).`);
-          // If a fixed-amount invoice, the usdAmount from the frontend is ignored for the payment,
-          // but kept for logging the admin's intent.
-          // Optional: You could add a check here to warn if `usdAmount` doesn't roughly match `invoiceSats`.
+          // If a fixed-amount invoice, the usdAmount from the frontend is typically ignored for the payment,
+          // but kept for logging the admin's intent if it was provided.
         } else { // Amountless Bolt11 invoice
           console.log('[Handler] Amountless Bolt11 invoice received.');
-          if (usdAmount === null) {
-              return res.status(400).json({ message: 'USD amount is required for amountless Bolt11 invoice cashouts.' });
+          if (usdAmount === null || usdAmount <= 0) { // Amount is absolutely required and > 0 for amountless invoice
+              return res.status(400).json({ message: 'USD amount is required and must be positive for amountless Bolt11 invoice cashouts.' });
           }
           const satoshisToRequest = await getSatoshisForUsd(usdAmount);
           btcAmountSourceEstimate = satoshisToRequest / 100000000;
-          // IMPORTANT: If your TrySpeed API supports paying an amountless invoice by
-          // providing an explicit amount (e.g., in `sats`), you'd modify `callTrySpeedPaymentAPI`
-          // or how you call it here to pass `satoshisToRequest`.
-          // Current `callTrySpeedPaymentAPI` is designed to take *only* the Bolt11 string.
-          // If TrySpeed *cannot* pay an amountless invoice by specifying an amount,
-          // then you must enforce that only fixed-amount invoices or Lightning Addresses are used.
-          // For now, let's assume TrySpeed expects the amount in the invoice itself,
-          // so we'll treat amountless invoices as invalid *unless* it can handle explicit amounts.
-          // For now, the current simulation in `callTrySpeedPaymentAPI` *does* extract amount from invoice.
-          // If you *want* to allow paying amountless invoices with a manually entered amount,
-          // your `callTrySpeedPaymentAPI` must be updated to accept an `amountSats` parameter
-          // and use that if the invoice is amountless.
+          // If TrySpeed supports paying an amountless invoice by providing an explicit amount,
+          // `callTrySpeedPaymentAPI` would need to be adapted to accept an `amountSats` parameter.
+          // For the current simulation, `callTrySpeedPaymentAPI` expects the amount to be in the `bolt11InvoiceString`.
+          // If your actual TrySpeed integration needs an explicit amount for amountless invoices, modify `callTrySpeedPaymentAPI` accordingly.
         }
       } catch (e) {
         console.error("[Handler] Invalid Bolt11 invoice format provided directly:", e.message);
@@ -317,7 +305,6 @@ export default async function handler(req, res) {
     }
     
     if (!finalBtcPaid || finalBtcPaid <= 0) {
-      // This is a critical issue if payment was supposedly made but we can't determine a valid BTC amount.
       console.error("[Handler] CRITICAL: BTC amount paid could not be reliably determined even after fallback. Payment ID:", paymentResult.paymentId);
       throw new Error('Payment reported as successful by gateway, but the actual BTC amount paid could not be confirmed. Please verify manually.');
     }
@@ -327,7 +314,7 @@ export default async function handler(req, res) {
     const cashoutData = {
       id: cashoutRef.id,
       username: username,
-      amountUSD: usdAmount, // Logged admin-entered USD amount (will be null for fixed invoices)
+      amountUSD: usdAmount, // Logged admin-entered USD amount (will be null for fixed invoices if not sent from frontend)
       amountBTC: parseFloat(finalBtcPaid.toFixed(8)), // Actual or most reliable BTC amount
       destination: destination, // Original destination (LN Address or Bolt11 invoice string)
       paidInvoice: finalBolt11InvoiceToPay, // The actual Bolt11 invoice that was processed by TrySpeed
