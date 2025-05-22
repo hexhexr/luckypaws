@@ -141,45 +141,47 @@ export default function AdminDashboard() {
 
   // NEW useEffect to decode invoice and set amount
   useEffect(() => {
-    if (cashoutDestination.startsWith('lnbc')) {
-      try {
-        const decoded = bolt11.decode(cashoutDestination);
-        const satoshis = decoded.satoshis || (decoded.millisatoshis ? parseInt(decoded.millisatoshis) / 1000 : null);
+    // Clear previous status messages and states related to amount on destination change
+    setCashoutStatus({ message: '', type: '' });
+    setCashoutAmount('');
+    setIsAmountlessInvoice(false);
 
-        if (satoshis !== null && satoshis > 0) {
+    if (cashoutDestination.startsWith('lnbc')) { // It's likely a Bolt11 invoice
+      try {
+        const decoded = bolt11.decode(cashoutDestination); //
+        const satoshis = decoded.satoshis || (decoded.millisatoshis ? parseInt(decoded.millisatoshis) / 1000 : null); //
+
+        if (satoshis !== null && satoshis > 0) { // Invoice has a fixed amount
           // Assuming a rough conversion rate for display purposes only.
-          // The actual conversion for sending will happen server-side.
-          // A more accurate client-side conversion would require fetching a real-time rate here too.
-          const estimatedUsd = (satoshis / 3000); // Example: 1 USD = 3000 Sats
-          setCashoutAmount(estimatedUsd.toFixed(2));
-          setIsAmountlessInvoice(false);
-          setCashoutStatus({ message: `Invoice amount detected: ${satoshis} sats (~$${estimatedUsd.toFixed(2)})`, type: 'success' });
-        } else {
-          // Amountless invoice
-          setCashoutAmount('');
-          setIsAmountlessInvoice(true);
-          setCashoutStatus({ message: 'Amountless invoice detected. Please enter the USD amount to cashout.', type: 'info' });
+          // The actual conversion for sending will happen server-side in send.js.
+          const estimatedUsd = (satoshis / 3000); // Example: 1 USD = 3000 Sats. Adjust this for your needs.
+          setCashoutAmount(estimatedUsd.toFixed(2)); //
+          setIsAmountlessInvoice(false); // Not an amountless invoice
+          setCashoutStatus({ message: `Invoice amount detected: ${satoshis} sats (~$${estimatedUsd.toFixed(2)})`, type: 'success' }); //
+        } else { // Amountless invoice
+          setCashoutAmount(''); // Clear amount
+          setIsAmountlessInvoice(true); // Mark as amountless
+          setCashoutStatus({ message: 'Amountless invoice detected. Please enter the USD amount to cashout.', type: 'info' }); //
         }
       } catch (e) {
         // Not a valid bolt11 invoice or decode error
-        setCashoutAmount('');
-        setIsAmountlessInvoice(false);
+        setCashoutAmount(''); // Clear amount
+        setIsAmountlessInvoice(false); // Not an amountless invoice (because it's invalid)
         if (cashoutDestination.length > 0) {
-            setCashoutStatus({ message: 'Invalid Lightning Invoice or unrecognized format. Please ensure it is a valid Bolt11 invoice or Lightning Address.', type: 'error' });
+            setCashoutStatus({ message: 'Invalid Lightning Invoice format. Please ensure it is a valid Bolt11 invoice or Lightning Address.', type: 'error' }); //
         } else {
             setCashoutStatus({ message: '', type: '' }); // Clear message if input is empty
         }
       }
-    } else if (cashoutDestination.includes('@')) {
-      // It's a Lightning Address, clear amount and allow manual input
-      setCashoutAmount('');
-      setIsAmountlessInvoice(false); // Lightning Address handles amount via LNURL-pay
-      setCashoutStatus({ message: 'Lightning Address detected. Please enter the USD amount to cashout.', type: 'info' });
+    } else if (cashoutDestination.includes('@')) { // It's a Lightning Address
+      setCashoutAmount(''); // Clear amount and allow manual input
+      setIsAmountlessInvoice(false); // Lightning Address handles amount via LNURL-pay, so not "amountless invoice" in Bolt11 sense
+      setCashoutStatus({ message: 'Lightning Address detected. Please enter the USD amount to cashout.', type: 'info' }); //
     } else {
       // Clear all if not an invoice or lightning address
-      setCashoutAmount('');
-      setIsAmountlessInvoice(false);
-      setCashoutStatus({ message: '', type: '' });
+      setCashoutAmount(''); //
+      setIsAmountlessInvoice(false); //
+      setCashoutStatus({ message: '', type: '' }); //
     }
   }, [cashoutDestination]); // Re-run when cashoutDestination changes
 
@@ -187,14 +189,20 @@ export default function AdminDashboard() {
   // --- CASHOUT HANDLER ---
   const handleSendCashout = async (e) => {
     e.preventDefault();
-    if (!cashoutUsername || !cashoutDestination || !cashoutAmount) {
-      setCashoutStatus({ message: 'Username, Destination (Invoice/Address), and USD Amount are required.', type: 'error' });
+    // Validate based on whether it's an amountless invoice and if amount is required
+    if (!cashoutUsername || !cashoutDestination) {
+      setCashoutStatus({ message: 'Username and Destination (Invoice/Address) are required.', type: 'error' });
       return;
     }
-    if (parseFloat(cashoutAmount) <= 0) {
-        setCashoutStatus({ message: 'USD Amount must be greater than zero.', type: 'error' });
+
+    // Only check cashoutAmount if it's required (i.e., for amountless invoices or Lightning Addresses)
+    if ((isAmountlessInvoice || !cashoutDestination.startsWith('lnbc')) && (parseFloat(cashoutAmount) <= 0 || !cashoutAmount)) {
+        setCashoutStatus({ message: 'USD Amount must be greater than zero when required.', type: 'error' });
         return;
     }
+    // If it's a fixed-amount invoice, the amount is pre-filled and disabled, so we rely on the invoice's amount.
+    // No need for a separate amount check here, as it's either disabled or validated above.
+
 
     setIsSendingCashout(true);
     setCashoutStatus({ message: '', type: '' });
@@ -206,7 +214,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           username: cashoutUsername,
           invoice: cashoutDestination, // API expects 'invoice' field for destination
-          amount: parseFloat(cashoutAmount),
+          amount: cashoutAmount ? parseFloat(cashoutAmount) : null, // Send amount only if it's manually entered/available
         }),
       });
 
@@ -285,8 +293,8 @@ export default function AdminDashboard() {
                 value={cashoutAmount}
                 onChange={(e) => setCashoutAmount(e.target.value)}
                 placeholder="e.g., 10.50"
-                required={isAmountlessInvoice || !cashoutDestination.startsWith('lnbc')} // Require if amountless invoice or not a bolt11 at all
-                disabled={cashoutDestination.startsWith('lnbc') && cashoutAmount !== '' && !isAmountlessInvoice} // Disable if amount detected and not amountless
+                required={isAmountlessInvoice || (!cashoutDestination.startsWith('lnbc') && cashoutDestination.length > 0)} // Required if amountless or a LN Address
+                disabled={cashoutDestination.startsWith('lnbc') && !isAmountlessInvoice && cashoutAmount !== ''} // Disabled if it's a fixed-amount invoice and amount is set
                 style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
               />
               <small style={{ display: 'block', marginTop: '0.3rem', color: '#555' }}>
@@ -387,12 +395,12 @@ export default function AdminDashboard() {
                     <td>{order.btc || '0.00000000'}</td>
                     <td style={{
                       color: order.status === 'paid'
-                        ? order.paidManually ? '#2962ff' : 'green' // Blue for manually paid, Green for auto paid
+                        ? order.paidManually ? '#2962ff' : 'green'
                         : order.status === 'expired'
-                        ? '#ff9800' // Orange for expired
+                        ? '#ff9800'
                         : order.status === 'cancelled'
-                        ? '#7f8c8d' // Grey for cancelled
-                        : '#d63031' // Red for pending (default)
+                        ? '#7f8c8d'
+                        : '#d63031'
                     }}>
                       {order.status}
                     </td>
