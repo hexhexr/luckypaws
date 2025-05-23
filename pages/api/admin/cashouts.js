@@ -1,5 +1,5 @@
 // pages/api/admin/cashouts.js
-import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
+import { db } from '../../../lib/firebaseAdmin'; // Corrected path
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,7 +14,6 @@ export default async function handler(req, res) {
     console.warn('Unauthorized access attempt to /api/admin/cashouts');
     return res.status(401).json({ message: 'Unauthorized' });
   }
-
 
   try {
     const cashoutsRef = db.collection('profitLoss');
