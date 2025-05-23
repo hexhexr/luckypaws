@@ -22,8 +22,9 @@ export default function AdminDashboard() {
   const [cashoutDestination, setCashoutDestination] = useState(''); // Renamed from cashoutInvoice for clarity
   const [cashoutAmount, setCashoutAmount] = useState(''); // Amount in USD
   const [isSendingCashout, setIsSendingCashout] = useState(false);
-  const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' }); // type: 'success' or 'error'
+  const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' }); // type: 'success' or 'error' or 'info'
   const [isAmountlessInvoice, setIsAmountlessInvoice] = useState(false); // New state to track amountless invoices
+  const [isLightningAddressDetected, setIsLightningAddressDetected] = useState(false); // New state for Lightning Address
 
   useEffect(() => {
     // Check local storage for admin_auth before rendering
@@ -145,19 +146,25 @@ export default function AdminDashboard() {
     setCashoutStatus({ message: '', type: '' });
     setCashoutAmount(''); // Clear amount
     setIsAmountlessInvoice(false); // Reset to false
+    setIsLightningAddressDetected(false); // Reset Lightning Address detection
 
-    if (cashoutDestination.startsWith('lnbc')) { // It's likely a Bolt11 invoice
+    const destination = cashoutDestination.trim();
+
+    if (destination.length === 0) {
+      return; // Do nothing if input is empty
+    }
+
+    if (destination.startsWith('lnbc')) { // It's likely a Bolt11 invoice
       try {
-        const decoded = bolt11.decode(cashoutDestination);
+        const decoded = bolt11.decode(destination);
         const satoshis = decoded.satoshis || (decoded.millisatoshis ? parseInt(decoded.millisatoshis) / 1000 : null);
 
         if (satoshis !== null && satoshis > 0) { // Invoice has a fixed amount
-          // Assuming a rough conversion rate for display purposes only.
-          // The actual conversion for sending will happen server-side in send.js.
-          const estimatedUsd = (satoshis / 3000); // Example: 1 USD = 3000 Sats. Adjust this for your needs.
+          // For display purposes, use a rough estimated rate. The actual conversion is server-side.
+          const estimatedUsd = (satoshis / 3000); // Example: 1 USD = 3000 Sats. REPLACE THIS with a more dynamic estimate if possible.
           setCashoutAmount(estimatedUsd.toFixed(2));
           setIsAmountlessInvoice(false); // Not an amountless invoice
-          setCashoutStatus({ message: `Invoice amount detected: ${satoshis} sats (~$${estimatedUsd.toFixed(2)})`, type: 'success' });
+          setCashoutStatus({ message: `Fixed amount invoice detected: ${satoshis} sats (~$${estimatedUsd.toFixed(2)})`, type: 'info' });
         } else { // Amountless invoice
           setCashoutAmount(''); // Clear amount, allow manual input
           setIsAmountlessInvoice(true); // Mark as amountless
@@ -166,22 +173,20 @@ export default function AdminDashboard() {
       } catch (e) {
         // Not a valid bolt11 invoice or decode error
         setCashoutAmount(''); // Clear amount
-        setIsAmountlessInvoice(false); // Not an amountless invoice (because it's invalid)
-        if (cashoutDestination.length > 0) {
-            setCashoutStatus({ message: 'Invalid Lightning Invoice format. Please ensure it is a valid Bolt11 invoice or Lightning Address.', type: 'error' });
-        } else {
-            setCashoutStatus({ message: '', type: '' }); // Clear message if input is empty
-        }
+        setIsAmountlessInvoice(false); // Not a valid invoice
+        setCashoutStatus({ message: 'Invalid Lightning Invoice format. Please ensure it is a valid Bolt11 invoice.', type: 'error' });
       }
-    } else if (cashoutDestination.includes('@')) { // It's a Lightning Address
+    } else if (destination.includes('@') && destination.split('@').length === 2 && destination.split('@')[1].includes('.')) { // Simple check for Lightning Address format
       setCashoutAmount(''); // Clear amount and allow manual input
-      setIsAmountlessInvoice(false); // Lightning Address handles amount via LNURL-pay, so not "amountless invoice" in Bolt11 sense
+      setIsAmountlessInvoice(false); // Not an amountless invoice (but requires amount)
+      setIsLightningAddressDetected(true);
       setCashoutStatus({ message: 'Lightning Address detected. Please enter the USD amount to cashout.', type: 'info' });
     } else {
-      // Clear all if not an invoice or lightning address
+      // Clear all if not a recognized invoice or lightning address format
       setCashoutAmount('');
       setIsAmountlessInvoice(false);
-      setCashoutStatus({ message: '', type: '' });
+      setIsLightningAddressDetected(false);
+      setCashoutStatus({ message: 'Please enter a valid Bolt11 invoice (lnbc...) or Lightning Address (user@example.com).', type: 'info' });
     }
   }, [cashoutDestination]); // Re-run when cashoutDestination changes
 
@@ -189,32 +194,46 @@ export default function AdminDashboard() {
   // --- CASHOUT HANDLER ---
   const handleSendCashout = async (e) => {
     e.preventDefault();
-    // Validate based on whether it's an amountless invoice and if amount is required
-    if (!cashoutUsername || !cashoutDestination) {
-      setCashoutStatus({ message: 'Username and Destination (Invoice/Address) are required.', type: 'error' });
+    setCashoutStatus({ message: '', type: '' }); // Clear previous status
+
+    // Basic frontend validation
+    if (!cashoutUsername.trim()) {
+      setCashoutStatus({ message: 'Username is required for record-keeping.', type: 'error' });
+      return;
+    }
+    if (!cashoutDestination.trim()) {
+      setCashoutStatus({ message: 'Lightning Invoice or Address is required.', type: 'error' });
       return;
     }
 
-    // Only check cashoutAmount if it's required (i.e., for amountless invoices or Lightning Addresses)
-    if ((isAmountlessInvoice || (cashoutDestination.includes('@') && !cashoutDestination.startsWith('lnbc'))) && (parseFloat(cashoutAmount) <= 0 || !cashoutAmount)) {
-        setCashoutStatus({ message: 'USD Amount must be greater than zero when required.', type: 'error' });
-        return;
+    const amountValue = parseFloat(cashoutAmount);
+
+    // Validate amount based on the type of destination
+    const requiresAmount = isAmountlessInvoice || isLightningAddressDetected;
+    if (requiresAmount) {
+        if (isNaN(amountValue) || amountValue <= 0) {
+            setCashoutStatus({ message: 'Amount (USD) must be a positive number for this type of cashout.', type: 'error' });
+            return;
+        }
     }
-    // If it's a fixed-amount invoice, the amount is pre-filled and disabled, so we rely on the invoice's amount.
-    // No need for a separate amount check here, as it's either disabled or validated above.
+
+    // Confirmation dialog
+    if (!window.confirm(`Are you sure you want to send a cashout for ${cashoutUsername} to ${cashoutDestination}? Amount: ${requiresAmount ? `$${amountValue.toFixed(2)} USD` : 'invoice amount'}.`)) {
+      setCashoutStatus({ message: 'Cashout cancelled by user.', type: 'info' });
+      return;
+    }
 
 
     setIsSendingCashout(true);
-    setCashoutStatus({ message: '', type: '' });
 
     try {
       const response = await fetch('/api/admin/cashouts/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: cashoutUsername,
-          invoice: cashoutDestination, // API expects 'invoice' field for destination
-          amount: (isAmountlessInvoice || cashoutDestination.includes('@')) ? parseFloat(cashoutAmount) : null, // Send amount only if it's manually entered/available
+          username: cashoutUsername.trim(),
+          invoice: cashoutDestination.trim(), // API expects 'invoice' field for destination
+          amount: requiresAmount ? amountValue.toFixed(2) : null, // Send amount only if it's manually entered/available
         }),
       });
 
@@ -229,6 +248,7 @@ export default function AdminDashboard() {
       setCashoutDestination('');
       setCashoutAmount('');
       setIsAmountlessInvoice(false); // Reset this state after successful cashout
+      setIsLightningAddressDetected(false); // Reset after successful cashout
       // Optionally, refresh profit/loss data if displayed or relevant
     } catch (error) {
       setCashoutStatus({ message: error.message || 'An error occurred while sending cashout.', type: 'error' });
@@ -293,13 +313,14 @@ export default function AdminDashboard() {
                 value={cashoutAmount}
                 onChange={(e) => setCashoutAmount(e.target.value)}
                 placeholder="e.g., 10.50"
-                required={isAmountlessInvoice || (cashoutDestination.includes('@') && cashoutDestination.length > 0)} // Required if amountless or a LN Address
-                disabled={cashoutDestination.startsWith('lnbc') && !isAmountlessInvoice} // Disabled if it's a fixed-amount invoice and amount is set
+                // Amount is required if it's an amountless invoice or a Lightning Address
+                required={isAmountlessInvoice || isLightningAddressDetected}
+                // Disabled if it's a fixed-amount invoice and amount is set
+                disabled={cashoutDestination.startsWith('lnbc') && !isAmountlessInvoice}
                 style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
               />
               <small style={{ display: 'block', marginTop: '0.3rem', color: '#555' }}>
-                Enter the USD amount for the cashout. This will be logged.
-                If sending to a Lightning Address or an invoice is generated, this amount is used.
+                Enter the USD amount for the cashout. This will be logged and used for payment if the destination is a Lightning Address or an amountless invoice.
               </small>
             </div>
             <button type="submit" className="btn btn-success" disabled={isSendingCashout} style={{ padding: '0.6rem 1.2rem', fontSize: '1rem' }}>
