@@ -1,4 +1,4 @@
-// pages/api/admin/cashouts/send.js
+// pages/api/admin/cashouts/send.js (This file is mostly fine from the previous iteration, just confirming checks)
 import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
 import * as bolt11 from 'lightning-invoice'; // npm install lightning-invoice
 
@@ -163,6 +163,16 @@ async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
         const simSats = decodedSimInvoice.satoshis || (decodedSimInvoice.millisatoshis ? parseInt(decodedSimInvoice.millisatoshis)/1000 : null);
         if (simSats && simSats > 0) {
             simulatedBtcAmountPaid = simSats / 100000000; // Convert sats to BTC
+        } else if (simSats === 0) { // If it's an amountless invoice, and we need an amount for simulation
+            // In a real scenario, for amountless invoices, TrySpeed would likely accept a specific amount.
+            // Here, we're assuming the USD amount from the frontend was used to determine an amount for TrySpeed.
+            // For the simulation, if the invoice is amountless (simSats is 0 or null), we need to derive
+            // a simulated btcAmountPaid from the original USD amount if it was provided.
+            // This is complex for a simulation, so we'll just use a default non-zero value for now.
+            // In a real system, the `usdAmount` would have been converted to `amountMsat` and used
+            // when fetching the invoice from LNURL-pay, and TrySpeed would pay that exact amount.
+            console.warn("[TrySpeed SIMULATION] Amountless invoice detected. Using default simulated BTC amount.");
+            simulatedBtcAmountPaid = 0.00005; // A small, non-zero default
         }
       } catch (e) {
           console.warn("[TrySpeed SIMULATION] Could not decode invoice for simulation amount, using default. Error:", e.message);
@@ -310,7 +320,7 @@ export default async function handler(req, res) {
           console.log(`[Handler] Bolt11 Invoice has fixed amount: ${invoiceSats} satoshis (${btcAmountSourceEstimate} BTC).`);
           // If a fixed-amount invoice, the usdAmount from the frontend is typically ignored for the payment,
           // but kept for logging the admin's intent if it was provided.
-        } else { // Amountless Bolt11 invoice
+        } else { // Amountless Bolt11 invoice (or 0 satoshi fixed invoice)
           console.log('[Handler] Amountless Bolt11 invoice received.');
           if (usdAmount === null || usdAmount <= 0) { // Amount is absolutely required and > 0 for amountless invoice
               console.error("[Handler] USD amount required for amountless Bolt11 but not provided or not positive.");
@@ -377,7 +387,7 @@ export default async function handler(req, res) {
       success: true,
       message: `Cashout for ${username} (${usdAmount ? usdAmount.toFixed(2) + ' USD / ' : ''}${cashoutData.amountBTC} BTC to ${destination}) processed and recorded. Payment ID: ${cashoutData.paymentGatewayId || 'N/A'}`,
       cashoutId: cashoutRef.id,
-      details: cashoutData
+      details: cashoutData // Include cashoutData in the response
     });
 
   } catch (error) {
