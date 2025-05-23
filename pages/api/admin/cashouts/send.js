@@ -1,6 +1,6 @@
-// pages/api/admin/cashouts/send.js (This file is mostly fine from the previous iteration, just confirming checks)
-import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
-import * as bolt11 from 'lightning-invoice'; // npm install lightning-invoice
+// pages/api/admin/cashouts/send.js
+import { db } from '../../../../lib/firebaseAdmin';
+import * as bolt11 from 'lightning-invoice';
 
 // If not using global fetch (Node 18+), or if you prefer node-fetch:
 // import fetch from 'node-fetch'; // npm install node-fetch
@@ -88,25 +88,22 @@ async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
 
 // --- Placeholder for TrySpeed API Interaction ---
 // IMPORTANT: You MUST replace this with your actual TrySpeed API calls.
-// This function now always expects a `bolt11InvoiceString`.
 async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
   const invoicePreview = bolt11InvoiceString.length > 30 ? `${bolt11InvoiceString.substring(0, 30)}...` : bolt11InvoiceString;
-  console.log(`[TrySpeed SIMULATION] Attempting to pay Bolt11 invoice: ${invoicePreview}`);
+  console.log(`[TrySpeed] Attempting to pay Bolt11 invoice: ${invoicePreview}`);
   if (!apiKey) {
-    console.error("[TrySpeed SIMULATION] CRITICAL: API Key is missing!");
-    throw new Error("TrySpeed API Key is not configured for payment simulation.");
+    console.error("[TrySpeed] CRITICAL: API Key is missing!");
+    throw new Error("TrySpeed API Key is not configured for payment.");
   }
-  console.log(`[TrySpeed SIMULATION] Using API Key ending with: ${apiKey.slice(-4)}`);
+  console.log(`[TrySpeed] Using API Key ending with: ${apiKey.slice(-4)}`);
 
-  // ------------ START OF TRYSPEED INTEGRATION (NEEDS ACTUAL IMPLEMENTATION) ------------
-  /*
-  const tryspeedApiEndpoint = 'https://api.tryspeed.com/v1/payments'; // Replace with actual endpoint from TrySpeed
+  // ------------ START OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
+  const tryspeedApiEndpoint = 'https://api.tryspeed.com/v1/payments'; // **VERIFY THIS IS YOUR ACTUAL TRYSPEED PAYMENT ENDPOINT**
   const headers = {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
-    'Accept': 'application/json' // Often good practice to include
   };
-  const body = { invoice: bolt11InvoiceString }; // Send the Bolt11 invoice string
+  const body = { invoice: bolt11InvoiceString }; // Send the Bolt11 invoice
 
   try {
     const response = await fetch(tryspeedApiEndpoint, {
@@ -114,78 +111,48 @@ async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
       headers: headers,
       body: JSON.stringify(body),
     });
-
     const data = await response.json(); // Assuming TrySpeed returns JSON
 
-    if (!response.ok) { // Check for HTTP errors (e.g., 400, 401, 500)
-      console.error(`[TrySpeed API] HTTP Error ${response.status}:`, data);
-      throw new Error(`TrySpeed API Error (${response.status}): ${data.message || data.error || response.statusText}`);
+    if (!response.ok) { // Check for HTTP errors (e.g., 4xx, 5xx)
+      throw new Error(`TrySpeed API HTTP Error (${response.status}): ${data.message || data.detail || response.statusText}`);
     }
 
-    // IMPORTANT: Adapt these checks based on TrySpeed's actual success/failure response structure
-    // Example: If TrySpeed returns { status: 'paid', payment_hash: '...' } for success
-    if (data.status === 'paid' || data.success === true) {
-      // Ensure you extract the payment ID and the actual BTC amount paid from TrySpeed's response
-      const paymentId = data.payment_hash || data.id || null; // Adjust field name if different
-      const btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null; // Adjust field name if different (should be in BTC)
+    // IMPORTANT: Adapt this part based on TrySpeed's actual success/error response structure.
+    // If TrySpeed's API is synchronous and confirms 'paid' immediately:
+    if (data.status === 'paid' || data.status === 'completed') {
+      const paymentId = data.id || data.payment_hash || null;
+      const btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null;
 
-      if (!paymentId) {
-          console.warn("[TrySpeed] Payment reported success but paymentId is missing from TrySpeed response.");
-      }
       if (!btcAmountPaid || btcAmountPaid <= 0) {
-          console.warn("[TrySpeed] Payment reported success but BTC amount paid is missing or zero from TrySpeed response.");
-          // You might choose to derive it from the bolt11InvoiceString if it's not provided by TrySpeed
+        console.warn("[TrySpeed] Payment reported success but BTC amount paid is missing or zero from TrySpeed response.");
+        // Attempt to get amount from invoice as fallback for reporting
+        const decodedInvoice = bolt11.decode(bolt11InvoiceString);
+        const satoshisFromInvoice = decodedInvoice.satoshis || (decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis)/1000 : null);
+        if(satoshisFromInvoice) {
+            btcAmountPaid = satoshisFromInvoice / 100000000;
+            console.log(`[TrySpeed] Falling back to invoice amount: ${btcAmountPaid} BTC.`);
+        }
       }
 
-      console.log(`[TrySpeed REAL] Successfully paid invoice. Payment ID: ${paymentId}, BTC Amount: ${btcAmountPaid}`);
-      return { success: true, paymentId: paymentId, btcAmountPaid: btcAmountPaid };
+      return { success: true, paymentId: paymentId, btcAmountPaid: btcAmountPaid, status: data.status };
+    } else if (data.status === 'pending' || data.status === 'processing' || data.status === 'initiated') {
+        // If TrySpeed's API is asynchronous, it might return 'pending' or 'processing' immediately.
+        // The actual 'paid' status will come via webhook.
+        const paymentId = data.id || data.payment_hash || null;
+        // Optionally, if the API provides an estimated amount even for pending status:
+        const btcAmountEstimated = data.amount_btc ? parseFloat(data.amount_btc) : null;
+        return { success: true, paymentId: paymentId, status: data.status, btcAmountPaid: btcAmountEstimated }; // Indicate it's successfully initiated
     } else {
-      // TrySpeed indicated a logical failure (e.g., insufficient funds, invalid invoice)
-      throw new Error(`TrySpeed payment failed: ${data.reason || data.message || 'Unknown payment failure'}`);
+      // General error or specific error message from TrySpeed's response body
+      throw new Error(`TrySpeed payment failed: ${data.message || data.error_message || 'Unknown error'}`);
     }
 
   } catch (apiError) {
     console.error('[TrySpeed API Call Real Error]', apiError);
-    // Rethrow to be caught by the main handler for consistent client error messages
-    throw new Error(`Failed to communicate with TrySpeed payment gateway: ${apiError.message}`);
+    // Return a structured error, not just rethrow, so it can be handled by the caller
+    return { success: false, error: apiError.message };
   }
-  */
-  // ------------ END OF TRYSPEED INTEGRATION ------------
-
-  // IF YOU ARE TESTING WITHOUT LIVE TRYSPEED: Simulate a successful payment
-  // This simulation should be REMOVED once you integrate TrySpeed.
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      let simulatedBtcAmountPaid = 0.00005; // Default BTC amount for simulation
-      try {
-        // Try to get amount from invoice for more realistic simulation
-        const decodedSimInvoice = bolt11.decode(bolt11InvoiceString);
-        const simSats = decodedSimInvoice.satoshis || (decodedSimInvoice.millisatoshis ? parseInt(decodedSimInvoice.millisatoshis)/1000 : null);
-        if (simSats && simSats > 0) {
-            simulatedBtcAmountPaid = simSats / 100000000; // Convert sats to BTC
-        } else if (simSats === 0) { // If it's an amountless invoice, and we need an amount for simulation
-            // In a real scenario, for amountless invoices, TrySpeed would likely accept a specific amount.
-            // Here, we're assuming the USD amount from the frontend was used to determine an amount for TrySpeed.
-            // For the simulation, if the invoice is amountless (simSats is 0 or null), we need to derive
-            // a simulated btcAmountPaid from the original USD amount if it was provided.
-            // This is complex for a simulation, so we'll just use a default non-zero value for now.
-            // In a real system, the `usdAmount` would have been converted to `amountMsat` and used
-            // when fetching the invoice from LNURL-pay, and TrySpeed would pay that exact amount.
-            console.warn("[TrySpeed SIMULATION] Amountless invoice detected. Using default simulated BTC amount.");
-            simulatedBtcAmountPaid = 0.00005; // A small, non-zero default
-        }
-      } catch (e) {
-          console.warn("[TrySpeed SIMULATION] Could not decode invoice for simulation amount, using default. Error:", e.message);
-      }
-      
-      console.log(`[TrySpeed SIMULATION] Successfully processed payment of approx ${simulatedBtcAmountPaid} BTC.`);
-      resolve({
-        success: true,
-        paymentId: `sim_trysp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        btcAmountPaid: parseFloat(simulatedBtcAmountPaid.toFixed(8)), // Ensure it's a number with reasonable precision
-      });
-    }, 2000); // Simulate network delay
-  });
+  // ------------ END OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
 }
 
 // --- Placeholder for USD to Satoshi Conversion ---
@@ -252,8 +219,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // 'destination' can be a Bolt11 invoice string or a Lightning Address
-  // 'amount' (usdAmountString) is now optional, as fixed-amount invoices don't require it from the UI.
   const { username, invoice: destination, amount: usdAmountString } = req.body;
 
   if (!username || !destination) {
@@ -264,7 +229,7 @@ export default async function handler(req, res) {
   let usdAmount = null;
   if (usdAmountString !== null && usdAmountString !== undefined && usdAmountString !== '') {
     usdAmount = parseFloat(usdAmountString);
-    if (isNaN(usdAmount) || usdAmount < 0) { // Allow 0 for initial amount, validation for >0 happens later if needed
+    if (isNaN(usdAmount) || usdAmount < 0) {
       console.error("[Handler] Invalid USD amount provided:", usdAmountString);
       return res.status(400).json({ message: 'Invalid USD amount provided.' });
     }
@@ -282,23 +247,22 @@ export default async function handler(req, res) {
 
     if (isLightningAddress(destination)) {
       console.log(`[Handler] Processing as Lightning Address: ${destination}`);
-      if (usdAmount === null || usdAmount <= 0) { // Amount is absolutely required and > 0 for LN Address
+      if (usdAmount === null || usdAmount <= 0) {
           console.error("[Handler] USD amount required for Lightning Address but not provided or not positive.");
           return res.status(400).json({ message: 'USD amount is required and must be positive for Lightning Address cashouts.' });
       }
       const satoshisToRequest = await getSatoshisForUsd(usdAmount);
-      const msatsToRequest = satoshisToRequest * 1000; // LNURL usually expects millisatoshis
+      const msatsToRequest = satoshisToRequest * 1000;
       
-      btcAmountSourceEstimate = satoshisToRequest / 100000000; // Store estimated BTC from USD conversion
+      btcAmountSourceEstimate = satoshisToRequest / 100000000;
 
       finalBolt11InvoiceToPay = await fetchInvoiceFromLightningAddress(destination, msatsToRequest);
-      // The fetched invoice *should* have the amount embedded. We can decode it to confirm/refine btcAmountSourceEstimate.
       try {
         const decodedFetchedInvoice = bolt11.decode(finalBolt11InvoiceToPay);
         const fetchedInvoiceMsats = decodedFetchedInvoice.millisatoshis ? parseInt(decodedFetchedInvoice.millisatoshis) : null;
         const fetchedInvoiceSats = decodedFetchedInvoice.satoshis || (fetchedInvoiceMsats ? fetchedInvoiceMsats / 1000 : null);
         if (fetchedInvoiceSats && fetchedInvoiceSats > 0) {
-          btcAmountSourceEstimate = fetchedInvoiceSats / 100000000; // Refine with actual invoice amount
+          btcAmountSourceEstimate = fetchedInvoiceSats / 100000000;
           console.log(`[Handler] Invoice fetched from LN Address has amount: ${fetchedInvoiceSats} sats. Refined estimate to ${btcAmountSourceEstimate} BTC.`);
         } else {
             console.warn("[Handler] Fetched invoice from LN Address appears to be amountless or amount is zero, using original USD conversion estimate.");
@@ -307,7 +271,7 @@ export default async function handler(req, res) {
         console.warn(`[Handler] Could not decode invoice fetched from LN Address to refine amount, proceeding with original estimate: ${decodeError.message}`);
       }
 
-    } else if (destination.startsWith('lnbc')) { // Assume Bolt11 invoice
+    } else if (destination.startsWith('lnbc')) {
       console.log(`[Handler] Processing as Bolt11 invoice: ${destination}`);
       finalBolt11InvoiceToPay = destination;
       try {
@@ -315,14 +279,12 @@ export default async function handler(req, res) {
         const invoiceMsats = decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis) : null;
         const invoiceSats = decodedInvoice.satoshis || (invoiceMsats ? invoiceMsats / 1000 : null);
 
-        if (invoiceSats !== null && invoiceSats > 0) { // Invoice has a fixed amount
+        if (invoiceSats !== null && invoiceSats > 0) {
           btcAmountSourceEstimate = invoiceSats / 100000000;
           console.log(`[Handler] Bolt11 Invoice has fixed amount: ${invoiceSats} satoshis (${btcAmountSourceEstimate} BTC).`);
-          // If a fixed-amount invoice, the usdAmount from the frontend is typically ignored for the payment,
-          // but kept for logging the admin's intent if it was provided.
-        } else { // Amountless Bolt11 invoice (or 0 satoshi fixed invoice)
+        } else {
           console.log('[Handler] Amountless Bolt11 invoice received.');
-          if (usdAmount === null || usdAmount <= 0) { // Amount is absolutely required and > 0 for amountless invoice
+          if (usdAmount === null || usdAmount <= 0) {
               console.error("[Handler] USD amount required for amountless Bolt11 but not provided or not positive.");
               return res.status(400).json({ message: 'USD amount is required and must be positive for amountless Bolt11 invoice cashouts.' });
           }
@@ -340,22 +302,16 @@ export default async function handler(req, res) {
     }
 
     // --- Step 1: Pay the final Bolt11 Invoice via TrySpeed ---
-    // `finalBolt11InvoiceToPay` is now always a Bolt11 invoice string.
-    // `callTrySpeedPaymentAPI` should use the amount embedded in this invoice if it's fixed,
-    // or be prepared to take an explicit amount if your TrySpeed integration supports it for amountless invoices.
     const paymentResult = await callTrySpeedPaymentAPI(finalBolt11InvoiceToPay, tryspeedApiKey);
 
     if (!paymentResult || !paymentResult.success) {
-      const errorMessage = paymentResult.error || 'TrySpeed payment processing failed or was reported as unsuccessful.';
-      console.error("[Handler] TrySpeed payment failed:", errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(paymentResult.error || 'TrySpeed payment processing failed or was reported as unsuccessful.');
     }
 
-    // Determine the actual BTC amount paid. Prioritize TrySpeed's response if available.
-    let finalBtcPaid = paymentResult.btcAmountPaid; // Amount from TrySpeed's successful payment response
+    let finalBtcPaid = paymentResult.btcAmountPaid;
     if (!finalBtcPaid || finalBtcPaid <= 0) {
       console.warn("[Handler] TrySpeed payment successful but btcAmountPaid was missing or zero in response. Falling back to source estimate:", btcAmountSourceEstimate);
-      finalBtcPaid = btcAmountSourceEstimate; // Fallback to our estimate from invoice/conversion
+      finalBtcPaid = btcAmountSourceEstimate;
     }
     
     if (!finalBtcPaid || finalBtcPaid <= 0) {
@@ -368,30 +324,32 @@ export default async function handler(req, res) {
     const cashoutData = {
       id: cashoutRef.id,
       username: username,
-      amountUSD: usdAmount ? parseFloat(usdAmount.toFixed(2)) : null, // Logged admin-entered USD amount (will be null for fixed invoices if not sent from frontend)
-      amountBTC: parseFloat(finalBtcPaid.toFixed(8)), // Actual or most reliable BTC amount
-      destination: destination, // Original destination (LN Address or Bolt11 invoice string)
-      paidInvoice: finalBolt11InvoiceToPay, // The actual Bolt11 invoice that was processed by TrySpeed
-      type: 'cashout_lightning', // Differentiate from manual 'cashout'
+      amountUSD: usdAmount ? parseFloat(usdAmount.toFixed(2)) : null,
+      amountBTC: parseFloat(finalBtcPaid.toFixed(8)),
+      destination: destination,
+      paidInvoice: finalBolt11InvoiceToPay,
+      type: 'cashout_lightning',
       description: `Automated Lightning cashout. TrySpeed Payment ID: ${paymentResult.paymentId || 'N/A'}`,
       time: new Date().toISOString(),
       addedBy: 'admin_dashboard_automation',
-      paymentGatewayId: paymentResult.paymentId || null, // Store TrySpeed's transaction ID
-      status: 'completed', // Assuming TrySpeed call is synchronous and confirmed
+      paymentGatewayId: paymentResult.paymentId || null,
+      // Status will be 'pending' if TrySpeed's API is asynchronous and webhooks confirm final status.
+      // It will be 'completed' if TrySpeed's API call is synchronous and returns 'paid' immediately.
+      status: paymentResult.status === 'paid' || paymentResult.status === 'completed' ? 'completed' : 'pending',
     };
 
     await cashoutRef.set(cashoutData);
-    console.log(`[Handler] Cashout recorded successfully in Firebase: ${cashoutRef.id} for user ${username}.`);
+    console.log(`[Handler] Cashout recorded successfully in Firebase: ${cashoutRef.id} with status: ${cashoutData.status}`);
 
     res.status(201).json({
       success: true,
-      message: `Cashout for ${username} (${usdAmount ? usdAmount.toFixed(2) + ' USD / ' : ''}${cashoutData.amountBTC} BTC to ${destination}) processed and recorded. Payment ID: ${cashoutData.paymentGatewayId || 'N/A'}`,
+      message: `Cashout for ${username} (${usdAmount ? usdAmount.toFixed(2) + ' USD / ' : ''}${cashoutData.amountBTC} BTC to ${destination}) initiated. Status: ${cashoutData.status}. Payment ID: ${cashoutData.paymentGatewayId || 'N/A'}`,
       cashoutId: cashoutRef.id,
-      details: cashoutData // Include cashoutData in the response
+      details: cashoutData
     });
 
   } catch (error) {
-    console.error('[Handler] Full error processing cashout:', error); // Log the full error object on the server
-    res.status(500).json({ message: `Failed to process cashout: ${error.message}` }); // Send a sanitized/clear message to client
+    console.error('[Handler] Full error processing cashout:', error);
+    res.status(500).json({ message: `Failed to process cashout: ${error.message}` });
   }
 }

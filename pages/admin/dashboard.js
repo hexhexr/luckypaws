@@ -1,533 +1,355 @@
-// pages/admin/dashboard.js
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import * as bolt11 from 'lightning-invoice'; // Import bolt11 library
+// pages/api/admin/cashouts/send.js
+import { db } from '../../../../lib/firebaseAdmin';
+import * as bolt11 from 'lightning-invoice';
 
-export default function AdminDashboard() {
-  const router = useRouter();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [refreshing, setRefreshing] = useState(false);
-  const [rangeSummary, setRangeSummary] = useState({ count: 0, usd: 0, btc: 0 });
-  const [range, setRange] = useState({
-    from: new Date().toISOString().slice(0, 10),
-    to: new Date().toISOString().slice(0, 10)
-  });
+// If not using global fetch (Node 18+), or if you prefer node-fetch:
+// import fetch from 'node-fetch'; // npm install node-fetch
 
-  // --- STATES FOR CASHOUT ---
-  const [cashoutUsername, setCashoutUsername] = useState('');
-  const [cashoutDestination, setCashoutDestination] = useState(''); // Renamed from cashoutInvoice for clarity
-  const [cashoutAmount, setCashoutAmount] = useState(''); // Amount in USD
-  const [isSendingCashout, setIsSendingCashout] = useState(false);
-  const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' }); // type: 'success' or 'error' or 'info'
-  const [isAmountlessInvoice, setIsAmountlessInvoice] = useState(false); // New state to track amountless invoices
-  const [isLightningAddressDetected, setIsLightningAddressDetected] = useState(false); // New state for Lightning Address
+// --- Helper function to identify Lightning Address ---
+function isLightningAddress(address) {
+  if (typeof address !== 'string') return false;
+  // Basic regex for email-like structure, common for Lightning Addresses
+  const lightningAddressRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return lightningAddressRegex.test(address);
+}
 
-  // --- STATES FOR CASHOUT HISTORY ---
-  const [cashoutHistory, setCashoutHistory] = useState([]);
-  const [loadingCashoutHistory, setLoadingCashoutHistory] = useState(true);
+// --- Helper function to fetch Bolt11 invoice from a Lightning Address (LNURL-pay) ---
+async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
+  // amountMsat is the desired payment amount in millisatoshis
+  console.log(`[LNURL] Attempting to fetch invoice for ${lightningAddress} with ${amountMsat} msats.`);
+  try {
+    const parts = lightningAddress.split('@');
+    if (parts.length !== 2) throw new Error('Invalid Lightning Address format.');
+    const username = parts[0];
+    const domain = parts[1];
 
+    // 1. Fetch LNURL parameters from .well-known/lnurlp endpoint
+    const lnurlpUrl = `https://${domain}/.well-known/lnurlp/${username}`;
+    console.log(`[LNURL] Fetching parameters from: ${lnurlpUrl}`);
+    const lnurlpResponse = await fetch(lnurlpUrl, { headers: { 'Accept': 'application/json' } });
 
-  useEffect(() => {
-    // Check local storage for admin_auth before rendering
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin'); // Redirect to the admin login page
+    if (!lnurlpResponse.ok) {
+      const errorBody = await lnurlpResponse.text();
+      throw new Error(`Failed to fetch LNURL data from ${lightningAddress} (status ${lnurlpResponse.status}): ${errorBody}`);
     }
-  }, [router]);
+    const lnurlpData = await lnurlpResponse.json();
 
-  const logout = async () => {
-    try {
-      // Call API to clear the server-side cookie
-      await fetch('/api/admin/logout', { method: 'POST' });
-    } catch (err) {
-      console.error('Logout API error:', err);
-      // Even if API fails, clear local storage and redirect for client-side logout
-    } finally {
-      localStorage.removeItem('admin_auth'); // Clear local storage auth token
-      router.replace('/admin'); // Redirect to the admin login page
+    if (lnurlpData.tag !== 'payRequest') {
+      throw new Error('Invalid LNURL-pay response: "tag" is not "payRequest".');
     }
+    if (!lnurlpData.callback || typeof lnurlpData.callback !== 'string') {
+        throw new Error('Invalid LNURL-pay response: Missing or invalid "callback" URL.');
+    }
+
+    const minSendableMsat = parseInt(lnurlpData.minSendable || '1'); // Default min to 1 msat
+    const maxSendableMsat = parseInt(lnurlpData.maxSendable); // Can be null or undefined
+
+    if (amountMsat < minSendableMsat) {
+      throw new Error(`Amount ${amountMsat}msat (${(amountMsat/1000).toFixed(0)} sats) is less than minimum sendable ${minSendableMsat}msat (${(minSendableMsat/1000).toFixed(0)} sats) for ${lightningAddress}.`);
+    }
+    if (maxSendableMsat && amountMsat > maxSendableMsat) {
+      throw new Error(`Amount ${amountMsat}msat (${(amountMsat/1000).toFixed(0)} sats) is greater than maximum sendable ${maxSendableMsat}msat (${(maxSendableMsat/1000).toFixed(0)} sats) for ${lightningAddress}.`);
+    }
+    if (lnurlpData.commentAllowed && lnurlpData.commentAllowed > 0) {
+        console.log(`[LNURL] Note: Comments allowed up to ${lnurlpData.commentAllowed} chars for ${lightningAddress}`);
+    }
+
+    // 2. Fetch the actual Bolt11 invoice from the callback URL
+    const callbackUrl = new URL(lnurlpData.callback);
+    callbackUrl.searchParams.append('amount', amountMsat.toString());
+    // Optionally add a comment if lnurlpData.commentAllowed allows
+    // callbackUrl.searchParams.append('comment', 'Cashout from Lucky Paw');
+
+    console.log(`[LNURL] Fetching invoice from callback: ${callbackUrl.toString()}`);
+    const invoiceResponse = await fetch(callbackUrl.toString(), { headers: { 'Accept': 'application/json' } });
+
+    if (!invoiceResponse.ok) {
+      const errorBody = await invoiceResponse.text();
+      throw new Error(`Failed to fetch invoice from LNURL callback ${callbackUrl.toString()} (status ${invoiceResponse.status}): ${errorBody}`);
+    }
+    const invoiceData = await invoiceResponse.json();
+
+    if (invoiceData.status === 'ERROR' || (invoiceData.reason && invoiceData.status !== 'OK')) { // Some services might just return reason
+      throw new Error(`Error from LNURL service for ${lightningAddress}: ${invoiceData.reason || 'Unknown LNURL service error'}`);
+    }
+    if (!invoiceData.pr || typeof invoiceData.pr !== 'string') {
+      throw new Error('No payment request ("pr" field) in LNURL callback response.');
+    }
+
+    console.log(`[LNURL] Successfully fetched Bolt11 invoice for ${lightningAddress}.`);
+    return invoiceData.pr;
+
+  } catch (error) {
+    console.error(`[LNURL] Error processing Lightning Address ${lightningAddress}:`, error.message);
+    // Rethrow with a more generic message or keep specific, depending on desired client feedback
+    throw new Error(`LNURL processing for ${lightningAddress} failed: ${error.message}`);
+  }
+}
+
+// --- Placeholder for TrySpeed API Interaction ---
+// IMPORTANT: You MUST replace this with your actual TrySpeed API calls.
+async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
+  const invoicePreview = bolt11InvoiceString.length > 30 ? `${bolt11InvoiceString.substring(0, 30)}...` : bolt11InvoiceString;
+  console.log(`[TrySpeed] Attempting to pay Bolt11 invoice: ${invoicePreview}`);
+  if (!apiKey) {
+    console.error("[TrySpeed] CRITICAL: API Key is missing!");
+    throw new Error("TrySpeed API Key is not configured for payment.");
+  }
+  console.log(`[TrySpeed] Using API Key ending with: ${apiKey.slice(-4)}`);
+
+  // ------------ START OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
+  const tryspeedApiEndpoint = 'https://api.tryspeed.com/v1/payments'; // **VERIFY THIS IS YOUR ACTUAL TRYSPEED PAYMENT ENDPOINT**
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
   };
+  const body = { invoice: bolt11InvoiceString }; // Send the Bolt11 invoice
 
-  const loadOrders = async () => {
-    try {
-      setRefreshing(true);
-      const res = await fetch('/api/orders'); // Fetch all orders
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to load orders');
-
-      const sorted = data.sort((a, b) => new Date(b.created) - new Date(a.created));
-      setOrders(sorted);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // NEW: Function to load cashout history
-  const loadCashoutHistory = async () => {
-    setLoadingCashoutHistory(true);
-    try {
-      // You'll need to create a new API endpoint for fetching cashouts from profitLoss
-      const res = await fetch('/api/admin/cashouts'); // This endpoint needs to be created
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to load cashout history');
-      
-      const sortedCashouts = data.sort((a, b) => new Date(b.time) - new Date(a.time));
-      setCashoutHistory(sortedCashouts);
-    } catch (err) {
-      console.error('Error loading cashout history:', err);
-      // setCashoutStatus({ message: 'Failed to load cashout history. ' + err.message, type: 'error' }); // Maybe display somewhere else
-    } finally {
-      setLoadingCashoutHistory(false);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
-        loadOrders();
-        loadCashoutHistory(); // Load cashout history on component mount
-        const orderInterval = setInterval(() => loadOrders(), 4000); // Refresh orders
-        const cashoutInterval = setInterval(() => loadCashoutHistory(), 10000); // Refresh cashout history less frequently
-        return () => {
-          clearInterval(orderInterval);
-          clearInterval(cashoutInterval);
-        };
-    }
-  }, []); // Effect for loading orders and cashout history
-
-  const updateRangeSummary = (list) => {
-    const fromDate = new Date(range.from);
-    const toDate = new Date(range.to);
-    toDate.setHours(23, 59, 59, 999); // Include the entire 'to' day
-
-    const filtered = list.filter(o => {
-      if (o.status !== 'paid') return false;
-      const created = new Date(o.created);
-      return created >= fromDate && created <= toDate;
-    });
-
-    const count = filtered.length;
-    const usd = filtered.reduce((sum, o) => sum + parseFloat(o.amount || 0), 0);
-    const btc = filtered.reduce((sum, o) => sum + parseFloat(o.btc || 0), 0);
-
-    setRangeSummary({
-      count,
-      usd: usd.toFixed(2),
-      btc: btc.toFixed(8),
-    });
-  };
-
-  useEffect(() => {
-    updateRangeSummary(orders);
-  }, [range, orders]); // Update summary when range or orders change
-
-  const markAsRead = async (id) => {
-    await fetch(`/api/orders/update`, {
+  try {
+    const response = await fetch(tryspeedApiEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, update: { read: true, readAt: new Date().toISOString() } }),
+      headers: headers,
+      body: JSON.stringify(body),
     });
-    setOrders(prevOrders => prevOrders.map(o => o.orderId === id ? { ...o, read: true, readAt: new Date().toISOString() } : o));
-  };
+    const data = await response.json(); // Assuming TrySpeed returns JSON
 
-  const markAsCancelled = async (id) => {
-    if (window.confirm("Are you sure you want to mark this order as 'cancelled'? This action cannot be undone.")) {
-      try {
-        await fetch(`/api/orders/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, update: { status: 'cancelled', cancelledManually: true } }),
-        });
-        setOrders(prevOrders => prevOrders.map(o => o.orderId === id ? { ...o, status: 'cancelled', cancelledManually: true } : o));
-      } catch (err) {
-        console.error('Failed to mark as cancelled:', err);
-        setError('Failed to mark order as cancelled.');
-      }
-    }
-  };
-
-  const formatAge = (timestamp) => {
-    const diff = Math.floor((Date.now() - new Date(timestamp)) / 60000); // minutes
-    if (diff < 1) return 'Just now';
-    if (diff < 60) return `${diff} min${diff > 1 ? 's' : ''} ago`;
-    const hours = Math.floor(diff / 60);
-    if (hours < 24) return `${hours} hr${hours > 1 ? 's' : ''} ago`;
-    const days = Math.floor(hours / 24);
-    return `${days} day${days > 1 ? 's' : ''} ago`;
-  };
-
-  const filteredOrders = orders.filter(order => {
-    const searchTermLower = search.toLowerCase();
-    const matchesSearch = order.username.toLowerCase().includes(searchTermLower) ||
-                          order.orderId.toLowerCase().includes(searchTermLower);
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // NEW useEffect to decode invoice and set amount
-  useEffect(() => {
-    // Clear previous status messages and states related to amount on destination change
-    setCashoutStatus({ message: '', type: '' });
-    setCashoutAmount(''); // Clear amount
-    setIsAmountlessInvoice(false); // Reset to false
-    setIsLightningAddressDetected(false); // Reset Lightning Address detection
-
-    const destination = cashoutDestination.trim();
-
-    if (destination.length === 0) {
-      setCashoutStatus({ message: 'Enter a Lightning Invoice (lnbc...) or Lightning Address (user@example.com).', type: 'info' });
-      return; // Do nothing if input is empty
+    if (!response.ok) { // Check for HTTP errors (e.g., 4xx, 5xx)
+      throw new Error(`TrySpeed API HTTP Error (${response.status}): ${data.message || data.detail || response.statusText}`);
     }
 
-    if (destination.startsWith('lnbc')) { // It's likely a Bolt11 invoice
-      try {
-        const decoded = bolt11.decode(destination);
-        // Check for satoshis or millisatoshis directly, handling 0 or null for amountless
-        const invoiceMsats = decoded.millisatoshis ? parseInt(decoded.millisatoshis) : null;
-        const invoiceSats = decoded.satoshis || (invoiceMsats !== null ? invoiceMsats / 1000 : null);
-        
-        if (invoiceSats !== null && invoiceSats > 0) { // Invoice has a fixed, positive amount
-          // For display purposes, use a rough estimated rate. The actual conversion is server-side.
-          // This rate needs to be kept in sync with or derived from the backend's `getSatoshisForUsd`
-          const estimatedUsd = (invoiceSats / 3000); // Example: 1 USD = 3000 Sats. Adjust as needed.
-          setCashoutAmount(estimatedUsd.toFixed(2));
-          setIsAmountlessInvoice(false); // Not an amountless invoice
-          setCashoutStatus({ message: `Fixed amount invoice detected: ${invoiceSats} sats (~$${estimatedUsd.toFixed(2)})`, type: 'info' });
-        } else { // Amountless invoice (or 0 satoshi fixed invoice, which is also treated as amountless)
-          setCashoutAmount(''); // Clear amount, allow manual input
-          setIsAmountlessInvoice(true); // Mark as amountless
-          setCashoutStatus({ message: 'Amountless invoice detected. Please enter the USD amount to cashout.', type: 'info' });
+    // IMPORTANT: Adapt this part based on TrySpeed's actual success/error response structure.
+    // If TrySpeed's API is synchronous and confirms 'paid' immediately:
+    if (data.status === 'paid' || data.status === 'completed') {
+      const paymentId = data.id || data.payment_hash || null;
+      const btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null;
+
+      if (!btcAmountPaid || btcAmountPaid <= 0) {
+        console.warn("[TrySpeed] Payment reported success but BTC amount paid is missing or zero from TrySpeed response.");
+        // Attempt to get amount from invoice as fallback for reporting
+        const decodedInvoice = bolt11.decode(bolt11InvoiceString);
+        const satoshisFromInvoice = decodedInvoice.satoshis || (decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis)/1000 : null);
+        if(satoshisFromInvoice) {
+            btcAmountPaid = satoshisFromInvoice / 100000000;
+            console.log(`[TrySpeed] Falling back to invoice amount: ${btcAmountPaid} BTC.`);
         }
-      } catch (e) {
-        // Not a valid bolt11 invoice or decode error
-        setCashoutAmount(''); // Clear amount
-        setIsAmountlessInvoice(false); // Not a valid invoice
-        setCashoutStatus({ message: 'Invalid Bolt11 Lightning Invoice format. Please ensure it is a valid invoice.', type: 'error' });
       }
-    } else if (destination.includes('@') && destination.split('@').length === 2 && destination.split('@')[1].includes('.')) { // Simple check for Lightning Address format
-      setCashoutAmount(''); // Clear amount and allow manual input
-      setIsAmountlessInvoice(false); // Not an amountless invoice (but requires amount)
-      setIsLightningAddressDetected(true);
-      setCashoutStatus({ message: 'Lightning Address detected. Please enter the USD amount to cashout.', type: 'info' });
+
+      return { success: true, paymentId: paymentId, btcAmountPaid: btcAmountPaid, status: data.status };
+    } else if (data.status === 'pending' || data.status === 'processing' || data.status === 'initiated') {
+        // If TrySpeed's API is asynchronous, it might return 'pending' or 'processing' immediately.
+        // The actual 'paid' status will come via webhook.
+        const paymentId = data.id || data.payment_hash || null;
+        // Optionally, if the API provides an estimated amount even for pending status:
+        const btcAmountEstimated = data.amount_btc ? parseFloat(data.amount_btc) : null;
+        return { success: true, paymentId: paymentId, status: data.status, btcAmountPaid: btcAmountEstimated }; // Indicate it's successfully initiated
     } else {
-      // Clear all if not a recognized invoice or lightning address format
-      setCashoutAmount('');
-      setIsAmountlessInvoice(false);
-      setIsLightningAddressDetected(false);
-      setCashoutStatus({ message: 'Please enter a valid Bolt11 invoice (lnbc...) or Lightning Address (user@example.com).', type: 'info' });
-    }
-  }, [cashoutDestination]); // Re-run when cashoutDestination changes
-
-
-  // --- CASHOUT HANDLER ---
-  const handleSendCashout = async (e) => {
-    e.preventDefault();
-    setCashoutStatus({ message: '', type: '' }); // Clear previous status
-
-    // Basic frontend validation
-    if (!cashoutUsername.trim()) {
-      setCashoutStatus({ message: 'Username is required for record-keeping.', type: 'error' });
-      return;
-    }
-    if (!cashoutDestination.trim()) {
-      setCashoutStatus({ message: 'Lightning Invoice or Address is required.', type: 'error' });
-      return;
+      // General error or specific error message from TrySpeed's response body
+      throw new Error(`TrySpeed payment failed: ${data.message || data.error_message || 'Unknown error'}`);
     }
 
-    const amountValue = parseFloat(cashoutAmount);
+  } catch (apiError) {
+    console.error('[TrySpeed API Call Real Error]', apiError);
+    // Return a structured error, not just rethrow, so it can be handled by the caller
+    return { success: false, error: apiError.message };
+  }
+  // ------------ END OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
+}
 
-    // Validate amount based on the type of destination
-    const requiresAmount = isAmountlessInvoice || isLightningAddressDetected;
-    if (requiresAmount) {
-        if (isNaN(amountValue) || amountValue <= 0) {
-            setCashoutStatus({ message: 'Amount (USD) must be a positive number for this type of cashout.', type: 'error' });
-            return;
-        }
-    }
+// --- Placeholder for USD to Satoshi Conversion ---
+// IMPORTANT: You MUST replace this with a reliable, real-time exchange rate API.
+async function getSatoshisForUsd(usdAmount) {
+  console.log(`[Conversion SIMULATION] Attempting to convert ${usdAmount} USD to Satoshis.`);
+  // ------------ START OF EXCHANGE RATE INTEGRATION (NEEDS ACTUAL IMPLEMENTATION) ------------
+  /*
+  const exchangeRateApiEndpoint = 'https://api.someexchangerates.com/latest'; // Replace with actual endpoint
+  const exchangeRateApiKey = process.env.EXCHANGE_RATE_API_KEY; // Store this securely in Vercel environment variables or similar
 
-    // Confirmation dialog
-    if (!window.confirm(`Are you sure you want to send a cashout for ${cashoutUsername} to ${cashoutDestination}? Amount: ${requiresAmount ? `$${amountValue.toFixed(2)} USD` : 'invoice amount'}.`)) {
-      setCashoutStatus({ message: 'Cashout cancelled by user.', type: 'info' });
-      return;
-    }
-
-
-    setIsSendingCashout(true);
-
-    try {
-      const response = await fetch('/api/admin/cashouts/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: cashoutUsername.trim(),
-          invoice: cashoutDestination.trim(), // API expects 'invoice' field for destination
-          amount: requiresAmount ? amountValue.toFixed(2) : null, // Send amount only if it's manually entered/available
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send cashout');
-      }
-
-      // Enhanced success message
-      setCashoutStatus({
-        message: `Cashout successful! Transaction ID: ${data.cashoutId}. ${data.details.amountBTC} BTC ${data.details.amountUSD ? `($${data.details.amountUSD} USD)` : ''} sent.`,
-        type: 'success'
-      });
-      setCashoutUsername('');
-      setCashoutDestination('');
-      setCashoutAmount('');
-      setIsAmountlessInvoice(false); // Reset this state after successful cashout
-      setIsLightningAddressDetected(false); // Reset after successful cashout
-      loadCashoutHistory(); // Refresh cashout history after a successful cashout
-      // Optionally, refresh profit/loss data if displayed or relevant
-    } catch (error) {
-      setCashoutStatus({ message: error.message || 'An error occurred while sending cashout.', type: 'error' });
-    } finally {
-      setIsSendingCashout(false);
-    }
-  };
-
-  // Conditional rendering if not authenticated
-  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Redirecting to admin login...</div>;
+  if (!exchangeRateApiKey) {
+      console.error("[Conversion REAL] CRITICAL: Exchange Rate API Key is missing!");
+      throw new Error("Exchange rate API Key is not configured.");
   }
 
-  return (
-    <div className="admin-dashboard">
-      <div className="sidebar">
-        <h1>Lucky Paw Admin</h1>
-        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        <a className="nav-btn" href="/admin/games">🎮 Games</a>
-        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
-        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
-      </div>
-      <div className="main-content">
-        {/* --- CASHOUT SECTION --- */}
-        <div className="card mt-lg" style={{ background: '#fff0f5', border: '1px solid #ddd', padding: '1rem', borderRadius: '12px', marginBottom: '2rem' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#333' }}>💸 Send Cashout (Lightning)</h3>
-          <form onSubmit={handleSendCashout}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="cashoutUser" style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 500 }}>Username:</label>
-              <input
-                id="cashoutUser"
-                type="text"
-                className="input"
-                value={cashoutUsername}
-                onChange={(e) => setCashoutUsername(e.target.value)}
-                required
-                placeholder="Enter username for record-keeping"
-                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="cashoutDestination" style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 500 }}>Lightning Invoice or Address:</label>
-              <input
-                id="cashoutDestination"
-                type="text"
-                className="input"
-                value={cashoutDestination}
-                onChange={(e) => setCashoutDestination(e.target.value)}
-                required
-                placeholder="lnbc... or user@example.com"
-                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="cashoutAmt" style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 500 }}>Amount (USD):</label>
-              <input
-                id="cashoutAmt"
-                type="number"
-                step="0.01"
-                min="0.01"
-                className="input"
-                value={cashoutAmount}
-                onChange={(e) => setCashoutAmount(e.target.value)}
-                placeholder="e.g., 10.50"
-                // Amount is required if it's an amountless invoice or a Lightning Address
-                required={isAmountlessInvoice || isLightningAddressDetected}
-                // Disabled if it's a fixed-amount invoice and amount is set
-                disabled={cashoutDestination.startsWith('lnbc') && !isAmountlessInvoice}
-                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-              />
-              <small style={{ display: 'block', marginTop: '0.3rem', color: '#555' }}>
-                Enter the USD amount for the cashout. This will be logged and used for payment if the destination is a Lightning Address or an amountless invoice.
-              </small>
-            </div>
-            <button type="submit" className="btn btn-success" disabled={isSendingCashout} style={{ padding: '0.6rem 1.2rem', fontSize: '1rem' }}>
-              {isSendingCashout ? 'Processing...' : '⚡ Send Cashout & Record'}
-            </button>
-            {cashoutStatus.message && (
-              <p style={{
-                color: cashoutStatus.type === 'error' ? '#d63031' : (cashoutStatus.type === 'info' ? '#2d3436' : '#00b894'),
-                marginTop: '1rem',
-                padding: '0.75rem',
-                background: cashoutStatus.type === 'error' ? '#ffebee' : (cashoutStatus.type === 'info' ? '#e9ecef' : '#e6fffa'),
-                border: `1px solid ${cashoutStatus.type === 'error' ? '#d63031' : (cashoutStatus.type === 'info' ? '#ced4da' : '#00b894')}`,
-                borderRadius: '4px',
-                wordBreak: 'break-word'
-              }}>
-                {cashoutStatus.message}
-              </p>
-            )}
-          </form>
-        </div>
+  try {
+    const url = new URL(exchangeRateApiEndpoint);
+    url.searchParams.append('base', 'USD');
+    url.searchParams.append('symbols', 'BTC');
+    url.searchParams.append('apikey', exchangeRateApiKey); // Or other auth method
 
-        {/* --- CASHOUT HISTORY SECTION (NEW) --- */}
-        <div className="card mt-lg" style={{ background: '#f8f9fa', border: '1px solid #ddd', padding: '1rem', borderRadius: '12px', marginBottom: '2rem' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#333' }}>💰 Cashout History (Lightning)</h3>
-          {loadingCashoutHistory ? (
-            <p className="text-center">Loading cashout history...</p>
-          ) : cashoutHistory.length === 0 ? (
-            <p className="text-center">No Lightning cashouts recorded yet.</p>
-          ) : (
-            <div className="orders-table-container" style={{ overflowX: 'auto' }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Username</th>
-                    <th>Destination</th>
-                    <th>USD Amount</th>
-                    <th>BTC Amount</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>Gateway ID</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cashoutHistory.map((cashout) => (
-                    <tr key={cashout.id}>
-                      <td>{cashout.username}</td>
-                      <td>{cashout.destination.length > 30 ? `${cashout.destination.substring(0, 30)}...` : cashout.destination}</td>
-                      <td>{cashout.amountUSD ? `$${parseFloat(cashout.amountUSD).toFixed(2)}` : 'N/A'}</td>
-                      <td>{cashout.amountBTC ? parseFloat(cashout.amountBTC).toFixed(8) : 'N/A'}</td>
-                      <td>{new Date(cashout.time).toLocaleString()}</td>
-                      <td style={{ color: cashout.status === 'completed' ? 'green' : '#d63031' }}>
-                        {cashout.status}
-                      </td>
-                      <td>{cashout.paymentGatewayId || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Exchange rate API error (${response.status}): ${errorBody || response.statusText}`);
+    }
+    const data = await response.json();
+
+    // IMPORTANT: Adapt this based on your chosen exchange rate API's response structure
+    if (!data.rates || typeof data.rates.BTC === 'undefined') {
+      throw new Error('BTC rate not found or invalid response from exchange rate API.');
+    }
+    const btcPerUsd = parseFloat(data.rates.BTC); // Example: 0.0000X BTC per 1 USD
+
+    if (isNaN(btcPerUsd) || btcPerUsd <= 0) {
+        throw new Error('Invalid BTC per USD rate received from API (not positive number).');
+    }
+
+    const satoshis = Math.round(parseFloat(usdAmount) * btcPerUsd * 100000000); // USD -> BTC -> Satoshis
+    if (satoshis <= 0) throw new Error("Calculated satoshi amount is not positive from USD conversion.");
+    console.log(`[Conversion REAL] ${usdAmount} USD = ${satoshis} Satoshis (Rate: 1 USD = ${btcPerUsd.toFixed(8)} BTC)`);
+    return satoshis;
+
+  } catch (rateError) {
+    console.error('[Exchange Rate API Call Error]', rateError);
+    throw new Error(`Failed to fetch or process BTC exchange rate: ${rateError.message}`);
+  }
+  */
+  // ------------ END OF EXCHANGE RATE INTEGRATION ------------
+
+  // IF YOU ARE TESTING: Simulate conversion. This simulation should be REMOVED.
+  // (Using a very rough, likely outdated placeholder rate: e.g., 1 USD = 2500 sats, this fluctuates wildly!)
+  const simulatedSatsPerUsd = 3000; // Example: 1 USD = 3000 Satoshis. REPLACE THIS!
+  const calculatedSats = Math.round(parseFloat(usdAmount) * simulatedSatsPerUsd);
+  if (calculatedSats <= 0) throw new Error("Simulated satoshi amount is not positive from USD conversion.");
+  console.log(`[Conversion SIMULATION] ${usdAmount} USD = ${calculatedSats} Satoshis (Simulated Rate: 1 USD = ${simulatedSatsPerUsd} sats)`);
+  return calculatedSats;
+}
 
 
-        {/* Existing Orders Section */}
-        <h2 className="text-center mt-lg">🧾 All Orders {refreshing && <span style={{ fontSize: '0.9rem', color: '#999' }}>(refreshing...)</span>}</h2>
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-        <div className="card mt-md" style={{ background: '#f9f9f9', border: '1px solid #ddd', padding: '1rem', borderRadius: '12px' }}>
-          <h3>📍 Summary (Date Range)</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-            <div>
-              From: <input type="date" className="input" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
-            </div>
-            <div>
-              To: <input type="date" className="input" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <strong>{rangeSummary.count}</strong> paid orders | <strong>${rangeSummary.usd}</strong> USD | <strong>{rangeSummary.btc}</strong> BTC
-          </div>
-        </div>
+  const { username, invoice: destination, amount: usdAmountString } = req.body;
 
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '1rem', marginBottom: '1rem' }}>
-          <input
-            className="input"
-            style={{ flexGrow: 1, margin: 0 }}
-            placeholder="Search by username or order ID"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <select
-            className="select"
-            style={{ width: 'auto', margin: 0 }}
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="expired">Expired</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
+  if (!username || !destination) {
+    console.error("[Handler] Missing username or destination:", { username, destination });
+    return res.status(400).json({ message: 'Missing username or destination (invoice/address).' });
+  }
 
-        {loading ? (
-          <p className="text-center mt-md">Loading orders...</p>
-        ) : error ? (
-          <div className="alert alert-danger mt-md">{error}</div>
-        ) : (
-          <div className="card mt-md orders-table-container" style={{ overflowX: 'auto' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Game</th>
-                  <th>Amount (USD)</th>
-                  <th>Amount (BTC)</th>
-                  <th>Status</th>
-                  <th>Manual Action</th>
-                  <th>Read At</th>
-                  <th>Created At</th>
-                  <th>Age</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length > 0 ? filteredOrders.map((order) => (
-                  <tr key={order.orderId}>
-                    <td>
-                      <a href={`/admin/customer/${order.username}`} style={{ color: '#0984e3', fontWeight: 500 }}>
-                        {order.username}
-                      </a>
-                    </td>
-                    <td>{order.game}</td>
-                    <td>${parseFloat(order.amount || 0).toFixed(2)}</td>
-                    <td>{order.btc || '0.00000000'}</td>
-                    <td style={{
-                      color: order.status === 'paid'
-                        ? order.paidManually ? '#2962ff' : 'green'
-                        : order.status === 'expired'
-                        ? '#ff9800'
-                        : order.status === 'cancelled'
-                        ? '#7f8c8d'
-                        : '#d63031'
-                    }}>
-                      {order.status}
-                    </td>
-                    <td>{order.paidManually ? 'Paid' : (order.cancelledManually ? 'Cancelled' : 'No')}</td>
-                    <td>{order.read && order.readAt ? `✔️ ${new Date(order.readAt).toLocaleTimeString()}` : '—'}</td>
-                    <td>{new Date(order.created).toLocaleString()}</td>
-                    <td>{formatAge(order.created)}</td>
-                    <td>
-                      {order.status === 'pending' && (
-                        <button className="btn btn-danger btn-sm" onClick={() => markAsCancelled(order.orderId)}>Cancel Order</button>
-                      )}
-                      {order.status === 'paid' && !order.read && (
-                        <button className="btn btn-primary btn-sm" onClick={() => markAsRead(order.orderId)}>Mark as Read</button>
-                      )}
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="10" className="text-center">No orders found matching your criteria.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  let usdAmount = null;
+  if (usdAmountString !== null && usdAmountString !== undefined && usdAmountString !== '') {
+    usdAmount = parseFloat(usdAmountString);
+    if (isNaN(usdAmount) || usdAmount < 0) {
+      console.error("[Handler] Invalid USD amount provided:", usdAmountString);
+      return res.status(400).json({ message: 'Invalid USD amount provided.' });
+    }
+  }
+
+  try {
+    const tryspeedApiKey = process.env.SPEED_SECRET_KEY;
+    if (!tryspeedApiKey) {
+      console.error('CRITICAL: TrySpeed API key is not configured on the server. Check SPEED_SECRET_KEY environment variable.');
+      return res.status(500).json({ message: 'Payment gateway configuration error. Please contact support.' });
+    }
+
+    let finalBolt11InvoiceToPay;
+    let btcAmountSourceEstimate = null; // Estimated BTC amount based on USD conversion or fixed invoice amount
+
+    if (isLightningAddress(destination)) {
+      console.log(`[Handler] Processing as Lightning Address: ${destination}`);
+      if (usdAmount === null || usdAmount <= 0) {
+          console.error("[Handler] USD amount required for Lightning Address but not provided or not positive.");
+          return res.status(400).json({ message: 'USD amount is required and must be positive for Lightning Address cashouts.' });
+      }
+      const satoshisToRequest = await getSatoshisForUsd(usdAmount);
+      const msatsToRequest = satoshisToRequest * 1000;
+      
+      btcAmountSourceEstimate = satoshisToRequest / 100000000;
+
+      finalBolt11InvoiceToPay = await fetchInvoiceFromLightningAddress(destination, msatsToRequest);
+      try {
+        const decodedFetchedInvoice = bolt11.decode(finalBolt11InvoiceToPay);
+        const fetchedInvoiceMsats = decodedFetchedInvoice.millisatoshis ? parseInt(decodedFetchedInvoice.millisatoshis) : null;
+        const fetchedInvoiceSats = decodedFetchedInvoice.satoshis || (fetchedInvoiceMsats ? fetchedInvoiceMsats / 1000 : null);
+        if (fetchedInvoiceSats && fetchedInvoiceSats > 0) {
+          btcAmountSourceEstimate = fetchedInvoiceSats / 100000000;
+          console.log(`[Handler] Invoice fetched from LN Address has amount: ${fetchedInvoiceSats} sats. Refined estimate to ${btcAmountSourceEstimate} BTC.`);
+        } else {
+            console.warn("[Handler] Fetched invoice from LN Address appears to be amountless or amount is zero, using original USD conversion estimate.");
+        }
+      } catch (decodeError) {
+        console.warn(`[Handler] Could not decode invoice fetched from LN Address to refine amount, proceeding with original estimate: ${decodeError.message}`);
+      }
+
+    } else if (destination.startsWith('lnbc')) {
+      console.log(`[Handler] Processing as Bolt11 invoice: ${destination}`);
+      finalBolt11InvoiceToPay = destination;
+      try {
+        const decodedInvoice = bolt11.decode(finalBolt11InvoiceToPay);
+        const invoiceMsats = decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis) : null;
+        const invoiceSats = decodedInvoice.satoshis || (invoiceMsats ? invoiceMsats / 1000 : null);
+
+        if (invoiceSats !== null && invoiceSats > 0) {
+          btcAmountSourceEstimate = invoiceSats / 100000000;
+          console.log(`[Handler] Bolt11 Invoice has fixed amount: ${invoiceSats} satoshis (${btcAmountSourceEstimate} BTC).`);
+        } else {
+          console.log('[Handler] Amountless Bolt11 invoice received.');
+          if (usdAmount === null || usdAmount <= 0) {
+              console.error("[Handler] USD amount required for amountless Bolt11 but not provided or not positive.");
+              return res.status(400).json({ message: 'USD amount is required and must be positive for amountless Bolt11 invoice cashouts.' });
+          }
+          const satoshisToRequest = await getSatoshisForUsd(usdAmount);
+          btcAmountSourceEstimate = satoshisToRequest / 100000000;
+          console.log(`[Handler] Using provided USD amount (${usdAmount}) for amountless invoice, estimated ${satoshisToRequest} sats / ${btcAmountSourceEstimate} BTC.`);
+        }
+      } catch (e) {
+        console.error("[Handler] Invalid Bolt11 invoice format provided directly:", e.message);
+        return res.status(400).json({ message: `Invalid Bolt11 invoice format: ${e.message}. Please check the invoice.` });
+      }
+    } else {
+        console.error("[Handler] Destination is neither a valid Bolt11 invoice nor a Lightning Address:", destination);
+        return res.status(400).json({ message: "Invalid destination format. Please provide a valid Bolt11 invoice or Lightning Address." });
+    }
+
+    // --- Step 1: Pay the final Bolt11 Invoice via TrySpeed ---
+    const paymentResult = await callTrySpeedPaymentAPI(finalBolt11InvoiceToPay, tryspeedApiKey);
+
+    if (!paymentResult || !paymentResult.success) {
+      throw new Error(paymentResult.error || 'TrySpeed payment processing failed or was reported as unsuccessful.');
+    }
+
+    let finalBtcPaid = paymentResult.btcAmountPaid;
+    if (!finalBtcPaid || finalBtcPaid <= 0) {
+      console.warn("[Handler] TrySpeed payment successful but btcAmountPaid was missing or zero in response. Falling back to source estimate:", btcAmountSourceEstimate);
+      finalBtcPaid = btcAmountSourceEstimate;
+    }
+    
+    if (!finalBtcPaid || finalBtcPaid <= 0) {
+      console.error("[Handler] CRITICAL: BTC amount paid could not be reliably determined even after fallback. Payment ID:", paymentResult.paymentId);
+      throw new Error('Payment reported as successful by gateway, but the actual BTC amount paid could not be confirmed. Please verify manually.');
+    }
+
+    // --- Step 2: Record the cashout in Firebase ---
+    const cashoutRef = db.collection('profitLoss').doc();
+    const cashoutData = {
+      id: cashoutRef.id,
+      username: username,
+      amountUSD: usdAmount ? parseFloat(usdAmount.toFixed(2)) : null,
+      amountBTC: parseFloat(finalBtcPaid.toFixed(8)),
+      destination: destination,
+      paidInvoice: finalBolt11InvoiceToPay,
+      type: 'cashout_lightning',
+      description: `Automated Lightning cashout. TrySpeed Payment ID: ${paymentResult.paymentId || 'N/A'}`,
+      time: new Date().toISOString(),
+      addedBy: 'admin_dashboard_automation',
+      paymentGatewayId: paymentResult.paymentId || null,
+      // Status will be 'pending' if TrySpeed's API is asynchronous and webhooks confirm final status.
+      // It will be 'completed' if TrySpeed's API call is synchronous and returns 'paid' immediately.
+      status: paymentResult.status === 'paid' || paymentResult.status === 'completed' ? 'completed' : 'pending',
+    };
+
+    await cashoutRef.set(cashoutData);
+    console.log(`[Handler] Cashout recorded successfully in Firebase: ${cashoutRef.id} with status: ${cashoutData.status}`);
+
+    res.status(201).json({
+      success: true,
+      message: `Cashout for ${username} (${usdAmount ? usdAmount.toFixed(2) + ' USD / ' : ''}${cashoutData.amountBTC} BTC to ${destination}) initiated. Status: ${cashoutData.status}. Payment ID: ${cashoutData.paymentGatewayId || 'N/A'}`,
+      cashoutId: cashoutRef.id,
+      details: cashoutData
+    });
+
+  } catch (error) {
+    console.error('[Handler] Full error processing cashout:', error);
+    res.status(500).json({ message: `Failed to process cashout: ${error.message}` });
+  }
 }
