@@ -1,6 +1,6 @@
 // pages/api/admin/cashouts/send.js
 import { db } from '../../../../lib/firebaseAdmin';
-import * as bolt11 from 'lightning-invoice';
+import * as bolt11 from 'lightning-invoice'; // npm install lightning-invoice
 
 // If not using global fetch (Node 18+), or if you prefer node-fetch:
 // import fetch from 'node-fetch'; // npm install node-fetch
