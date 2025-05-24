@@ -1,32 +1,61 @@
-// pages/api/admin/cashouts.js
-import { db } from '../../../lib/firebaseAdmin'; // Corrected path to firebaseAdmin
+// pages/api/check-status.js
+import { db } from '../../lib/firebaseAdmin'; // Corrected path to firebaseAdmin
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Add basic authentication check for admin panel
-  const adminAuth = req.headers['x-admin-auth']; // Or read from a cookie if set securely
-  // In production, replace this with a proper JWT token validation.
-  if (process.env.NODE_ENV !== 'development' && adminAuth !== process.env.ADMIN_SECRET_KEY) {
-    console.warn('Unauthorized access attempt to /api/admin/cashouts');
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
   try {
-    const cashoutsRef = db.collection('profitLoss');
-    // Fetch only documents where type is 'cashout_lightning'
-    const snapshot = await cashoutsRef.where('type', '==', 'cashout_lightning').get();
+    // 1. Database connection check
+    // This part attempts to fetch a single document from 'orders' to confirm database connectivity.
+    const testDocRef = db.collection('orders').limit(1);
+    await testDocRef.get();
+    
+    // 2. Cashout system status/summary
+    // It fetches all documents from 'profitLoss' collection that are of type 'cashout' or 'cashout_lightning'.
+    const cashoutsSnapshot = await db.collection('profitLoss')
+      .where('type', 'in', ['cashout', 'cashout_lightning'])
+      .get();
 
-    const cashouts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    let totalCashouts = 0;
+    let totalUsdCashedOut = 0;
+    let totalBtcCashedOut = 0;
+    let pendingCashouts = 0;
+    let completedCashouts = 0;
 
-    res.status(200).json(cashouts);
+    cashoutsSnapshot.docs.forEach(doc => {
+      totalCashouts++;
+      const data = doc.data();
+      // Sum USD amounts (from manual cashouts or USD-based lightning cashouts)
+      if (data.amountUSD) {
+        totalUsdCashedOut += data.amountUSD;
+      }
+      // Sum BTC amounts (primarily from lightning cashouts)
+      if (data.amountBTC) { 
+        totalBtcCashedOut += data.amountBTC;
+      }
+      // Count cashouts by status
+      if (data.status === 'pending') {
+        pendingCashouts++;
+      } else if (data.status === 'completed') {
+        completedCashouts++;
+      }
+    });
+
+    res.status(200).json({
+      status: 'ok',
+      message: 'API and database connected successfully.',
+      cashoutSummary: {
+        totalCashouts: totalCashouts,
+        totalUsdCashedOut: parseFloat(totalUsdCashedOut.toFixed(2)), // Format to 2 decimal places for USD
+        totalBtcCashedOut: parseFloat(totalBtcCashedOut.toFixed(8)), // Format to 8 decimal places for BTC
+        pendingCashouts: pendingCashouts,
+        completedCashouts: completedCashouts
+      }
+    });
   } catch (error) {
-    console.error('Error fetching cashout history:', error);
-    res.status(500).json({ message: 'Failed to fetch cashout history.' });
+    console.error('API Status Check Error:', error);
+    res.status(500).json({ status: 'error', message: `Failed to connect to database or fetch cashout data: ${error.message}` });
   }
 }

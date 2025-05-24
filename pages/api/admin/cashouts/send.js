@@ -121,7 +121,7 @@ async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
     // If TrySpeed's API is synchronous and confirms 'paid' immediately:
     if (data.status === 'paid' || data.status === 'completed') {
       const paymentId = data.id || data.payment_hash || null;
-      const btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null;
+      let btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null; // Changed from const to let
 
       if (!btcAmountPaid || btcAmountPaid <= 0) {
         console.warn("[TrySpeed] Payment reported success but BTC amount paid is missing or zero from TrySpeed response.");
