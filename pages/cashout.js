@@ -1,7 +1,7 @@
 // pages/admin/cashouts.js
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import * as bolt11 from 'lightning-invoice';
+import * as bolt11 from 'lightning-invoice'; // Ensure this library is installed: npm install lightning-invoice
 
 // --- Helper to format Sats ---
 const formatSats = (sats) => new Intl.NumberFormat().format(sats);
@@ -25,7 +25,7 @@ export default function AdminCashouts() {
 
   // --- Auth & Logout ---
   useEffect(() => {
-    if (localStorage.getItem('admin_auth') !== '1') {
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin');
     }
   }, [router]);
@@ -39,9 +39,12 @@ export default function AdminCashouts() {
   const loadHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
-      const res = await fetch('/api/admin/cashouts/history'); // New dedicated history endpoint
+      const res = await fetch('/api/admin/cashouts/history');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to load');
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
       setHistory(data.sort((a, b) => new Date(b.time) - new Date(a.time)));
     } catch (err) {
       setStatus({ message: 'Failed to load cashout history. ' + err.message, type: 'error' });
@@ -59,17 +62,17 @@ export default function AdminCashouts() {
   // --- Real-time Price Quote ---
   const fetchQuote = useCallback(async (amount) => {
     if (!amount || isNaN(amount) || amount <= 0) {
-        setLiveQuote({sats: 0, btcPrice: 0});
-        return;
+      setLiveQuote({ sats: 0, btcPrice: 0 });
+      return;
     }
     try {
-        const res = await fetch(`/api/admin/cashouts/quote?amount=${amount}`);
-        const data = await res.json();
-        if(res.ok) {
-            setLiveQuote({ sats: data.sats, btcPrice: data.btcPrice });
-        }
+      const res = await fetch(`/api/admin/cashouts/quote?amount=${amount}`);
+      const data = await res.json();
+      if (res.ok) {
+        setLiveQuote({ sats: data.sats, btcPrice: data.btcPrice });
+      }
     } catch (error) {
-        console.error("Quote fetch error:", error);
+      console.error("Quote fetch error:", error);
     }
   }, []);
 
@@ -82,41 +85,61 @@ export default function AdminCashouts() {
     const dest = destination.trim();
 
     if (!dest) {
-        setStatus({ message: 'Enter a Lightning Invoice or Address.', type: 'info' });
-        return;
+      setStatus({ message: 'Enter a Lightning Invoice or Address.', type: 'info' });
+      return;
     }
 
     if (dest.startsWith('lnbc')) {
       try {
-        const decoded = bolt11.decode(dest);
+        const decoded = bolt11.decode(dest); // This is where the error occurs
         const sats = decoded.satoshis || (decoded.millisatoshis ? parseInt(decoded.millisatoshis) / 1000 : null);
+
         if (sats && sats > 0) {
+          // Fixed amount invoice logic
+          const estimatedUsd = (sats / 100000000) * (liveQuote.btcPrice || 60000);
+          setUsdAmount(estimatedUsd.toFixed(2));
           setIsAmountless(false);
           setIsLnAddress(false);
-          fetchQuote(sats / 100000000 * 30000); // Approximate for initial display
           setStatus({ message: `Fixed amount invoice detected: ${formatSats(sats)} sats.`, type: 'info' });
         } else {
+          // Amountless invoice logic
           setIsAmountless(true);
-          setStatus({ message: 'Amountless invoice detected. Enter a USD amount.', type: 'info' });
+          setStatus({ message: 'Amountless invoice detected. Please enter the USD amount.', type: 'info' });
         }
       } catch (e) {
-        setStatus({ message: `Invalid Bolt11 invoice format: ${e.message}`, type: 'error' });
+        // *** MODIFICATION START ***
+        console.error("Error decoding Bolt11 invoice:", e);
+        if (e.message.includes('Assertion failed')) {
+            // Provide a much more helpful error message for this specific case
+            setStatus({ message: 'Invoice decoding failed. Please ensure the entire invoice is copied correctly without any modifications.', type: 'error' });
+        } else if (e.message.includes('Invalid bech32')) {
+            setStatus({ message: 'Invalid invoice format. Make sure it starts with "lnbc" and is fully copied.', type: 'error' });
+        } else {
+            // General fallback error
+            setStatus({ message: `Failed to decode invoice: ${e.message}. Please check the format.`, type: 'error' });
+        }
+        setUsdAmount('');
+        setIsAmountless(false);
+        // *** MODIFICATION END ***
       }
-    } else if (dest.includes('@')) {
+    } else if (dest.includes('@') && dest.split('@').length === 2 && dest.split('@')[1].includes('.')) {
       setIsLnAddress(true);
-      setStatus({ message: 'Lightning Address detected. Enter a USD amount.', type: 'info' });
+      setStatus({ message: 'Lightning Address detected. Please enter the USD amount.', type: 'info' });
     } else {
-      setStatus({ message: 'Not a valid Bolt11 invoice or Lightning Address.', type: 'error' });
+      setStatus({ message: 'Not a valid Bolt11 invoice (lnbc...) or Lightning Address (user@domain.com).', type: 'error' });
     }
-  }, [destination, fetchQuote]);
+  }, [destination, fetchQuote, liveQuote.btcPrice]);
+
 
   // Handle amount change for live quote
   useEffect(() => {
-    if(isAmountless || isLnAddress) {
-        const handler = setTimeout(() => {
-            fetchQuote(usdAmount);
-        }, 500); // Debounce
-        return () => clearTimeout(handler);
+    if (isAmountless || isLnAddress) {
+      const handler = setTimeout(() => {
+        if (parseFloat(usdAmount) > 0) {
+          fetchQuote(usdAmount);
+        }
+      }, 500); // Debounce
+      return () => clearTimeout(handler);
     }
   }, [usdAmount, isAmountless, isLnAddress, fetchQuote]);
 
@@ -131,11 +154,15 @@ export default function AdminCashouts() {
       return;
     }
     if ((isAmountless || isLnAddress) && (!usdAmount || parseFloat(usdAmount) <= 0)) {
-      setStatus({ message: 'A positive USD amount is required.', type: 'error' });
+      setStatus({ message: 'A positive USD amount is required for this type of cashout.', type: 'error' });
       return;
     }
 
-    if (!window.confirm(`Proceed with this cashout for ${username}?`)) return;
+    const confirmMessage = `Are you sure you want to send a cashout for ${username}?`;
+    if (!window.confirm(confirmMessage)) {
+      setStatus({ message: 'Cashout cancelled.', type: 'info' });
+      return;
+    }
 
     setIsSending(true);
     setStatus({ message: 'Processing... Please do not close this window.', type: 'info' });
@@ -168,6 +195,11 @@ export default function AdminCashouts() {
     }
   };
 
+  // --- Render component ---
+  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Redirecting to admin login...</div>;
+  }
+
   return (
     <div className="admin-dashboard">
       <div className="sidebar">
@@ -184,11 +216,11 @@ export default function AdminCashouts() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Username</label>
-              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
+              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g., player123" required />
             </div>
             <div className="form-group">
               <label>Lightning Invoice or Address</label>
-              <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} required />
+              <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Paste lnbc... invoice or user@example.com" required />
             </div>
             <div className="form-group">
               <label>Amount (USD)</label>
@@ -198,12 +230,13 @@ export default function AdminCashouts() {
                 min="0.01"
                 value={usdAmount}
                 onChange={(e) => setUsdAmount(e.target.value)}
+                placeholder="e.g., 10.50"
                 required={isAmountless || isLnAddress}
                 disabled={!isAmountless && !isLnAddress}
               />
             </div>
 
-            {liveQuote.sats > 0 && (
+            {(isAmountless || isLnAddress) && liveQuote.sats > 0 && (
                 <div className="quote-display">
                     You will send approximately <strong>{formatSats(liveQuote.sats)} sats</strong>.
                     <small> (Current Rate: ~${new Intl.NumberFormat().format(liveQuote.btcPrice)}/BTC)</small>
@@ -223,7 +256,7 @@ export default function AdminCashouts() {
 
         <div className="card">
           <h3>💰 Lightning Cashout History</h3>
-          {isLoadingHistory ? <p>Loading history...</p> : (
+          {isLoadingHistory ? <p>Loading history...</p> : history.length === 0 ? <p>No cashouts recorded yet.</p> : (
             <div className="orders-table-container">
               <table>
                 <thead>
@@ -240,13 +273,13 @@ export default function AdminCashouts() {
                   {history.map((tx) => (
                     <tr key={tx.id}>
                       <td>{tx.username}</td>
-                      <td title={tx.destination}>{tx.destination.substring(0, 25)}...</td>
-                      <td>${tx.amountUSD?.toFixed(2)} ({formatSats(tx.amountSats)} sats)</td>
+                      <td title={tx.destination}>{tx.destination ? tx.destination.substring(0, 25) + '...' : 'N/A'}</td>
+                      <td>{tx.amountUSD ? `$${tx.amountUSD.toFixed(2)}` : ''} ({tx.amountSats ? formatSats(tx.amountSats) + ' sats' : 'N/A'})</td>
                       <td className={`status-${tx.status}`}>{tx.status}</td>
                       <td>{new Date(tx.time).toLocaleString()}</td>
                       <td>
                         {tx.paymentGatewayId ? (
-                           <a href={`https://mempool.space/tx/${tx.paymentGatewayId}`} target="_blank" rel="noopener noreferrer">
+                           <a href={`https://mempool.space/tx/${tx.paymentGatewayId}`} target="_blank" rel="noopener noreferrer" title={tx.paymentGatewayId}>
                             {tx.paymentGatewayId.substring(0, 15)}...
                           </a>
                         ) : 'N/A'}
