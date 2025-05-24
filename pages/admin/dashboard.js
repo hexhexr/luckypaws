@@ -1,7 +1,7 @@
 // pages/admin/dashboard.js
-import { useEffect, useState, useCallback } from 'react'; // Added useCallback for better memoization
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import * as bolt11 from 'lightning-invoice'; // Import bolt11 library
+import * as bolt11 from 'lightning-invoice';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -28,32 +28,30 @@ export default function AdminDashboard() {
 
   // --- Authentication Check ---
   useEffect(() => {
-    // Check local storage for admin_auth before rendering
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') { //
+    // Check local storage for the consistent admin_auth flag
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin'); // Redirect to the admin login page (index.js)
     }
   }, [router]);
 
-  const logout = useCallback(async () => { // Used useCallback to memoize the function
+  const logout = useCallback(async () => {
     try {
-      // Call API to clear the server-side cookie (if you are using cookies for backend auth)
-      await fetch('/api/admin/logout', { method: 'POST' }); //
+      // Call API to clear the server-side HTTP-only cookie
+      await fetch('/api/admin/logout', { method: 'POST' });
     } catch (err) {
       console.error('Logout API error:', err);
     } finally {
-      localStorage.removeItem('admin_auth'); // Clear local storage auth token
+      localStorage.removeItem('admin_auth'); // Clear client-side flag
       router.replace('/admin'); // Redirect to the admin login page (index.js)
     }
   }, [router]);
 
-
   // --- Order Fetching Logic ---
-  const fetchOrders = useCallback(async () => { // Used useCallback for memoization
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     setRefreshing(true);
     setError('');
     try {
-      // Pass the date range to the API
       const queryParams = new URLSearchParams({
         from: range.from,
         to: range.to,
@@ -61,11 +59,8 @@ export default function AdminDashboard() {
         status: statusFilter
       }).toString();
 
-      const response = await fetch(`/api/admin/orders?${queryParams}`, {
-        headers: {
-          'x-admin-auth': localStorage.getItem('admin_auth') // Pass auth header for API. Corrected key from 'adminAuth' to 'admin_auth'.
-        }
-      });
+      // No need for 'x-admin-auth' header here; the HTTP-only cookie is sent automatically.
+      const response = await fetch(`/api/admin/orders?${queryParams}`);
       if (!response.ok) {
         if (response.status === 401) {
           setError('Unauthorized. Please log in again.');
@@ -77,10 +72,9 @@ export default function AdminDashboard() {
       const data = await response.json();
       setOrders(data);
 
-      // Calculate summary for displayed orders
       let totalUsd = 0;
       let totalBtc = 0;
-      data.forEach(order => { // Use 'data' directly, not 'currentOrders'
+      data.forEach(order => {
         if (order.amountUSD) {
           totalUsd += order.amountUSD;
         }
@@ -97,17 +91,16 @@ export default function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [range, search, statusFilter, logout]); // Depend on range, search, statusFilter, and logout
-
+  }, [range, search, statusFilter, logout]);
 
   useEffect(() => {
-    // Only fetch orders if authenticated
+    // Only fetch orders if authenticated via client-side flag
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
       fetchOrders();
-      const interval = setInterval(fetchOrders, 30000); // Refresh every 30 seconds
+      const interval = setInterval(fetchOrders, 30000);
       return () => clearInterval(interval);
     }
-  }, [fetchOrders]); // Depend on fetchOrders
+  }, [fetchOrders]);
 
   const handleRangeChange = (e) => {
     setRange({ ...range, [e.target.name]: e.target.value });
@@ -126,16 +119,13 @@ export default function AdminDashboard() {
       try {
         const response = await fetch('/api/admin/orders/mark-paid', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
-          },
+          headers: { 'Content-Type': 'application/json' }, // HTTP-only cookie sent automatically
           body: JSON.stringify({ orderId }),
         });
         if (!response.ok) throw new Error(`Error: ${response.statusText}`);
         await response.json();
         alert('Order marked as paid!');
-        fetchOrders(); // Refresh orders
+        fetchOrders();
       } catch (err) {
         console.error('Failed to mark order as paid:', err);
         alert(`Failed to mark order as paid: ${err.message}`);
@@ -148,16 +138,13 @@ export default function AdminDashboard() {
       try {
         const response = await fetch('/api/admin/orders/mark-cancelled', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
-          },
+          headers: { 'Content-Type': 'application/json' }, // HTTP-only cookie sent automatically
           body: JSON.stringify({ orderId }),
         });
         if (!response.ok) throw new Error(`Error: ${response.statusText}`);
         await response.json();
         alert('Order marked as cancelled!');
-        fetchOrders(); // Refresh orders
+        fetchOrders();
       } catch (err) {
         console.error('Failed to mark order as cancelled:', err);
         alert(`Failed to mark order as cancelled: ${err.message}`);
@@ -170,16 +157,13 @@ export default function AdminDashboard() {
       try {
         const response = await fetch('/api/admin/orders/mark-read', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
-          },
+          headers: { 'Content-Type': 'application/json' }, // HTTP-only cookie sent automatically
           body: JSON.stringify({ orderId }),
         });
         if (!response.ok) throw new Error(`Error: ${response.statusText}`);
         await response.json();
         alert('Order marked as read!');
-        fetchOrders(); // Refresh orders
+        fetchOrders();
       } catch (err) {
         console.error('Failed to mark order as read:', err);
         alert(`Failed to mark order as read: ${err.message}`);
@@ -187,10 +171,8 @@ export default function AdminDashboard() {
     }
   };
 
-
   // --- CASHOUT Logic ---
 
-  // Function to decode invoice and update UI states
   const decodeInvoice = (invoiceString) => {
     if (!invoiceString) {
       setDecodeError('');
@@ -213,10 +195,8 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    // This effect runs whenever cashoutDestination changes
     decodeInvoice(cashoutDestination);
   }, [cashoutDestination]);
-
 
   const handleCashoutSubmit = async (e) => {
     e.preventDefault();
@@ -230,8 +210,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    let amountToSend = cashoutAmount; // This is USD amount
-    if (isAmountlessInvoice && (!amountToSend || parseFloat(amountToSend) <= 0)) {
+    let amountToSend = cashoutAmount;
+    if ((isAmountlessInvoice || isLightningAddress(cashoutDestination)) && (!amountToSend || parseFloat(amountToSend) <= 0)) {
       setCashoutStatus({ message: 'Amount is required for amountless invoices or Lightning Addresses.', type: 'error' });
       setIsSendingCashout(false);
       return;
@@ -240,14 +220,11 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/cashouts/send', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-auth': localStorage.getItem('admin_auth') // Pass admin auth
-        },
+        headers: { 'Content-Type': 'application/json' }, // HTTP-only cookie sent automatically
         body: JSON.stringify({
           username: cashoutUsername,
-          invoice: cashoutDestination, // This can be Bolt11 or Lightning Address
-          amount: isAmountlessInvoice || isLightningAddress(cashoutDestination) ? amountToSend : null // Only send amount for amountless or LN addresses
+          invoice: cashoutDestination,
+          amount: (isAmountlessInvoice || isLightningAddress(cashoutDestination)) ? amountToSend : null
         }),
       });
 
@@ -258,8 +235,8 @@ export default function AdminDashboard() {
         setCashoutUsername('');
         setCashoutDestination('');
         setCashoutAmount('');
-        setIsAmountlessInvoice(false); // Reset this state
-        fetchOrders(); // Refresh orders, perhaps also fetch cashout history if displayed
+        setIsAmountlessInvoice(false);
+        fetchOrders();
       } else {
         setCashoutStatus({ message: data.message || 'Failed to send cashout.', type: 'error' });
       }
@@ -271,12 +248,10 @@ export default function AdminDashboard() {
     }
   };
 
-  // Helper to check if destination is a lightning address (basic check)
   const isLightningAddress = (dest) => {
     return typeof dest === 'string' && dest.includes('@') && !dest.startsWith('lnbc');
   };
 
-  // Formatting for order age
   const formatAge = (timestamp) => {
     const now = new Date();
     const created = new Date(timestamp);
@@ -291,9 +266,8 @@ export default function AdminDashboard() {
     return `${diffDays}d ago`;
   };
 
-
-  // Conditional rendering if not authenticated
-  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') { //
+  // Conditional rendering if not authenticated: display a loading/redirect message
+  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
     return <div style={{ textAlign: 'center', marginTop: '50px' }}>Redirecting to admin login...</div>;
   }
 
@@ -301,6 +275,11 @@ export default function AdminDashboard() {
   return (
     <div className="container mt-5">
       <h1 className="mb-4">Admin Dashboard</h1>
+
+      {/* Logout Button */}
+      <div className="d-flex justify-content-end mb-3">
+        <button className="btn btn-warning" onClick={logout}>Logout</button>
+      </div>
 
       {/* Cashout Section */}
       <div className="card mb-4">
