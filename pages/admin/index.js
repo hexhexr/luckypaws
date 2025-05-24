@@ -1,3 +1,4 @@
+// pages/admin/index.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
@@ -7,10 +8,11 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
-      router.replace('/admin/dashboard');
+    // Check if the user is already authenticated
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') { //
+      router.replace('/admin/dashboard'); // Redirect to dashboard if already logged in
     }
-  }, []);
+  }, [router]); // Depend on router to ensure effect runs when router is ready
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -28,8 +30,8 @@ export default function AdminLogin() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
-      localStorage.setItem('admin_auth', '1');
-      router.push('/admin/dashboard');
+      localStorage.setItem('admin_auth', '1'); // Set the authentication flag in local storage
+      router.push('/admin/dashboard'); // Redirect to dashboard after successful login
     } catch (err) {
       setError(err.message);
     }

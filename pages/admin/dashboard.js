@@ -1,5 +1,5 @@
 // pages/admin/dashboard.js
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react'; // Added useCallback for better memoization
 import { useRouter } from 'next/router';
 import * as bolt11 from 'lightning-invoice'; // Import bolt11 library
 
@@ -19,27 +19,36 @@ export default function AdminDashboard() {
 
   // --- STATES FOR CASHOUT ---
   const [cashoutUsername, setCashoutUsername] = useState('');
-  const [cashoutDestination, setCashoutDestination] = useState(''); // Renamed from cashoutInvoice for clarity
-  const [cashoutAmount, setCashoutAmount] = useState(''); // Amount in USD
+  const [cashoutDestination, setCashoutDestination] = useState('');
+  const [cashoutAmount, setCashoutAmount] = useState('');
   const [isSendingCashout, setIsSendingCashout] = useState(false);
-  const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' }); // type: 'success' or 'error'
+  const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' });
   const [isAmountlessInvoice, setIsAmountlessInvoice] = useState(false);
   const [decodeError, setDecodeError] = useState('');
 
   // --- Authentication Check ---
   useEffect(() => {
-    // In a real application, implement proper authentication (e.g., JWT)
-    const adminAuth = localStorage.getItem('adminAuth'); // Or from a secure cookie
-
-    // For simplicity, using a hardcoded check. Replace with proper auth.
-    // This is for client-side routing protection. Backend APIs have their own check.
-    if (!adminAuth || adminAuth !== process.env.NEXT_PUBLIC_ADMIN_SECRET_KEY) {
-      router.push('/admin/login'); // Redirect to login page if not authenticated
+    // Check local storage for admin_auth before rendering
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') { //
+      router.replace('/admin'); // Redirect to the admin login page (index.js)
     }
   }, [router]);
 
+  const logout = useCallback(async () => { // Used useCallback to memoize the function
+    try {
+      // Call API to clear the server-side cookie (if you are using cookies for backend auth)
+      await fetch('/api/admin/logout', { method: 'POST' }); //
+    } catch (err) {
+      console.error('Logout API error:', err);
+    } finally {
+      localStorage.removeItem('admin_auth'); // Clear local storage auth token
+      router.replace('/admin'); // Redirect to the admin login page (index.js)
+    }
+  }, [router]);
+
+
   // --- Order Fetching Logic ---
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => { // Used useCallback for memoization
     setLoading(true);
     setRefreshing(true);
     setError('');
@@ -54,13 +63,13 @@ export default function AdminDashboard() {
 
       const response = await fetch(`/api/admin/orders?${queryParams}`, {
         headers: {
-          'x-admin-auth': localStorage.getItem('adminAuth') // Pass auth header for API
+          'x-admin-auth': localStorage.getItem('admin_auth') // Pass auth header for API. Corrected key from 'adminAuth' to 'admin_auth'.
         }
       });
       if (!response.ok) {
         if (response.status === 401) {
           setError('Unauthorized. Please log in again.');
-          router.push('/admin/login');
+          logout(); // Use the memoized logout function
         } else {
           throw new Error(`Error: ${response.statusText}`);
         }
@@ -69,18 +78,17 @@ export default function AdminDashboard() {
       setOrders(data);
 
       // Calculate summary for displayed orders
-      const currentOrders = data; // Use the fetched data for current calculation
       let totalUsd = 0;
       let totalBtc = 0;
-      currentOrders.forEach(order => {
+      data.forEach(order => { // Use 'data' directly, not 'currentOrders'
         if (order.amountUSD) {
           totalUsd += order.amountUSD;
         }
-        if (order.amountBTC) { // Assuming some orders might have BTC amounts directly
+        if (order.amountBTC) {
           totalBtc += order.amountBTC;
         }
       });
-      setRangeSummary({ count: currentOrders.length, usd: totalUsd, btc: totalBtc });
+      setRangeSummary({ count: data.length, usd: totalUsd, btc: totalBtc });
 
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -89,13 +97,17 @@ export default function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [range, search, statusFilter, logout]); // Depend on range, search, statusFilter, and logout
+
 
   useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, [range, search, statusFilter]); // Re-fetch when filters or range change
+    // Only fetch orders if authenticated
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
+      fetchOrders();
+      const interval = setInterval(fetchOrders, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [fetchOrders]); // Depend on fetchOrders
 
   const handleRangeChange = (e) => {
     setRange({ ...range, [e.target.name]: e.target.value });
@@ -116,7 +128,7 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('adminAuth')
+            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
           },
           body: JSON.stringify({ orderId }),
         });
@@ -138,7 +150,7 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('adminAuth')
+            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
           },
           body: JSON.stringify({ orderId }),
         });
@@ -160,7 +172,7 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-auth': localStorage.getItem('adminAuth')
+            'x-admin-auth': localStorage.getItem('admin_auth') // Corrected key
           },
           body: JSON.stringify({ orderId }),
         });
@@ -230,7 +242,7 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-auth': localStorage.getItem('adminAuth') // Pass admin auth
+          'x-admin-auth': localStorage.getItem('admin_auth') // Pass admin auth
         },
         body: JSON.stringify({
           username: cashoutUsername,
@@ -280,10 +292,12 @@ export default function AdminDashboard() {
   };
 
 
-  if (loading && !refreshing) return <p className="text-center mt-5">Loading orders...</p>;
-  if (error) return <p className="text-center mt-5 text-danger">Error: {error}</p>;
+  // Conditional rendering if not authenticated
+  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') { //
+    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Redirecting to admin login...</div>;
+  }
 
-
+  // Once authenticated, render the dashboard content
   return (
     <div className="container mt-5">
       <h1 className="mb-4">Admin Dashboard</h1>
