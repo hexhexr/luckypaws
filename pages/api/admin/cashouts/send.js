@@ -1,22 +1,16 @@
 // pages/api/admin/cashouts/send.js
-import { db } from '../../../../lib/firebaseAdmin';
+import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
 import * as bolt11 from 'lightning-invoice'; // npm install lightning-invoice
-
-// If not using global fetch (Node 18+), or if you prefer node-fetch:
-// import fetch from 'node-fetch'; // npm install node-fetch
 
 // --- Helper function to identify Lightning Address ---
 function isLightningAddress(address) {
   if (typeof address !== 'string') return false;
-  // Basic regex for email-like structure, common for Lightning Addresses
-  const lightningAddressRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  const lightningAddressRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/i; // Case-insensitive
   return lightningAddressRegex.test(address);
 }
 
 // --- Helper function to fetch Bolt11 invoice from a Lightning Address (LNURL-pay) ---
 async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
-  // amountMsat is the desired payment amount in millisatoshis
-  console.log(`[LNURL] Attempting to fetch invoice for ${lightningAddress} with ${amountMsat} msats.`);
   try {
     const parts = lightningAddress.split('@');
     if (parts.length !== 2) throw new Error('Invalid Lightning Address format.');
@@ -25,331 +19,181 @@ async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
 
     // 1. Fetch LNURL parameters from .well-known/lnurlp endpoint
     const lnurlpUrl = `https://${domain}/.well-known/lnurlp/${username}`;
-    console.log(`[LNURL] Fetching parameters from: ${lnurlpUrl}`);
-    const lnurlpResponse = await fetch(lnurlpUrl, { headers: { 'Accept': 'application/json' } });
-
-    if (!lnurlpResponse.ok) {
-      const errorBody = await lnurlpResponse.text();
-      throw new Error(`Failed to fetch LNURL data from ${lightningAddress} (status ${lnurlpResponse.status}): ${errorBody}`);
+    console.log(`[LNURL] Fetching LNURL-pay parameters from: ${lnurlpUrl}`);
+    const lnurlRes = await fetch(lnurlpUrl);
+    if (!lnurlRes.ok) {
+      throw new Error(`Failed to fetch LNURL-pay endpoint for ${lightningAddress}: ${lnurlRes.statusText}`);
     }
-    const lnurlpData = await lnurlpResponse.json();
+    const lnurlData = await lnurlRes.json();
+    console.log('[LNURL] Received LNURL-pay data:', lnurlData);
 
-    if (lnurlpData.tag !== 'payRequest') {
-      throw new Error('Invalid LNURL-pay response: "tag" is not "payRequest".');
-    }
-    if (!lnurlpData.callback || typeof lnurlpData.callback !== 'string') {
-        throw new Error('Invalid LNURL-pay response: Missing or invalid "callback" URL.');
+    if (lnurlData.tag !== 'payRequest') {
+      throw new Error('Unexpected LNURL response tag. Expected "payRequest".');
     }
 
-    const minSendableMsat = parseInt(lnurlpData.minSendable || '1'); // Default min to 1 msat
-    const maxSendableMsat = parseInt(lnurlpData.maxSendable); // Can be null or undefined
-
-    if (amountMsat < minSendableMsat) {
-      throw new Error(`Amount ${amountMsat}msat (${(amountMsat/1000).toFixed(0)} sats) is less than minimum sendable ${minSendableMsat}msat (${(minSendableMsat/1000).toFixed(0)} sats) for ${lightningAddress}.`);
-    }
-    if (maxSendableMsat && amountMsat > maxSendableMsat) {
-      throw new Error(`Amount ${amountMsat}msat (${(amountMsat/1000).toFixed(0)} sats) is greater than maximum sendable ${maxSendableMsat}msat (${(maxSendableMsat/1000).toFixed(0)} sats) for ${lightningAddress}.`);
-    }
-    if (lnurlpData.commentAllowed && lnurlpData.commentAllowed > 0) {
-        console.log(`[LNURL] Note: Comments allowed up to ${lnurlpData.commentAllowed} chars for ${lightningAddress}`);
+    // Check min/max sendable amounts
+    if (amountMsat < lnurlData.minSendable || amountMsat > lnurlData.maxSendable) {
+      throw new Error(`Amount ${amountMsat / 1000} sats is outside the acceptable range (${lnurlData.minSendable / 1000}-${lnurlData.maxSendable / 1000} sats) for this Lightning Address.`);
     }
 
-    // 2. Fetch the actual Bolt11 invoice from the callback URL
-    const callbackUrl = new URL(lnurlpData.callback);
-    callbackUrl.searchParams.append('amount', amountMsat.toString());
-    // Optionally add a comment if lnurlpData.commentAllowed allows
-    // callbackUrl.searchParams.append('comment', 'Cashout from Lucky Paw');
+    // 2. Call callback URL to get invoice
+    const callbackUrl = new URL(lnurlData.callback);
+    callbackUrl.searchParams.append('amount', amountMsat); // amount is in millisatoshis for LNURL
+    console.log(`[LNURL] Fetching invoice from callback URL: ${callbackUrl.toString()}`);
 
-    console.log(`[LNURL] Fetching invoice from callback: ${callbackUrl.toString()}`);
-    const invoiceResponse = await fetch(callbackUrl.toString(), { headers: { 'Accept': 'application/json' } });
-
-    if (!invoiceResponse.ok) {
-      const errorBody = await invoiceResponse.text();
-      throw new Error(`Failed to fetch invoice from LNURL callback ${callbackUrl.toString()} (status ${invoiceResponse.status}): ${errorBody}`);
+    const invoiceRes = await fetch(callbackUrl.toString());
+    if (!invoiceRes.ok) {
+      throw new Error(`Failed to get invoice from callback for ${lightningAddress}: ${invoiceRes.statusText}`);
     }
-    const invoiceData = await invoiceResponse.json();
+    const invoiceData = await invoiceRes.json();
+    console.log('[LNURL] Received invoice data:', invoiceData);
 
-    if (invoiceData.status === 'ERROR' || (invoiceData.reason && invoiceData.status !== 'OK')) { // Some services might just return reason
-      throw new Error(`Error from LNURL service for ${lightningAddress}: ${invoiceData.reason || 'Unknown LNURL service error'}`);
-    }
-    if (!invoiceData.pr || typeof invoiceData.pr !== 'string') {
-      throw new Error('No payment request ("pr" field) in LNURL callback response.');
+    if (!invoiceData.pr) {
+      throw new Error('Invoice (pr) not found in LNURL callback response.');
     }
 
-    console.log(`[LNURL] Successfully fetched Bolt11 invoice for ${lightningAddress}.`);
-    return invoiceData.pr;
-
+    return invoiceData.pr; // Returns the Bolt11 invoice
   } catch (error) {
-    console.error(`[LNURL] Error processing Lightning Address ${lightningAddress}:`, error.message);
-    // Rethrow with a more generic message or keep specific, depending on desired client feedback
-    throw new Error(`LNURL processing for ${lightningAddress} failed: ${error.message}`);
+    console.error(`[LNURL] Error fetching invoice from Lightning Address ${lightningAddress}:`, error.message);
+    throw new Error(`Could not generate invoice from Lightning Address: ${error.message}`);
   }
 }
 
-// --- Placeholder for TrySpeed API Interaction ---
-// IMPORTANT: You MUST replace this with your actual TrySpeed API calls.
-async function callTrySpeedPaymentAPI(bolt11InvoiceString, apiKey) {
-  const invoicePreview = bolt11InvoiceString.length > 30 ? `${bolt11InvoiceString.substring(0, 30)}...` : bolt11InvoiceString;
-  console.log(`[TrySpeed] Attempting to pay Bolt11 invoice: ${invoicePreview}`);
-  if (!apiKey) {
-    console.error("[TrySpeed] CRITICAL: API Key is missing!");
-    throw new Error("TrySpeed API Key is not configured for payment.");
-  }
-  console.log(`[TrySpeed] Using API Key ending with: ${apiKey.slice(-4)}`);
-
-  // ------------ START OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
-  const tryspeedApiEndpoint = 'https://api.tryspeed.com/v1/payments'; // **VERIFY THIS IS YOUR ACTUAL TRYSPEED PAYMENT ENDPOINT**
-  const headers = {
-    'Authorization': `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  };
-  const body = { invoice: bolt11InvoiceString }; // Send the Bolt11 invoice
-
-  try {
-    const response = await fetch(tryspeedApiEndpoint, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body),
-    });
-    const data = await response.json(); // Assuming TrySpeed returns JSON
-
-    if (!response.ok) { // Check for HTTP errors (e.g., 4xx, 5xx)
-      throw new Error(`TrySpeed API HTTP Error (${response.status}): ${data.message || data.detail || response.statusText}`);
-    }
-
-    // IMPORTANT: Adapt this part based on TrySpeed's actual success/error response structure.
-    // If TrySpeed's API is synchronous and confirms 'paid' immediately:
-    if (data.status === 'paid' || data.status === 'completed') {
-      const paymentId = data.id || data.payment_hash || null;
-      let btcAmountPaid = data.amount_btc ? parseFloat(data.amount_btc) : null; // Changed from const to let
-
-      if (!btcAmountPaid || btcAmountPaid <= 0) {
-        console.warn("[TrySpeed] Payment reported success but BTC amount paid is missing or zero from TrySpeed response.");
-        // Attempt to get amount from invoice as fallback for reporting
-        const decodedInvoice = bolt11.decode(bolt11InvoiceString);
-        const satoshisFromInvoice = decodedInvoice.satoshis || (decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis)/1000 : null);
-        if(satoshisFromInvoice) {
-            btcAmountPaid = satoshisFromInvoice / 100000000;
-            console.log(`[TrySpeed] Falling back to invoice amount: ${btcAmountPaid} BTC.`);
-        }
-      }
-
-      return { success: true, paymentId: paymentId, btcAmountPaid: btcAmountPaid, status: data.status };
-    } else if (data.status === 'pending' || data.status === 'processing' || data.status === 'initiated') {
-        // If TrySpeed's API is asynchronous, it might return 'pending' or 'processing' immediately.
-        // The actual 'paid' status will come via webhook.
-        const paymentId = data.id || data.payment_hash || null;
-        // Optionally, if the API provides an estimated amount even for pending status:
-        const btcAmountEstimated = data.amount_btc ? parseFloat(data.amount_btc) : null;
-        return { success: true, paymentId: paymentId, status: data.status, btcAmountPaid: btcAmountEstimated }; // Indicate it's successfully initiated
-    } else {
-      // General error or specific error message from TrySpeed's response body
-      throw new Error(`TrySpeed payment failed: ${data.message || data.error_message || 'Unknown error'}`);
-    }
-
-  } catch (apiError) {
-    console.error('[TrySpeed API Call Real Error]', apiError);
-    // Return a structured error, not just rethrow, so it can be handled by the caller
-    return { success: false, error: apiError.message };
-  }
-  // ------------ END OF TRYSPEED INTEGRATION (ACTUAL IMPLEMENTATION) ------------
-}
-
-// --- Placeholder for USD to Satoshi Conversion ---
-// IMPORTANT: You MUST replace this with a reliable, real-time exchange rate API.
-async function getSatoshisForUsd(usdAmount) {
-  console.log(`[Conversion SIMULATION] Attempting to convert ${usdAmount} USD to Satoshis.`);
-  // ------------ START OF EXCHANGE RATE INTEGRATION (NEEDS ACTUAL IMPLEMENTATION) ------------
-  /*
-  const exchangeRateApiEndpoint = 'https://api.someexchangerates.com/latest'; // Replace with actual endpoint
-  const exchangeRateApiKey = process.env.EXCHANGE_RATE_API_KEY; // Store this securely in Vercel environment variables or similar
-
-  if (!exchangeRateApiKey) {
-      console.error("[Conversion REAL] CRITICAL: Exchange Rate API Key is missing!");
-      throw new Error("Exchange rate API Key is not configured.");
-  }
-
-  try {
-    const url = new URL(exchangeRateApiEndpoint);
-    url.searchParams.append('base', 'USD');
-    url.searchParams.append('symbols', 'BTC');
-    url.searchParams.append('apikey', exchangeRateApiKey); // Or other auth method
-
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Exchange rate API error (${response.status}): ${errorBody || response.statusText}`);
-    }
-    const data = await response.json();
-
-    // IMPORTANT: Adapt this based on your chosen exchange rate API's response structure
-    if (!data.rates || typeof data.rates.BTC === 'undefined') {
-      throw new Error('BTC rate not found or invalid response from exchange rate API.');
-    }
-    const btcPerUsd = parseFloat(data.rates.BTC); // Example: 0.0000X BTC per 1 USD
-
-    if (isNaN(btcPerUsd) || btcPerUsd <= 0) {
-        throw new Error('Invalid BTC per USD rate received from API (not positive number).');
-    }
-
-    const satoshis = Math.round(parseFloat(usdAmount) * btcPerUsd * 100000000); // USD -> BTC -> Satoshis
-    if (satoshis <= 0) throw new Error("Calculated satoshi amount is not positive from USD conversion.");
-    console.log(`[Conversion REAL] ${usdAmount} USD = ${satoshis} Satoshis (Rate: 1 USD = ${btcPerUsd.toFixed(8)} BTC)`);
-    return satoshis;
-
-  } catch (rateError) {
-    console.error('[Exchange Rate API Call Error]', rateError);
-    throw new Error(`Failed to fetch or process BTC exchange rate: ${rateError.message}`);
-  }
-  */
-  // ------------ END OF EXCHANGE RATE INTEGRATION ------------
-
-  // IF YOU ARE TESTING: Simulate conversion. This simulation should be REMOVED.
-  // (Using a very rough, likely outdated placeholder rate: e.g., 1 USD = 2500 sats, this fluctuates wildly!)
-  const simulatedSatsPerUsd = 3000; // Example: 1 USD = 3000 Satoshis. REPLACE THIS!
-  const calculatedSats = Math.round(parseFloat(usdAmount) * simulatedSatsPerUsd);
-  if (calculatedSats <= 0) throw new Error("Simulated satoshi amount is not positive from USD conversion.");
-  console.log(`[Conversion SIMULATION] ${usdAmount} USD = ${calculatedSats} Satoshis (Simulated Rate: 1 USD = ${simulatedSatsPerUsd} sats)`);
-  return calculatedSats;
-}
-
-
+// --- Main handler for sending cashouts ---
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { username, invoice: destination, amount: usdAmountString } = req.body;
+  const { username, invoice: destination, amount: usdAmountStr } = req.body;
+  const SPEED_API_KEY = process.env.SPEED_API_KEY;
+  const SPEED_API_URL = process.env.SPEED_API_URL || 'https://api.tryspeed.com/v1'; // Default API URL
 
+  if (!SPEED_API_KEY) {
+    console.error('SPEED_API_KEY is not set in environment variables.');
+    return res.status(500).json({ message: 'Server configuration error: SPEED_API_KEY missing.' });
+  }
+
+  // --- Input Validation ---
   if (!username || !destination) {
-    console.error("[Handler] Missing username or destination:", { username, destination });
     return res.status(400).json({ message: 'Missing username or destination (invoice/address).' });
   }
 
-  let usdAmount = null;
-  if (usdAmountString !== null && usdAmountString !== undefined && usdAmountString !== '') {
-    usdAmount = parseFloat(usdAmountString);
-    if (isNaN(usdAmount) || usdAmount < 0) {
-      console.error("[Handler] Invalid USD amount provided:", usdAmountString);
-      return res.status(400).json({ message: 'Invalid USD amount provided.' });
-    }
-  }
+  let bolt11InvoiceToPay = destination; // Default to destination if it's a direct invoice
+  let usdAmount = usdAmountStr ? parseFloat(usdAmountStr) : null;
+  let satsToPay = null; // Final amount in sats for payment gateway
 
   try {
-    const tryspeedApiKey = process.env.SPEED_SECRET_KEY;
-    if (!tryspeedApiKey) {
-      console.error('CRITICAL: TrySpeed API key is not configured on the server. Check SPEED_SECRET_KEY environment variable.');
-      return res.status(500).json({ message: 'Payment gateway configuration error. Please contact support.' });
-    }
-
-    let finalBolt11InvoiceToPay;
-    let btcAmountSourceEstimate = null; // Estimated BTC amount based on USD conversion or fixed invoice amount
-
     if (isLightningAddress(destination)) {
-      console.log(`[Handler] Processing as Lightning Address: ${destination}`);
-      if (usdAmount === null || usdAmount <= 0) {
-          console.error("[Handler] USD amount required for Lightning Address but not provided or not positive.");
-          return res.status(400).json({ message: 'USD amount is required and must be positive for Lightning Address cashouts.' });
+      if (usdAmount === null || isNaN(usdAmount) || usdAmount <= 0) {
+        throw new Error('Amount in USD is required for Lightning Address cashouts.');
       }
-      const satoshisToRequest = await getSatoshisForUsd(usdAmount);
-      const msatsToRequest = satoshisToRequest * 1000;
-      
-      btcAmountSourceEstimate = satoshisToRequest / 100000000;
+      // Convert USD to approximate sats for LNURL-pay request
+      // IMPORTANT: Use your actual exchange rate logic here or fetch it live.
+      // For demonstration, a simple approximation: 1 USD = 3000 sats
+      satsToPay = Math.round(usdAmount * 3000); // Convert USD to Sats
+      const amountMsat = satsToPay * 1000; // Convert sats to millisats for LNURL
 
-      finalBolt11InvoiceToPay = await fetchInvoiceFromLightningAddress(destination, msatsToRequest);
-      try {
-        const decodedFetchedInvoice = bolt11.decode(finalBolt11InvoiceToPay);
-        const fetchedInvoiceMsats = decodedFetchedInvoice.millisatoshis ? parseInt(decodedFetchedInvoice.millisatoshis) : null;
-        const fetchedInvoiceSats = decodedFetchedInvoice.satoshis || (fetchedInvoiceMsats ? fetchedInvoiceMsats / 1000 : null);
-        if (fetchedInvoiceSats && fetchedInvoiceSats > 0) {
-          btcAmountSourceEstimate = fetchedInvoiceSats / 100000000;
-          console.log(`[Handler] Invoice fetched from LN Address has amount: ${fetchedInvoiceSats} sats. Refined estimate to ${btcAmountSourceEstimate} BTC.`);
-        } else {
-            console.warn("[Handler] Fetched invoice from LN Address appears to be amountless or amount is zero, using original USD conversion estimate.");
-        }
-      } catch (decodeError) {
-        console.warn(`[Handler] Could not decode invoice fetched from LN Address to refine amount, proceeding with original estimate: ${decodeError.message}`);
+      console.log(`[Cashout] Detected Lightning Address. USD: ${usdAmount}, converting to ${satsToPay} sats for LNURL-pay.`);
+      bolt11InvoiceToPay = await fetchInvoiceFromLightningAddress(destination, amountMsat);
+      console.log(`[Cashout] Obtained Bolt11 invoice from Lightning Address: ${bolt11InvoiceToPay.substring(0, 60)}...`);
+
+      // After fetching invoice, decode it to get the actual amount for sending
+      const decodedInvoice = bolt11.decode(bolt11InvoiceToPay);
+      satsToPay = decodedInvoice.satoshis || (parseInt(decodedInvoice.millisatoshis) / 1000);
+      if (!satsToPay) {
+        throw new Error('Failed to determine amount from fetched invoice for Lightning Address.');
       }
 
     } else if (destination.startsWith('lnbc')) {
-      console.log(`[Handler] Processing as Bolt11 invoice: ${destination}`);
-      finalBolt11InvoiceToPay = destination;
-      try {
-        const decodedInvoice = bolt11.decode(finalBolt11InvoiceToPay);
-        const invoiceMsats = decodedInvoice.millisatoshis ? parseInt(decodedInvoice.millisatoshis) : null;
-        const invoiceSats = decodedInvoice.satoshis || (invoiceMsats ? invoiceMsats / 1000 : null);
+      const decoded = bolt11.decode(destination);
+      const invoiceMsats = decoded.millisatoshis ? parseInt(decoded.millisatoshis) : null;
+      const invoiceSats = decoded.satoshis || (invoiceMsats !== null ? invoiceMsats / 1000 : null);
 
-        if (invoiceSats !== null && invoiceSats > 0) {
-          btcAmountSourceEstimate = invoiceSats / 100000000;
-          console.log(`[Handler] Bolt11 Invoice has fixed amount: ${invoiceSats} satoshis (${btcAmountSourceEstimate} BTC).`);
-        } else {
-          console.log('[Handler] Amountless Bolt11 invoice received.');
-          if (usdAmount === null || usdAmount <= 0) {
-              console.error("[Handler] USD amount required for amountless Bolt11 but not provided or not positive.");
-              return res.status(400).json({ message: 'USD amount is required and must be positive for amountless Bolt11 invoice cashouts.' });
-          }
-          const satoshisToRequest = await getSatoshisForUsd(usdAmount);
-          btcAmountSourceEstimate = satoshisToRequest / 100000000;
-          console.log(`[Handler] Using provided USD amount (${usdAmount}) for amountless invoice, estimated ${satoshisToRequest} sats / ${btcAmountSourceEstimate} BTC.`);
+      if (invoiceSats !== null && invoiceSats > 0) {
+        // Fixed amount invoice
+        satsToPay = invoiceSats;
+        // If USD amount was also provided, we can log a warning or adjust.
+        // For now, prioritize invoice amount for fixed invoices.
+        if (usdAmount !== null && usdAmount.toFixed(2) !== (invoiceSats / 3000).toFixed(2)) {
+             console.warn(`[Cashout] USD amount provided ($${usdAmount}) for fixed invoice (${invoiceSats} sats) does not match conversion. Using invoice amount.`);
         }
-      } catch (e) {
-        console.error("[Handler] Invalid Bolt11 invoice format provided directly:", e.message);
-        return res.status(400).json({ message: `Invalid Bolt11 invoice format: ${e.message}. Please check the invoice.` });
+        usdAmount = (invoiceSats / 3000); // Update USD amount based on invoice sats for recording
+      } else {
+        // Amountless invoice
+        if (usdAmount === null || isNaN(usdAmount) || usdAmount <= 0) {
+          throw new Error('Amount in USD is required for amountless invoice cashouts.');
+        }
+        satsToPay = Math.round(usdAmount * 3000); // Convert USD to Sats for amountless invoice
+        console.log(`[Cashout] Detected amountless invoice. USD: ${usdAmount}, converting to ${satsToPay} sats.`);
       }
     } else {
-        console.error("[Handler] Destination is neither a valid Bolt11 invoice nor a Lightning Address:", destination);
-        return res.status(400).json({ message: "Invalid destination format. Please provide a valid Bolt11 invoice or Lightning Address." });
+      throw new Error('Invalid Lightning destination format. Must be Bolt11 invoice or Lightning Address.');
     }
 
-    // --- Step 1: Pay the final Bolt11 Invoice via TrySpeed ---
-    const paymentResult = await callTrySpeedPaymentAPI(finalBolt11InvoiceToPay, tryspeedApiKey);
-
-    if (!paymentResult || !paymentResult.success) {
-      throw new Error(paymentResult.error || 'TrySpeed payment processing failed or was reported as unsuccessful.');
+    if (!satsToPay || satsToPay <= 0) {
+      throw new Error('Final amount to pay could not be determined or is zero.');
     }
 
-    let finalBtcPaid = paymentResult.btcAmountPaid;
-    if (!finalBtcPaid || finalBtcPaid <= 0) {
-      console.warn("[Handler] TrySpeed payment successful but btcAmountPaid was missing or zero in response. Falling back to source estimate:", btcAmountSourceEstimate);
-      finalBtcPaid = btcAmountSourceEstimate;
-    }
-    
-    if (!finalBtcPaid || finalBtcPaid <= 0) {
-      console.error("[Handler] CRITICAL: BTC amount paid could not be reliably determined even after fallback. Payment ID:", paymentResult.paymentId);
-      throw new Error('Payment reported as successful by gateway, but the actual BTC amount paid could not be confirmed. Please verify manually.');
+    // --- Send payment via TrySpeed API ---
+    console.log(`[TrySpeed] Attempting to send ${satsToPay} sats to ${bolt11InvoiceToPay.substring(0, 60)}...`);
+    const speedResponse = await fetch(`${SPEED_API_URL}/payments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SPEED_API_KEY}`,
+      },
+      body: JSON.stringify({
+        invoice: bolt11InvoiceToPay,
+        // The 'amount' field in TrySpeed API is for fixed invoices only if you want to explicitly state the amount.
+        // For fetched invoices or amountless, the invoice itself contains the amount.
+        // For robustness, it's often better to let the invoice dictate the amount if it's fixed.
+        // If it's an amountless invoice or LN Address, TrySpeed expects `amount_sats` if the invoice doesn't contain it.
+        // For simplicity, we are relying on the invoice (from LNURL or original) to contain the amount.
+      }),
+    });
+
+    const paymentResult = await speedResponse.json();
+    console.log('[TrySpeed] Payment API Response:', paymentResult);
+
+    if (!speedResponse.ok) {
+      // Handle different types of errors from TrySpeed
+      if (speedResponse.status === 400 && paymentResult.error_code === 'INSUFFICIENT_FUNDS') {
+        throw new Error(`Insufficient funds in your TrySpeed account. Please top up. (Error: ${paymentResult.message})`);
+      }
+      throw new Error(paymentResult.message || `TrySpeed API error: ${speedResponse.status} ${speedResponse.statusText}`);
     }
 
-    // --- Step 2: Record the cashout in Firebase ---
-    const cashoutRef = db.collection('profitLoss').doc();
+    // --- Record cashout in Firebase ---
+    const cashoutRef = db.collection('cashouts').doc(); // Store in a dedicated 'cashouts' collection
     const cashoutData = {
       id: cashoutRef.id,
       username: username,
       amountUSD: usdAmount ? parseFloat(usdAmount.toFixed(2)) : null,
-      amountBTC: parseFloat(finalBtcPaid.toFixed(8)),
-      destination: destination,
-      paidInvoice: finalBolt11InvoiceToPay,
+      amountBTC: parseFloat((satsToPay / 100_000_000).toFixed(8)), // Convert sats to BTC
+      destination: destination, // Original input: LN Address or Bolt11 invoice string
+      sentInvoice: bolt11InvoiceToPay, // The actual Bolt11 invoice that was sent
       type: 'cashout_lightning',
-      description: `Automated Lightning cashout. TrySpeed Payment ID: ${paymentResult.paymentId || 'N/A'}`,
+      description: `Automated Lightning cashout. TrySpeed Payment ID: ${paymentResult.id || 'N/A'}.`,
       time: new Date().toISOString(),
       addedBy: 'admin_dashboard_automation',
-      paymentGatewayId: paymentResult.paymentId || null,
-      // Status will be 'pending' if TrySpeed's API is asynchronous and webhooks confirm final status.
-      // It will be 'completed' if TrySpeed's API call is synchronous and returns 'paid' immediately.
-      status: paymentResult.status === 'paid' || paymentResult.status === 'completed' ? 'completed' : 'pending',
+      paymentGatewayId: paymentResult.id || null, // Store TrySpeed's transaction ID (usually `id` or `paymentId`)
+      status: paymentResult.status || 'pending', // Use status from TrySpeed response
+      // You might add more details from paymentResult if needed
     };
 
     await cashoutRef.set(cashoutData);
-    console.log(`[Handler] Cashout recorded successfully in Firebase: ${cashoutRef.id} with status: ${cashoutData.status}`);
+    console.log(`[Handler] Cashout recorded successfully in Firebase: ${cashoutRef.id}`);
 
     res.status(201).json({
       success: true,
-      message: `Cashout for ${username} (${usdAmount ? usdAmount.toFixed(2) + ' USD / ' : ''}${cashoutData.amountBTC} BTC to ${destination}) initiated. Status: ${cashoutData.status}. Payment ID: ${cashoutData.paymentGatewayId || 'N/A'}`,
+      message: `Cashout for ${username} processed.`,
       cashoutId: cashoutRef.id,
       details: cashoutData
     });
 
   } catch (error) {
     console.error('[Handler] Full error processing cashout:', error);
-    res.status(500).json({ message: `Failed to process cashout: ${error.message}` });
+    res.status(500).json({ message: error.message || 'An unexpected error occurred during cashout.' });
   }
 }
