@@ -50,11 +50,18 @@ export default async function handler(req, res) {
     // Lightning invoice from Speed API
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // --- START OF EXPIRY TIME FIX ---
-    // Extract expires_at from the payment object if available
-    // Assuming payment.expires_at exists and is in seconds, convert to milliseconds
-    const expiresAt = payment.expires_at ? payment.expires_at * 1000 : null;
-    // --- END OF EXPIRY TIME FIX ---
+    // --- START OF ROBUST EXPIRY TIME FIX ---
+    let expiresAt = null;
+    // Ensure payment.expires_at is a valid number (either number type or parsable string)
+    if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
+      expiresAt = payment.expires_at * 1000; // Convert to milliseconds
+    } else if (typeof payment.expires_at === 'string') {
+      const parsedExpiresAt = Number(payment.expires_at);
+      if (!isNaN(parsedExpiresAt) && parsedExpiresAt > 0) {
+        expiresAt = parsedExpiresAt * 1000; // Convert to milliseconds
+      }
+    }
+    // --- END OF ROBUST EXPIRY TIME FIX ---
 
     // BTC calculation (use sats if available, fallback to CoinGecko)
     let btc = 'N/A'; // Default to 'N/A' to indicate calculation issues
@@ -96,13 +103,13 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice, // IMPORTANT: raw Lightning invoice string here
       created: new Date().toISOString(),
-      expiresAt: expiresAt, // --- ADDED: Store the expiry timestamp in the database ---
+      expiresAt: expiresAt, // Store the expiry timestamp in the database
       paidManually: false,
     });
 
     // Return invoice and orderId for frontend
     // Ensure btc and expiresAt are returned as part of the response
-    return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt }); // --- MODIFIED: Include expiresAt in the response ---
+    return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });
