@@ -1,17 +1,80 @@
 // src/components/InvoiceModal.js
-import React from 'react';
-import QRErrorBoundary from './QRErrorBoundary'; // Ensure this path is correct
+import React, { useState, useEffect, useRef } from 'react';
+import QRErrorBoundary from './QRErrorBoundary';
+import QRCodeLib from 'qrcode'; // Make sure qrcode is installed
 
-export default function InvoiceModal({ order, countdown, setCopied, copied, resetModals, qrCodeDataUrl, isValidQRValue }) {
+export default function InvoiceModal({ order, expiresAt, setCopied, copied, resetModals, isValidQRValue }) {
+  const [countdown, setCountdown] = useState(0);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const timerIntervalRef = useRef(null);
+
+  // Effect for countdown timer
+  useEffect(() => {
+    if (!expiresAt) {
+      setCountdown(0);
+      return;
+    }
+
+    const calculateRemaining = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+      setCountdown(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timerIntervalRef.current);
+        // If the modal is still open and time runs out, trigger expired state
+        // This relies on PaymentForm's polling to eventually confirm expiry or payment.
+        // For a more immediate UI feedback, you might need a local state in PaymentForm
+        // to directly set modal.expired after this countdown reaches 0, but
+        // backend confirmation is always safer.
+      }
+    };
+
+    // Set initial countdown
+    calculateRemaining();
+
+    // Set up interval to update countdown
+    timerIntervalRef.current = setInterval(calculateRemaining, 1000);
+
+    // Cleanup function to clear interval when component unmounts or expiresAt changes
+    return () => {
+      clearInterval(timerIntervalRef.current);
+    };
+  }, [expiresAt]); // Rerun effect if expiresAt changes
+
+  // Effect for QR code generation
+  useEffect(() => {
+    const invoiceText = order?.invoice || '';
+    if (invoiceText && isValidQRValue(invoiceText)) {
+      QRCodeLib.toDataURL(invoiceText, {
+        errorCorrectionLevel: 'M',
+        width: 140,
+        margin: 2,
+      })
+      .then(url => {
+        setQrCodeDataUrl(url);
+      })
+      .catch(err => {
+        console.error('Failed to generate QR code data URL in InvoiceModal:', err);
+        setQrCodeDataUrl('');
+        // You might want to pass an error state back to PaymentForm or display it here
+      });
+    } else {
+      setQrCodeDataUrl('');
+    }
+  }, [order?.invoice, isValidQRValue]);
+
+
   const formatTime = sec => {
+    if (sec < 0) return '0:00'; // Handle negative time gracefully
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
     return `${min}:${s}`;
   };
 
-  const copyToClipboard = () => {
+  const handleCopyToClipboard = () => {
     const text = order?.invoice || '';
-    if (!text) return;
+    if (!text) return; // No invoice to copy
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -54,7 +117,7 @@ export default function InvoiceModal({ order, countdown, setCopied, copied, rese
           </div>
         </QRErrorBoundary>
 
-        <button className="btn btn-primary" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
+        <button className="btn btn-primary" onClick={handleCopyToClipboard} disabled={!isValidQRValue(invoiceText)}>
           {copied ? 'Copied!' : 'Copy Invoice'}
         </button>
 

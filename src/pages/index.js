@@ -1,11 +1,20 @@
 // src/pages/index.js
-import React from 'react';
+import React, { useEffect, useRef } from 'react'; // Import useRef
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PaymentForm from '../components/PaymentForm';
 
 export default function Home() {
+  const paymentFormRef = useRef(null); // Create a ref for the payment form section
+
+  useEffect(() => {
+    // Scroll to the payment form section on page load
+    if (paymentFormRef.current) {
+      paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []); // Empty dependency array means this runs once on mount
+
   return (
     <>
       <Head>
@@ -31,8 +40,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Payment Form Section - Anchor for CTA */}
-        <section id="payment-form-section" className="section-padded">
+        {/* Payment Form Section - Anchor for CTA and auto-focus */}
+        <section id="payment-form-section" className="section-padded" ref={paymentFormRef}> {/* Attach the ref here */}
           <div className="container">
             <div className="card">
               <h2 className="card-header text-center">Secure & Instant Top-Up</h2>

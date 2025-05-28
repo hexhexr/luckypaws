@@ -17,6 +17,7 @@
   --bg-medium-light: #e9ebee; /* Slightly darker background for sections/dividers */
   --card-bg: #fff;            /* White background for cards */
   --input-bg: #f0f2f5;        /* Light background for input fields */
+  --input-border-focus: #9ccc65; /* Lighter green for input focus border */
 
   --border-color: #eee;       /* Light border for general elements */
   --border-subtle: #e0e0e0;   /* Even lighter border for subtle lines */
@@ -44,6 +45,7 @@
   --transition-speed: 0.3s;
   --box-shadow-light: 0 2px 10px rgba(0, 0, 0, 0.05);
   --box-shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.1);
+  --box-shadow-input-focus: 0 0 0 3px rgba(0, 200, 83, 0.2); /* Softer green glow */
 }
 
 /* Base Styles */
@@ -173,7 +175,7 @@ label {
 .select:focus {
   outline: none;
   border-color: var(--primary-green);
-  box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.3); /* Green glow */
+  box-shadow: var(--box-shadow-input-focus);
 }
 
 .radio-group {
@@ -773,6 +775,89 @@ label {
     padding: var(--spacing-xxl) 0;
     border-top: 1px solid var(--border-color);
 }
+
+
+/* NEW: Payment Form Specific Styling */
+.payment-form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md); /* Space between form fields/groups */
+}
+
+.form-group {
+  margin-bottom: var(--spacing-sm); /* Smaller margin for groups */
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: var(--spacing-xs);
+  display: block;
+}
+
+.input-field,
+.select-field {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md); /* Slightly more horizontal padding */
+  border: 1px solid var(--border-color);
+  border-radius: var(--button-border-radius);
+  background-color: var(--input-bg);
+  color: var(--text-dark);
+  font-size: 1rem;
+  transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+  appearance: none; /* For select, removes default arrow */
+}
+
+.input-field::placeholder {
+  color: var(--text-light);
+  opacity: 0.7;
+}
+
+.input-field:focus,
+.select-field:focus {
+  outline: none;
+  border-color: var(--input-border-focus); /* Lighter green border on focus */
+  box-shadow: var(--box-shadow-input-focus);
+}
+
+.select-field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-sm) center;
+  background-size: 1.2em;
+  padding-right: var(--spacing-xl); /* Make space for custom arrow */
+}
+
+
+.radio-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs); /* Space between radio options */
+}
+
+.radio-option-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--button-border-radius);
+  background-color: var(--input-bg);
+  transition: background-color var(--transition-speed) ease, border-color var(--transition-speed) ease;
+}
+
+.radio-option-group label:hover {
+    background-color: var(--bg-medium-light);
+}
+
+.radio-option-group input[type="radio"] {
+  margin-right: var(--spacing-sm);
+}
+
+.button-group {
+  margin-top: var(--spacing-lg); /* Space above the button */
+}
+
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
