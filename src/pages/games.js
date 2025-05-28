@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Header from '../components/Header'; // Assuming you have a Header component
 import Footer from '../components/Footer'; // Assuming you have a Footer component
 
-// Hardcoded game data based on the links you provided
+// Hardcoded game data (remains the same)
 const gamesData = [
   {
     name: 'Fire Kirin',
@@ -174,32 +174,38 @@ export default function GamesPage() {
           <div className="container">
             <h1 className="section-title">Our Exciting Game Collection</h1>
             <p className="section-subtitle">
-              Click on a game below to get direct links to play online or download for your device.
+              Find and access links for all your favorite games below.
             </p>
           </div>
         </section>
 
-        <section className="games-grid-section section-padded bg-light-gradient">
+        <section className="games-sheet-section section-padded bg-light-gradient">
           <div className="container">
-            <div className="games-grid">
-              {gamesData.map((game, index) => (
-                <div key={index} className="game-card card">
-                  <h3 className="game-title card-header text-center">{game.name}</h3>
-                  <div className="card-body game-links">
-                    {game.links.map((link, linkIndex) => (
-                      <a
-                        key={linkIndex}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary btn-small game-link-btn"
-                      >
-                        {link.type}
-                      </a>
-                    ))}
+            <div className="game-list-container card"> {/* Using card for a nice border/shadow */}
+              <div className="game-list-header">
+                <div className="game-name-col">Game Name</div>
+                <div className="game-links-col">Links</div>
+              </div>
+              <div className="game-list-body">
+                {gamesData.map((game, index) => (
+                  <div key={index} className="game-list-item">
+                    <div className="game-name-col">{game.name}</div>
+                    <div className="game-links-col">
+                      {game.links.map((link, linkIndex) => (
+                        <a
+                          key={linkIndex}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary btn-xsmall"
+                        >
+                          {link.type}
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </section>
