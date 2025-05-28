@@ -1,4 +1,3 @@
-// pages/api/create-payment.js
 import { db } from '../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
@@ -50,10 +49,6 @@ export default async function handler(req, res) {
     // Lightning invoice from Speed API
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // IMPORTANT: Extract expires_at from the payment object if available
-    // Assuming payment.expires_at exists and is in seconds, convert to milliseconds
-    const expiresAt = payment.expires_at ? payment.expires_at * 1000 : null; // Default to null if not found
-
     // BTC calculation (use sats if available, fallback to CoinGecko)
     let btc = 'N/A'; // Default to 'N/A' to indicate calculation issues
     const requestedAmountUSD = parseFloat(amount); // Ensure amount is a number
@@ -94,12 +89,12 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice, // IMPORTANT: raw Lightning invoice string here
       created: new Date().toISOString(),
-      expiresAt: expiresAt, // Store the expiry timestamp
       paidManually: false,
     });
 
-    // Return invoice, orderId, btc, and expiresAt for frontend
-    return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
+    // Return invoice and orderId for frontend
+    // Ensure btc is returned as part of the response
+    return res.status(200).json({ orderId: payment.id, invoice, btc });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });
