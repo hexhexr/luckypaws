@@ -149,12 +149,12 @@ export default function PaymentForm() {
   return (
     <div className="card-body">
       <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
-      <form onSubmit={handleSubmit} className="payment-form-layout"> {/* New class for form layout */}
-        <div className="form-group"> {/* New class for each form field group */}
+      <form onSubmit={handleSubmit} className="payment-form-layout">
+        <div className="form-group">
           <label htmlFor="username">Username</label>
           <input
             id="username"
-            className="input-field" {/* New class for input */}
+            className="input-field"
             name="username"
             value={form.username}
             onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
@@ -167,7 +167,7 @@ export default function PaymentForm() {
           <label htmlFor="game">Select Game</label>
           <select
             id="game"
-            className="select-field" {/* New class for select */}
+            className="select-field"
             name="game"
             value={form.game}
             onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
@@ -184,7 +184,7 @@ export default function PaymentForm() {
           <label htmlFor="amount">Amount (USD)</label>
           <input
             id="amount"
-            className="input-field" {/* New class for input */}
+            className="input-field"
             type="number"
             min="1"
             step="0.01"
@@ -198,7 +198,7 @@ export default function PaymentForm() {
 
         <div className="form-group">
           <label>Payment Method</label>
-          <div className="radio-option-group"> {/* New class for radio options */}
+          <div className="radio-option-group">
             <label>
               <input
                 type="radio"
@@ -212,7 +212,7 @@ export default function PaymentForm() {
           </div>
         </div>
 
-        <div className="button-group"> {/* New class for button group */}
+        <div className="button-group">
           <button className="btn btn-primary" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
             {loading ? 'Generating Invoice...' : 'Generate Invoice'}
           </button>
