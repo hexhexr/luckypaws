@@ -252,18 +252,7 @@ export default function Home() {
     <div className="container">
       <div className="card">
         <h1 className="card-header">🎣 Lucky Paw’s Fishing Room</h1>
-        {/* New Hero Section */}
-        <div className="text-center mb-lg">
-          <p className="text-light" style={{ fontSize: '1.1rem', margin: '0 0 var(--spacing-sm) 0' }}>
-            Top up your balance for thrilling fishing games!
-          </p>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-light)' }}>
-            Secure and instant payments via Bitcoin Lightning.
-          </p>
-        </div>
-
         <div className="card-body">
-          <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--green-dark)' }}>Generate Your Payment Invoice</h2>
           <form onSubmit={handleSubmit}>
             <label htmlFor="username">Username</label>
             <input
@@ -273,7 +262,7 @@ export default function Home() {
               value={form.username}
               onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
               required
-              placeholder="Your in-game username"
+              placeholder="Your username"
             />
             <label htmlFor="game">Select Game</label>
             <select
@@ -284,7 +273,7 @@ export default function Home() {
               onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
               required
             >
-              <option value="" disabled>Select a Game</option> {/* Added disabled option */}
+              <option value="" disabled>Select Game</option>
               {games.map(g => (
                 <option key={g.id} value={g.name}>{g.name}</option>
               ))}
@@ -300,7 +289,7 @@ export default function Home() {
               value={form.amount}
               onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               required
-              placeholder="e.g., 50.00"
+              placeholder="Amount in USD"
             />
             <label>Payment Method</label>
             <div className="radio-group">
@@ -312,14 +301,14 @@ export default function Home() {
                   checked={form.method === 'lightning'}
                   onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
                 />
-                Lightning (Instant)
+                Lightning
               </label>
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
-              {loading ? 'Generating Invoice...' : 'Generate Invoice'}
+              {loading ? 'Generating…' : 'Generate Invoice'}
             </button>
           </form>
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
+          {error && <div className="alert alert-danger">{error}</div>}
         </div>
       </div>
 
@@ -330,8 +319,8 @@ export default function Home() {
           <div className="modal">
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
             <h2 className="modal-title text-danger">⚠️ Invoice Expired</h2>
-            <p className="text-center">The invoice has expired. Please generate a new one.</p>
-            <button className="btn btn-primary mt-md" onClick={() => { resetModals(); }}>Generate New Invoice</button>
+            <p>The invoice has expired. Please generate a new one.</p>
+            <button className="btn btn-primary" onClick={() => { resetModals(); }}>Generate New</button>
           </div>
         </div>
       )}
@@ -342,20 +331,20 @@ export default function Home() {
             <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
             <h2 className="modal-title text-success">✅ Payment Received</h2>
 
-            <div className="amount-display mb-md">
+            <div className="amount-display">
               <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
               <span className="btc-amount">{order.btc} BTC</span>
             </div>
 
-            <div className="info-section mb-md">
+            <div className="info-section">
               <p><strong>Game:</strong> <span>{order.game}</span></p>
               <p><strong>Username:</strong> <span>{order.username}</span></p>
               <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
             </div>
             <div className="short-invoice-display">
-              <strong>Invoice:</strong> {shorten(order.invoice)}
+              <strong>Short Invoice:</strong> {shorten(order.invoice)}
             </div>
-            <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
+            <button className="btn btn-primary" onClick={resetModals}>Done</button>
           </div>
         </div>
       )}
