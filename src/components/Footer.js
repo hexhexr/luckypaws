@@ -1,6 +1,6 @@
 // src/components/Footer.js
 import React from 'react';
-import Link from 'next/link'; // Assuming Next.js for client-side routing
+import Link from 'next/link';
 
 export default function Footer() {
   return (

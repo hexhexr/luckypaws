@@ -1,40 +1,13 @@
 // src/components/InvoiceModal.js
-import React, { useEffect, useState } from 'react';
-import QRCodeLib from 'qrcode';
-import QRErrorBoundary from './QRErrorBoundary';
+import React from 'react';
+import QRErrorBoundary from './QRErrorBoundary'; // Ensure this path is correct
 
-export default function InvoiceModal({ order, countdown, setCopied, copied, resetModals }) {
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
-
+export default function InvoiceModal({ order, countdown, setCopied, copied, resetModals, qrCodeDataUrl, isValidQRValue }) {
   const formatTime = sec => {
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
     return `${min}:${s}`;
   };
-
-  const isValidQRValue = value =>
-    typeof value === 'string' &&
-    value.trim().length > 10 &&
-    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
-
-  useEffect(() => {
-    if (order && order.invoice && isValidQRValue(order.invoice)) {
-      QRCodeLib.toDataURL(order.invoice, {
-        errorCorrectionLevel: 'M',
-        width: 140,
-        margin: 2,
-      })
-      .then(url => {
-        setQrCodeDataUrl(url);
-      })
-      .catch(err => {
-        console.error('Failed to generate QR code data URL in InvoiceModal:', err);
-        setQrCodeDataUrl('');
-      });
-    } else {
-      setQrCodeDataUrl('');
-    }
-  }, [order?.invoice]);
 
   const copyToClipboard = () => {
     const text = order?.invoice || '';
@@ -55,7 +28,7 @@ export default function InvoiceModal({ order, countdown, setCopied, copied, rese
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
       <div className="modal">
         <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-        <h2 className="modal-title">Complete Payment</h2>
+        <h2 className="modal-title" style={{ color: 'var(--primary-green)' }}>Complete Payment</h2>
 
         <div className="invoice-countdown" data-testid="countdown-timer">
           Expires in: {formatTime(countdown)}
@@ -81,7 +54,7 @@ export default function InvoiceModal({ order, countdown, setCopied, copied, rese
           </div>
         </QRErrorBoundary>
 
-        <button className="btn btn-success" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
+        <button className="btn btn-primary" onClick={copyToClipboard} disabled={!isValidQRValue(invoiceText)}>
           {copied ? 'Copied!' : 'Copy Invoice'}
         </button>
 

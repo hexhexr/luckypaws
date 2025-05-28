@@ -108,6 +108,8 @@ p {
   max-width: 700px;
   margin-left: auto;
   margin-right: auto;
+  opacity: 0.9;
+  color: var(--text-dark); /* Changed to dark for light backgrounds */
 }
 
 /* Card Styles */

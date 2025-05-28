@@ -2,21 +2,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient'; // Make sure this path is correct
 
-// Import Modals
+// Import Modals (these should also be in src/components/)
 import InvoiceModal from './InvoiceModal';
-import ExpiredModal from './ExpiredModal'; // Make sure this matches your filename
+import ExpiredModal from './ExpiredModal';
 import ReceiptModal from './ReceiptModal';
+import QRErrorBoundary from './QRErrorBoundary'; // Import QRErrorBoundary from its own file
+import QRCodeLib from 'qrcode'; // Make sure qrcode is installed
 
 export default function PaymentForm() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle, pending, paid, expired
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false });
-  const [countdown, setCountdown] = useState(600); // 10 minutes
+  const [countdown, setCountdown] = useState(600);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
@@ -54,13 +57,13 @@ export default function PaymentForm() {
     return () => clearInterval(pollingRef.current);
   }, [order, status]);
 
-  // Timer logic for invoice expiration
   useEffect(() => {
     if (!modals.invoice || status !== 'pending') {
-      clearInterval(timerRef.current);
-      return;
+        clearInterval(timerRef.current);
+        setQrCodeDataUrl('');
+        return;
     }
-    setCountdown(600); // Reset countdown on modal open
+    setCountdown(600);
     timerRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -78,16 +81,64 @@ export default function PaymentForm() {
   const resetAllModals = () => {
     setModals({ invoice: false, receipt: false, expired: false });
     setCopied(false);
+    setQrCodeDataUrl(''); // Reset QR code data on modal close
     clearInterval(timerRef.current);
     clearInterval(pollingRef.current);
-    setError(''); // Clear any lingering errors
+    setError('');
   };
+
+  const formatTime = sec => {
+    const min = Math.floor(sec / 60);
+    const s = String(sec % 60).padStart(2, '0');
+    return `${min}:${s}`;
+  };
+
+  const copyToClipboard = () => {
+    const text = order?.invoice || '';
+    if (!text) {
+      setError('No invoice to copy');
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        setError('Failed to copy invoice to clipboard.');
+    });
+  };
+
+  const isValidQRValue = value =>
+    typeof value === 'string' &&
+    value.trim().length > 10 &&
+    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
+
+  useEffect(() => {
+    if (order && order.invoice && isValidQRValue(order.invoice) && modals.invoice) {
+      QRCodeLib.toDataURL(order.invoice, {
+        errorCorrectionLevel: 'M',
+        width: 140,
+        margin: 2,
+      })
+      .then(url => {
+        setQrCodeDataUrl(url);
+      })
+      .catch(err => {
+        console.error('Failed to generate QR code data URL:', err);
+        setQrCodeDataUrl('');
+        setError('Could not generate QR code image.');
+      });
+    } else {
+      setQrCodeDataUrl('');
+    }
+  }, [order?.invoice, modals.invoice]);
 
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    resetAllModals(); // Reset all modals before a new submission
+    resetAllModals();
+    setQrCodeDataUrl('');
 
     try {
       const res = await fetch('/api/create-payment', {
@@ -99,11 +150,10 @@ export default function PaymentForm() {
       if (!res.ok || !data.invoice) {
         throw new Error(data.message || 'Invoice generation failed. No invoice data received.');
       }
-      if (typeof data.invoice !== 'string' || !/^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(data.invoice.trim())) {
+      if (typeof data.invoice !== 'string' || !isValidQRValue(data.invoice)) {
         console.error('Invalid invoice format received from API:', data.invoice);
         throw new Error('Received invalid invoice format from server.');
       }
-
       const newOrder = {
         ...form,
         invoice: data.invoice,
@@ -123,14 +173,12 @@ export default function PaymentForm() {
     }
   };
 
-  // Utility function for shortening invoice text in ReceiptModal
   const shorten = str =>
     !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
-
   return (
     <div className="card-body">
-      <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--green-dark)' }}>Generate Your Payment Invoice</h2>
+      <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
       <form onSubmit={handleSubmit}>
         <label htmlFor="username">Username</label>
         <input
@@ -196,6 +244,8 @@ export default function PaymentForm() {
           setCopied={setCopied}
           copied={copied}
           resetModals={resetAllModals}
+          qrCodeDataUrl={qrCodeDataUrl}
+          isValidQRValue={isValidQRValue}
         />
       )}
 
@@ -207,7 +257,7 @@ export default function PaymentForm() {
         <ReceiptModal
           order={order}
           resetModals={resetAllModals}
-          shorten={shorten} // Pass the utility function
+          shorten={shorten}
         />
       )}
     </div>
