@@ -1,13 +1,13 @@
 // src/components/PaymentForm.js
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../lib/firebaseClient'; // Make sure this path is correct
+import { db } from '../lib/firebaseClient'; // Adjust path based on your lib folder
+import QRCodeLib from 'qrcode'; // Import the base qrcode library
 
-// Import Modals (these should also be in src/components/)
+// Import Modals (assuming they are in the same src/components/ directory)
 import InvoiceModal from './InvoiceModal';
 import ExpiredModal from './ExpiredModal';
 import ReceiptModal from './ReceiptModal';
-import QRErrorBoundary from './QRErrorBoundary';
-import QRCodeLib from 'qrcode'; // Make sure qrcode is installed
+import QRErrorBoundary from './QRErrorBoundary'; // Ensure this path is correct
 
 export default function PaymentForm() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -18,6 +18,7 @@ export default function PaymentForm() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false });
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(''); // State for QR code data URL
 
   // Use a ref to store the expiresAt timestamp for more reliable countdown
   const expiresAtRef = useRef(null);
@@ -69,14 +70,34 @@ export default function PaymentForm() {
     return () => clearInterval(pollingRef.current);
   }, [order, status]);
 
+  // Effect for QR code generation
+  useEffect(() => {
+    const invoiceText = order?.invoice || '';
+    if (invoiceText && isValidQRValue(invoiceText)) {
+      QRCodeLib.toDataURL(invoiceText, {
+        errorCorrectionLevel: 'M',
+        width: 140,
+        margin: 2,
+      })
+      .then(url => {
+        setQrCodeDataUrl(url);
+      })
+      .catch(err => {
+        console.error('Failed to generate QR code data URL in PaymentForm component:', err);
+        setQrCodeDataUrl('');
+      });
+    } else {
+      setQrCodeDataUrl('');
+    }
+  }, [order?.invoice]); // Regenerate QR code if invoice changes
+
   const resetAllModals = () => {
     setModals({ invoice: false, receipt: false, expired: false });
     setCopied(false);
     expiresAtRef.current = null; // Clear expiry timestamp
     clearInterval(pollingRef.current); // Ensure polling stops
     setError('');
-    // Optionally reset form after successful payment/expiry, but keep for new invoice generation
-    // setForm({ username: '', game: '', amount: '', method: 'lightning' });
+    setQrCodeDataUrl(''); // Also clear QR code
   };
 
   const copyToClipboard = () => {
@@ -147,7 +168,7 @@ export default function PaymentForm() {
     !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
   return (
-    <div className="card-body">
+    <>
       <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
       <form onSubmit={handleSubmit} className="payment-form-layout">
         <div className="form-group">
@@ -229,10 +250,8 @@ export default function PaymentForm() {
           setCopied={setCopied}
           copied={copied}
           resetModals={resetAllModals}
-          qrCodeDataUrl={qrCodeDataUrl} // Assuming qrCodeDataUrl is still managed here based on order.invoice
+          qrCodeDataUrl={qrCodeDataUrl} // Pass the generated QR code URL
           isValidQRValue={isValidQRValue}
-          // The QR code generation needs to move to InvoiceModal's useEffect for cleaner separation
-          // For now, it remains in PaymentForm.js useEffect on order.invoice change
         />
       )}
 
@@ -247,6 +266,6 @@ export default function PaymentForm() {
           shorten={shorten}
         />
       )}
-    </div>
+    </>
   );
 }
