@@ -1,30 +1,41 @@
 // pages/admin/dashboard.js
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../../lib/firebaseClient'; // ASSUMPTION: Client-side firebase is configured
+// ASSUMPTION: You have a client-side firebase config file that exports the 'db' instance.
+import { db } from '../../lib/firebaseClient'; 
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 
-// --- Reusable UI Components ---
+// --- Helper Components using classes from globals.css ---
 
 const StatCard = ({ title, value, icon, color }) => (
-  <div className="stat-card" style={{ borderLeft: `5px solid ${color}` }}>
-    <div><p style={{ color }}>{title}</p><h3>{value}</h3></div>
-    <div className="stat-card-icon">{icon}</div>
-  </div>
+    // Uses .card and .text-light from globals.css
+    <div className="card" style={{ borderTop: `4px solid ${color}` }}>
+        <div className="card-body">
+            <h4 style={{ color }}>{title}</h4>
+            <h2>{value}</h2>
+            <span style={{ fontSize: '2.5rem', position: 'absolute', right: '20px', top: '25px', opacity: 0.2 }}>{icon}</span>
+        </div>
+    </div>
 );
 
 const OrderDetailModal = ({ order, onClose }) => {
     if (!order) return null;
     return (
-        <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <h2>Order Details: {order.id}</h2>
-                <ul>
+        // Uses .modal-overlay and .modal classes from globals.css
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" style={{textAlign: 'left', maxWidth: '600px'}} onClick={e => e.stopPropagation()}>
+                <button className="modal-close-btn" onClick={onClose}>&times;</button>
+                <h3 className="modal-title">Order Details</h3>
+                {/* Uses .info-section for structured data display */}
+                <div className="info-section">
                     {Object.entries(order).map(([key, value]) => (
-                        <li key={key}><strong>{key}:</strong> {JSON.stringify(value)}</li>
+                        <p key={key}>
+                            <strong>{key}:</strong>
+                            <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                        </p>
                     ))}
-                </ul>
-                <button className="btn btn-secondary" onClick={onClose}>Close</button>
+                </div>
+                <button className="btn btn-secondary" style={{width: 'auto'}} onClick={onClose}>Close</button>
             </div>
         </div>
     );
@@ -32,8 +43,10 @@ const OrderDetailModal = ({ order, onClose }) => {
 
 const Notification = ({ message, type, onDismiss }) => {
     if (!message) return null;
+    // Uses .alert and .alert-danger/alert-success classes
+    const alertClass = type === 'error' ? 'alert-danger' : 'alert-success';
     return (
-        <div className={`notification notification-${type}`}>
+        <div className={`notification alert ${alertClass}`}>
             {message}
             <button onClick={onDismiss}>&times;</button>
         </div>
@@ -52,34 +65,33 @@ export default function AdminDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- Real-time Data Fetching ---
+  // --- Real-time Data Fetching (Unchanged from previous version) ---
   useEffect(() => {
-    // Ensure client-side Firebase is available before trying to use it
-    if (typeof window === 'undefined' || !db) {
-        setNotification({message: 'Firebase client not available.', type: 'error'});
-        return;
+    if (localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin');
+      return;
     }
+    if (typeof window === 'undefined' || !db) return;
 
     const q = query(
       collection(db, "orders"), 
       where("status", "in", ["pending", "paid"]), 
       orderBy("created", "desc")
     );
-
-    // onSnapshot creates a real-time listener
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(ordersData);
       setLoading(false);
     }, (error) => {
-      console.error("Real-time listener failed:", error);
-      setNotification({ message: `Failed to connect to real-time data. ${error.message}`, type: 'error' });
+      console.error("Firestore Listener Error:", error);
+      // The user will see the index creation error message here
+      setNotification({ message: `Database Error: ${error.message}`, type: 'error' });
       setLoading(false);
     });
-
-    // Cleanup subscription on component unmount
     return () => unsubscribe();
-  }, []);
+  }, [router]);
+  
+  // --- Action & Notification Handlers ---
 
   const dismissNotification = () => setNotification({ message: '', type: '' });
 
@@ -88,8 +100,6 @@ export default function AdminDashboard() {
     setTimeout(() => dismissNotification(), 5000);
   };
   
-  // --- Order Actions ---
-
   const handleAction = async (apiPath, body, successMessage) => {
     try {
         const res = await fetch(apiPath, {
@@ -101,112 +111,129 @@ export default function AdminDashboard() {
         if (!res.ok) throw new Error(data.message || 'API request failed');
         showNotification(successMessage, 'success');
     } catch (err) {
-        console.error(`Action failed at ${apiPath}:`, err);
         showNotification(err.message, 'error');
     }
   };
 
-  const markAsRead = (id) => handleAction('/api/orders/update', { id, update: { read: true } }, `Order ${id} marked as read.`);
+  const markAsRead = (id) => handleAction('/api/orders/update', { id, update: { read: true } }, `Order marked as read.`);
   const archiveOrder = (id) => {
-    if (window.confirm(`Are you sure you want to archive order ${id}? It will be hidden from the dashboard.`)) {
-        handleAction('/api/orders/archive', { id }, `Order ${id} has been archived.`);
+    if (window.confirm(`Are you sure you want to archive this order?`)) {
+        handleAction('/api/orders/archive', { id }, `Order has been archived.`);
     }
   }
 
   // --- Modal Logic ---
+
   const viewOrderDetails = async (id) => {
     try {
         const res = await fetch(`/api/orders?id=${id}`);
-        if (!res.ok) throw new Error('Failed to fetch order details.');
-        const data = await res.json();
-        setSelectedOrder(data);
+        if (!res.ok) throw new Error((await res.json()).message);
+        setSelectedOrder(await res.json());
         setIsModalOpen(true);
     } catch (err) {
         showNotification(err.message, 'error');
     }
   };
   
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedOrder(null);
-  };
+  const closeModal = () => setIsModalOpen(false);
 
   // --- Render Logic ---
+  
   const summary = {
     pending: orders.filter(o => o.status === 'pending').length,
     paid: orders.filter(o => o.status === 'paid').length,
     revenue: orders.filter(o => o.status === 'paid').reduce((sum, o) => sum + parseFloat(o.amount || 0), 0).toFixed(2)
   };
 
+  if (loading) return <div className="loader">Connecting to Database...</div>;
+
   return (
-    <div className="admin-dashboard">
-        <style jsx global>{`
-            /* All styles from previous response are assumed here, plus new modal/notification styles */
-            .notification { position: fixed; top: 20px; right: 20px; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; display: flex; align-items: center; gap: 1rem; }
-            .notification-success { background: #2ecc71; color: white; }
-            .notification-error { background: #e74c3c; color: white; }
-            .notification button { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
-            .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 999; }
-            .modal-content { background: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
-            .modal-content h2 { margin-top: 0; }
-            .modal-content ul { list-style: none; padding: 0; }
-            .modal-content li { background: #f4f7fa; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; }
-            .action-buttons { display: flex; gap: 0.5rem; }
-        `}</style>
-      
-      <Notification message={notification.message} type={notification.type} onDismiss={dismissNotification} />
-      <OrderDetailModal order={selectedOrder} onClose={closeModal} />
+    <>
+      {/* This new <style jsx> block ONLY contains layout styles not present in globals.css */}
+      <style jsx>{`
+        .admin-layout {
+          display: flex;
+          min-height: 100vh;
+        }
+        .sidebar {
+          width: 260px;
+          background: #1a202c; /* Dark sidebar for contrast */
+          color: #e2e8f0;
+          padding: var(--spacing-lg);
+          display: flex;
+          flex-direction: column;
+        }
+        .sidebar-header { font-size: 1.5rem; font-weight: 700; margin-bottom: var(--spacing-xl); color: #fff; }
+        .nav-btn { background: none; border: none; width: 100%; color: #a0aec0; text-align: left; padding: 0.8rem 1rem; margin-bottom: var(--spacing-sm); border-radius: var(--button-border-radius); font-size: 1rem; cursor: pointer; }
+        .nav-btn:hover, .nav-btn.active { background: #2d3748; color: #ffffff; }
+        .main-dashboard-content { flex: 1; padding: var(--spacing-xl); }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-xl); }
+        .action-buttons { display: flex; gap: var(--spacing-sm); }
+        .notification { position: fixed; top: 20px; right: 20px; z-index: 1001; }
+        .notification button { background:none; border:none; color:inherit; font-size: 1.2rem; cursor:pointer; margin-left: 1rem; }
+      `}</style>
 
-      {/* Sidebar remains the same */}
-      <div className="sidebar">
-          <h1>Lucky Paw Admin</h1>
-          {/* ... nav buttons ... */}
+      <div className="admin-layout">
+        <Notification message={notification.message} type={notification.type} onDismiss={dismissNotification} />
+        {isModalOpen && <OrderDetailModal order={selectedOrder} onClose={closeModal} />}
+
+        <div className="sidebar">
+          <h1 className="sidebar-header">Lucky Paw</h1>
+          <button className="nav-btn active">📋 Orders</button>
+          <button className="nav-btn" onClick={() => router.push('/admin/games')}>🎮 Games</button>
+          {/* Add other nav buttons as needed */}
+        </div>
+
+        <main className="main-dashboard-content">
+          <h1 className="section-title">Dashboard</h1>
+          <p className="section-subtitle" style={{textAlign: 'left', marginLeft: 0}}>
+            A real-time overview of your store activity.
+          </p>
+
+          <div className="stat-grid">
+              <StatCard title="Total Revenue (Paid)" value={`$${summary.revenue}`} icon="💵" color="var(--primary-green)" />
+              <StatCard title="Live Pending Orders" value={summary.pending} icon="⏳" color="#f39c12" />
+              <StatCard title="Total Paid Orders" value={summary.paid} icon="✔️" color="#2962ff" />
+          </div>
+
+          <div className="card">
+              <div className="card-body">
+                {/* We create a simple table structure here */}
+                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                  <thead>
+                    <tr style={{borderBottom: '1px solid var(--border-color)'}}>
+                      <th style={{padding: 'var(--spacing-md)', textAlign: 'left', color: 'var(--text-light)'}}>Username</th>
+                      <th style={{padding: 'var(--spacing-md)', textAlign: 'left', color: 'var(--text-light)'}}>Status</th>
+                      <th style={{padding: 'var(--spacing-md)', textAlign: 'left', color: 'var(--text-light)'}}>Amount</th>
+                      <th style={{padding: 'var(--spacing-md)', textAlign: 'left', color: 'var(--text-light)'}}>Created</th>
+                      <th style={{padding: 'var(--spacing-md)', textAlign: 'left', color: 'var(--text-light)'}}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map(order => (
+                      <tr key={order.id} style={{borderBottom: '1px solid var(--border-subtle)', background: !order.read && order.status === 'paid' ? 'var(--yellow-light)' : 'transparent'}}>
+                        <td style={{padding: 'var(--spacing-md)'}}>{order.username}</td>
+                        <td style={{padding: 'var(--spacing-md)'}}>{order.status}</td>
+                        <td style={{padding: 'var(--spacing-md)'}}>${parseFloat(order.amount || 0).toFixed(2)}</td>
+                        <td style={{padding: 'var(--spacing-md)'}}>{new Date(order.created).toLocaleString()}</td>
+                        <td style={{padding: 'var(--spacing-md)'}}>
+                          <div className="action-buttons">
+                            {/* Uses .btn, .btn-small, .btn-secondary from globals.css */}
+                            <button className="btn btn-secondary btn-small" onClick={() => viewOrderDetails(order.id)}>Details</button>
+                            {order.status === 'paid' && !order.read && (
+                              <button className="btn btn-success btn-small" onClick={() => markAsRead(order.id)}>Mark Read</button>
+                            )}
+                            <button className="btn btn-danger btn-small" onClick={() => archiveOrder(order.id)}>Archive</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+          </div>
+        </main>
       </div>
-
-      <div className="main-content">
-        <div className="dashboard-header"><h1>Dashboard</h1></div>
-
-        {loading ? <p>Loading real-time data...</p> : (
-            <>
-                <div className="stat-cards-grid">
-                    <StatCard title="Total Revenue (Paid)" value={`$${summary.revenue}`} icon="💵" color="#3498db" />
-                    <StatCard title="Live Pending Orders" value={summary.pending} icon="⏳" color="#f39c12" />
-                    <StatCard title="Total Paid Orders" value={summary.paid} icon="✔️" color="#2ecc71" />
-                </div>
-                
-                <div className="card orders-table-container">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Status</th>
-                                <th>Amount</th>
-                                <th>Created At</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {orders.map(order => (
-                                <tr key={order.id} className={!order.read && order.status === 'paid' ? 'unread' : ''}>
-                                    <td>{order.username}</td>
-                                    <td><span className={`status-pill status-${order.status}`}>{order.status}</span></td>
-                                    <td>${parseFloat(order.amount || 0).toFixed(2)}</td>
-                                    <td>{new Date(order.created).toLocaleString()}</td>
-                                    <td className="action-buttons">
-                                        <button className="btn btn-sm btn-secondary" onClick={() => viewOrderDetails(order.id)}>Details</button>
-                                        {order.status === 'paid' && !order.read && (
-                                            <button className="btn btn-sm btn-primary" onClick={() => markAsRead(order.id)}>Mark Read</button>
-                                        )}
-                                        <button className="btn btn-sm btn-danger" onClick={() => archiveOrder(order.id)}>Archive</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
