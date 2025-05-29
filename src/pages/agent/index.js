@@ -393,7 +393,6 @@ export default function AgentPage() {
       <main style={styles.main}>
         <h1 style={styles.title}>Agent Tools</h1>
 
-        {/* Username Generation Section */}
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>Generate Username</h2>
           <form onSubmit={handleGenerateUsername} style={styles.form}>
@@ -404,7 +403,7 @@ export default function AgentPage() {
                 id="pageCode"
                 value={pageCode}
                 onChange={(e) => setPageCode(e.target.value)}
-                onBlur={handlePageCodeBlur} {/* Add onBlur to trigger save if locked */}
+                onBlur={handlePageCodeBlur}
                 placeholder="e.g., 7976"
                 required
                 style={styles.input}
@@ -415,7 +414,7 @@ export default function AgentPage() {
                   type="checkbox"
                   id="lockPageCode"
                   checked={lockPageCode}
-                  onChange={handleLockPageCodeChange} {/* Use new handler */}
+                  onChange={handleLockPageCodeChange}
                   disabled={isSavingPageCode}
                 />
                 <label htmlFor="lockPageCode" style={styles.label}>Lock Code (Save to Firebase)</label>
@@ -456,7 +455,6 @@ export default function AgentPage() {
           )}
         </div>
 
-        {/* Customer Financials Section (for selected customer) */}
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>Customer Cashout Tracker</h2>
           <div style={styles.form}>
@@ -473,7 +471,7 @@ export default function AgentPage() {
               />
             </div>
             <button
-              type="button" // Important: not submit
+              type="button"
               onClick={fetchCustomerCashoutLimit}
               disabled={customerFinancialsLoading || !customerUsername.trim()}
               style={customerFinancialsLoading || !customerUsername.trim() ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
@@ -485,7 +483,7 @@ export default function AgentPage() {
           {customerFinancialsLoading ? (
             <p style={{...styles.successMessage, color: '#0070f3'}}>Loading customer data...</p>
           ) : (
-            customerUsername.trim() && ( // Only show if a username was entered
+            customerUsername.trim() && (
               <div style={styles.financialsSummary}>
                 <p>24-hour Cashout Limit Remaining:
                   <strong style={{ color: cashoutLimitRemaining >= 100 ? styles.textSuccess.color : styles.textWarning.color }}>
@@ -497,7 +495,6 @@ export default function AgentPage() {
           )}
         </div>
 
-        {/* Live All Deposits Section */}
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>Live Deposit Checker (Last 10 Deposits)</h2>
           {last10AllDeposits.length === 0 ? (
