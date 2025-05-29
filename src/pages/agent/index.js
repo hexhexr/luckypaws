@@ -1,7 +1,6 @@
 // pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-// Import db, but be aware it might be null during SSR/build phase if firebaseClient.js guards against it.
 import { db } from '../../lib/firebaseClient'; // Ensure this path is correct for your Firebase client initialization
 
 export default function AgentPage() {
@@ -25,13 +24,15 @@ export default function AgentPage() {
 
   // --- Firebase Page Code Locking Logic ---
   // Firebase Document Reference for Agent Settings (assuming a single agent config for now)
-  const agentSettingsRef = db ? db.collection('agentSettings').doc('pageCodeConfig') : null;
+  const agentSettingsRef = useMemo(() => {
+    return db ? db.collection('agentSettings').doc('pageCodeConfig') : null;
+  }, [db]);
 
   // Function to save page code settings to Firebase
   const savePageCodeSettingsToFirebase = useCallback(async (codeToSave, lockState) => {
     if (!agentSettingsRef) {
       console.warn('Firebase client (db) not initialized for saving agent settings.');
-      setMessage({ text: 'Firebase is not ready to save settings.', type: 'error' });
+      setMessage({ text: 'Firebase is not ready to save settings. Please check your Firebase setup.', type: 'error' });
       return;
     }
     setIsSavingPageCode(true);
@@ -44,8 +45,9 @@ export default function AgentPage() {
         });
         setMessage({ text: 'Page code locked and saved to Firebase!', type: 'success' });
       } else {
-        await agentSettingsRef.set({ // Or update to set locked: false if you want to keep the code but unlock
-          pageCode: '', // Clear page code in Firebase if unlocked
+        // When unlocking, clear the pageCode in Firebase and set locked to false
+        await agentSettingsRef.set({
+          pageCode: '', 
           locked: false,
           updatedAt: new Date().toISOString()
         });
@@ -66,6 +68,7 @@ export default function AgentPage() {
       return;
     }
 
+    // Subscribe to real-time updates for agent settings
     const unsubscribe = agentSettingsRef.onSnapshot(
       (docSnapshot) => {
         if (docSnapshot.exists) {
@@ -73,15 +76,19 @@ export default function AgentPage() {
           if (data.locked && data.pageCode) {
             setPageCode(data.pageCode);
             setLockCodePage(true);
-            setMessage({ text: 'Page code loaded and locked from Firebase.', type: 'success' });
+            // Only show success message if not currently saving, to avoid conflicts
+            if (!isSavingPageCode) { 
+                setMessage({ text: 'Page code loaded and locked from Firebase.', type: 'success' });
+            }
           } else {
+            // If unlocked in Firebase or no data, ensure UI reflects it
             setLockCodePage(false);
-            // Optionally clear pageCode if it was previously locked and then unlocked in Firebase
-            // setPageCode(''); 
+            setPageCode(''); // Clear page code if it's unlocked in Firebase
           }
         } else {
           // Document doesn't exist, so no locked page code
           setLockCodePage(false);
+          setPageCode(''); // Clear page code if nothing in Firebase
         }
       },
       (error) => {
@@ -91,22 +98,22 @@ export default function AgentPage() {
     );
 
     return () => unsubscribe(); // Unsubscribe on component unmount
-  }, [agentSettingsRef]);
+  }, [agentSettingsRef, isSavingPageCode]); // isSavingPageCode added to re-render if it changes, to update messages
 
 
-  // Effect to save/update page code in Firebase when lock status changes or locked pageCode changes
-  useEffect(() => {
-    // Only save if Firebase is initialized and not currently saving
-    if (db && !isSavingPageCode) {
-      // If locked, save the current pageCode
-      if (lockPageCode && pageCode.trim() !== '') {
-        savePageCodeSettingsToFirebase(pageCode, true);
-      } else if (!lockPageCode) {
-        // If unlocked, clear the page code in Firebase
-        savePageCodeSettingsToFirebase('', false);
-      }
+  // Handler for when the "Lock Code" checkbox is toggled
+  const handleLockPageCodeChange = async (e) => {
+    const newLockState = e.target.checked;
+    setLockCodePage(newLockState); // Update local state immediately
+    await savePageCodeSettingsToFirebase(pageCode, newLockState); // Explicitly save to Firebase
+  };
+
+  // Handler for when pageCode input loses focus (only save if locked)
+  const handlePageCodeBlur = async () => {
+    if (lockPageCode && pageCode.trim() !== '') {
+      await savePageCodeSettingsToFirebase(pageCode, true);
     }
-  }, [lockPageCode, pageCode, db, isSavingPageCode, savePageCodeSettingsToFirebase]); // Added db and isSavingPageCode to dependencies
+  };
 
 
   const handleGenerateUsername = async (e) => {
@@ -139,7 +146,6 @@ export default function AgentPage() {
         setGeneratedUsername(data.username);
         setMessage({ text: data.message, type: 'success' });
       } else {
-        // Handle the 400/409 Conflict status specifically
         setMessage({ text: data.message || 'An unknown error occurred.', type: 'error' });
         setGeneratedUsername(data.username || ''); // Still show attempted username for context
       }
@@ -177,7 +183,7 @@ export default function AgentPage() {
     } finally {
       setCustomerFinancialsLoading(false);
     }
-  }, [customerUsername]); // Only depends on customerUsername now
+  }, [customerUsername]);
 
 
   // Effect for GLOBAL Last 10 Deposits (live)
@@ -204,11 +210,14 @@ export default function AgentPage() {
       (snapshot) => {
         const deposits = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setLast10AllDeposits(deposits);
-        setMessage({ text: '', type: '' }); // Clear error if data loads successfully
+        // Clear message if it was a Firebase initialization error, but keep other errors
+        if (message.type === 'error' && message.text.includes('Firebase not initialized')) {
+            setMessage({ text: '', type: '' }); 
+        }
       },
       (error) => {
         console.error('Error fetching real-time deposits for all users:', error);
-        setMessage({ text: 'Failed to load live deposits for all users: Connection error.', type: 'error' });
+        setMessage({ text: 'Failed to load live deposits for all users: Connection error. Check Firebase rules and network.', type: 'error' });
       }
     );
     setAllDepositsListener(() => unsubscribe); // Store the unsubscribe function
@@ -219,8 +228,7 @@ export default function AgentPage() {
         unsubscribe();
       }
     };
-  }, [db]); // Dependency on `db` to re-run if it becomes available later
-
+  }, [db, allDepositsListener, message.text, message.type]); // Added message dependencies to re-evaluate message display
 
   const styles = useMemo(() => ({
     container: {
@@ -396,17 +404,18 @@ export default function AgentPage() {
                 id="pageCode"
                 value={pageCode}
                 onChange={(e) => setPageCode(e.target.value)}
+                onBlur={handlePageCodeBlur} {/* Add onBlur to trigger save if locked */}
                 placeholder="e.g., 7976"
                 required
                 style={styles.input}
-                disabled={lockPageCode || isLoading || isSavingPageCode}
+                disabled={isLoading || isSavingPageCode}
               />
               <div style={styles.checkboxGroup}>
                 <input
                   type="checkbox"
                   id="lockPageCode"
                   checked={lockPageCode}
-                  onChange={(e) => setLockCodePage(e.target.checked)} // Toggling this will trigger useEffect for saving
+                  onChange={handleLockPageCodeChange} {/* Use new handler */}
                   disabled={isSavingPageCode}
                 />
                 <label htmlFor="lockPageCode" style={styles.label}>Lock Code (Save to Firebase)</label>
