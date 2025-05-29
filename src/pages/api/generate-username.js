@@ -2,9 +2,10 @@
 import { db } from '../../lib/firebaseAdmin';
 
 // Helper function to sanitize the Facebook name for username creation
+// Now excludes 'i' and 'l' from the resulting alphabetic string.
 function sanitizeName(name) {
-  // Convert to lowercase and keep only alphabetic characters
-  return name.toLowerCase().replace(/[^a-z]/g, '');
+  // Convert to lowercase, remove non-alphabetic characters, and then remove 'i' and 'l'
+  return name.toLowerCase().replace(/[^a-z]/g, '').replace(/[il]/g, '');
 }
 
 // Helper function to get all possible 5-character substrings from a sanitized name
@@ -51,10 +52,10 @@ export default async function handler(req, res) {
   try {
     const sanitizedFacebookName = sanitizeName(facebookName);
     if (!sanitizedFacebookName) {
-        return res.status(400).json({ message: 'Could not generate a base username from the provided Facebook name (no alphabetic characters found).' });
+        return res.status(400).json({ message: 'Could not generate a base username from the provided Facebook name (no alphabetic characters found after removing "i" and "l").' });
     }
 
-    const originalFiveCharPrefix = sanitizedFacebookName.substring(0, Math.min(sanitizedFacebookName.length, 5)); // e.g., 'danie' or 'dan'
+    const originalFiveCharPrefix = sanitizedFacebookName.substring(0, Math.min(sanitizedFacebookName.length, 5));
     const possibleSubstrings = getPossibleNamePrefixes(sanitizedFacebookName); 
 
     let generatedUsername = null;
@@ -71,25 +72,39 @@ export default async function handler(req, res) {
 
     // Step 2: If no natural substring combination is unique, start mutating the ORIGINAL five-char prefix
     if (!generatedUsername) {
-      const alphabetSize = 26; // 'a' to 'z'
-      const maxMutationAttempts = Math.pow(alphabetSize, originalFiveCharPrefix.length); // Max attempts for a 5-char prefix
+      const alphabetSize = 24; // 'a' through 'z' excluding 'i' and 'l'
+      const availableChars = 'abcdefghjkmnopqrstuvwxyz'.split(''); // Alphabets without 'i' and 'l'
 
       // Ensure we have a 5-char prefix to mutate. Pad with 'a' if original is shorter.
       let basePrefixToMutate = originalFiveCharPrefix.padEnd(5, 'a');
+
+      // Loop through potential mutations. Limited for practical purposes.
+      // 24^5 combinations is very large, so we'll cap attempts.
+      const maxMutationAttempts = 10000; // Limit attempts to avoid excessive operations
 
       for (let attempt = 0; attempt < maxMutationAttempts; attempt++) {
         let currentPrefixChars = basePrefixToMutate.split('');
         let tempAttempt = attempt;
 
-        // Apply mutation based on attempt count (like base-26 increment)
+        // Apply mutation based on attempt count (like base-24 increment)
         for (let i = currentPrefixChars.length - 1; i >= 0; i--) {
-          const charCode = basePrefixToMutated.charCodeAt(i) - 'a'.charCodeAt(0);
-          const newCharOffset = (charCode + (tempAttempt % alphabetSize)) % alphabetSize;
-          currentPrefixChars[i] = String.fromCharCode('a'.charCodeAt(0) + newCharOffset);
-          tempAttempt = Math.floor(tempAttempt / alphabetSize);
-          if (tempAttempt === 0 && i === 0) break; // Optimized exit if all increments are applied
+            if (tempAttempt === 0 && i === currentPrefixChars.length - 1) {
+                // If this is the very first attempt (attempt 0), use the basePrefixToMutate directly
+                // without applying any offset to it, just ensure its characters are in `availableChars`.
+                // This is a correction to ensure the loop starts correctly from the base.
+            } else {
+                // Calculate the new character index in availableChars
+                const newCharIndex = tempAttempt % alphabetSize;
+                currentPrefixChars[i] = availableChars[newCharIndex];
+                tempAttempt = Math.floor(tempAttempt / alphabetSize);
+            }
         }
         const mutatedPrefix = currentPrefixChars.join('');
+
+        // Ensure the mutated prefix does not contain 'i' or 'l' (redundant if `availableChars` is used correctly)
+        if (mutatedPrefix.includes('i') || mutatedPrefix.includes('l')) {
+            continue; // Skip if mutation somehow resulted in 'i' or 'l' (shouldn't happen with `availableChars`)
+        }
 
         const proposedUsername = `${mutatedPrefix}${pageCode.toLowerCase()}`;
         const usernameExists = await checkIfUsernameExists(proposedUsername);
