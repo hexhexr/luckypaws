@@ -48,17 +48,21 @@ export default async function handler(req, res) {
 
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // --- REVISED EXPIRY TIME FIX ---
+    // --- REVISED EXPIRY TIME FIX (Adjusted for 'seconds' if necessary) ---
     let expiresAt = null;
-    // Assume payment.expires_at is already in milliseconds if it's a valid number
+    // Check if payment.expires_at is a number or can be parsed as a number
     if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
-      expiresAt = payment.expires_at; // Use directly (no * 1000)
+      // Assuming Speed API returns 'expires_at' in seconds, convert to milliseconds
+      expiresAt = payment.expires_at * 1000;
     } else if (typeof payment.expires_at === 'string') {
       const parsedExpiresAt = Number(payment.expires_at);
       if (!isNaN(parsedExpiresAt) && parsedExpiresAt > 0) {
-        expiresAt = parsedExpiresAt; // Use directly (no * 1000)
+        // Assuming Speed API returns 'expires_at' as a string representing seconds, convert to milliseconds
+        expiresAt = parsedExpiresAt * 1000;
       }
     }
+    // IMPORTANT: If your console.log reveals that payment.expires_at is ALREADY in milliseconds,
+    // then remove the '* 1000' from the lines above.
     // --- END OF REVISED EXPIRY TIME FIX ---
 
     let btc = 'N/A';
@@ -97,7 +101,7 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice,
       created: new Date().toISOString(),
-      expiresAt: expiresAt,
+      expiresAt: expiresAt, // This is the crucial part that depends on the unit from Speed API
       paidManually: false,
     });
 
