@@ -35,8 +35,15 @@ export default async function handler(req, res) {
     });
 
     const payment = await response.json();
-    // This log was crucial and confirmed 'expires_at' is already in MILLISECONDS from Speed API.
-    console.log('Speed API payment object:', payment);
+    // --- NEW LOGS HERE ---
+    console.log('--- BACKEND DEBUG START ---');
+    console.log('Speed API raw response object:', JSON.stringify(payment, null, 2));
+    console.log('Speed API payment.expires_at (raw):', payment.expires_at, 'Type:', typeof payment.expires_at);
+    console.log('Speed API payment.created (raw):', payment.created, 'Type:', typeof payment.created);
+    console.log('Speed API payment.ttl (raw):', payment.ttl, 'Type:', typeof payment.ttl);
+    console.log('Server Date.now() at API call:', Date.now());
+    // --- END NEW LOGS ---
+
 
     // Validate Speed API response
     if (
@@ -49,27 +56,37 @@ export default async function handler(req, res) {
 
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // --- Invoice Expiry Time Handling ---
     let expiresAt = null;
-    // As confirmed by your provided Speed API response, 'expires_at' is already in milliseconds.
-    // Therefore, no multiplication is needed.
     if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
-      expiresAt = payment.expires_at; // Use directly
+      expiresAt = payment.expires_at; // CONFIRMED: already in milliseconds
     } else if (typeof payment.expires_at === 'string') {
       const parsedExpiresAt = Number(payment.expires_at);
       if (!isNaN(parsedExpiresAt) && parsedExpiresAt > 0) {
-        expiresAt = parsedExpiresAt; // Use directly
+        expiresAt = parsedExpiresAt; // CONFIRMED: already in milliseconds
       }
     }
-    // Debugging the final 'expiresAt' before storing/sending
-    console.log('Processed expiresAt (ms) before saving/sending:', expiresAt);
-    // --- End of Invoice Expiry Time Handling ---
+
+    // --- NEW LOGS HERE ---
+    console.log('Calculated expiresAt (milliseconds) for Firebase/Frontend:', expiresAt);
+    if (expiresAt) {
+      const currentTime = Date.now();
+      const remainingSeconds = Math.floor((expiresAt - currentTime) / 1000);
+      console.log(`Time remaining on server (expiresAt - now): ${remainingSeconds} seconds`);
+      if (remainingSeconds <= 0) {
+          console.warn('WARNING: Invoice already expired or about to expire on server side!');
+      }
+    } else {
+         console.warn('WARNING: expiresAt could not be properly determined from Speed API response.');
+    }
+    console.log('--- BACKEND DEBUG END ---');
+    // --- END NEW LOGS ---
+
 
     let btc = 'N/A';
     const requestedAmountUSD = parseFloat(amount);
 
     if (payment.amount_in_satoshis && typeof payment.amount_in_satoshis === 'number' && payment.amount_in_satoshis > 0) {
-      btc = (payment.amount_in_satoshis / 100000000).toFixed(8); // Convert sats to BTC
+      btc = (payment.amount_in_satoshis / 100000000).toFixed(8);
     } else {
       try {
         const btcRes = await fetch(
@@ -80,7 +97,7 @@ export default async function handler(req, res) {
         const rate = btcData?.bitcoin?.usd;
 
         if (rate && typeof rate === 'number' && rate > 0) {
-          btc = (requestedAmountUSD / rate).toFixed(8); // Calculate BTC from USD and rate
+          btc = (requestedAmountUSD / rate).toFixed(8);
         } else {
           console.warn('CoinGecko rate not found or invalid:', rate);
           btc = 'N/A - Rate Error';
@@ -101,11 +118,10 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice,
       created: new Date().toISOString(),
-      expiresAt: expiresAt, // Store the timestamp in milliseconds
+      expiresAt: expiresAt,
       paidManually: false,
     });
 
-    // Return invoice, orderId, btc, AND expiresAt for the frontend to use in countdowns
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
     console.error('Speed API error:', err);

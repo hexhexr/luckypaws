@@ -1,17 +1,36 @@
 // src/components/InvoiceModal.js
 import React, { useState, useEffect, useRef } from 'react';
 import QRErrorBoundary from './QRErrorBoundary';
-import QRCodeLib from 'qrcode'; // Make sure qrcode is installed
+import QRCodeLib from 'qrcode';
 
 export default function InvoiceModal({ order, expiresAt, setCopied, copied, resetModals, isValidQRValue }) {
   const [countdown, setCountdown] = useState(0);
+  const [isExpired, setIsExpired] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const timerIntervalRef = useRef(null);
+
+  // --- NEW LOGS HERE ---
+  useEffect(() => {
+    console.log('--- FRONTEND DEBUG START ---');
+    console.log('InvoiceModal received expiresAt prop:', expiresAt, 'Type:', typeof expiresAt);
+    console.log('Client Date.now() at component render:', Date.now());
+    if (expiresAt) {
+      const initialRemainingSeconds = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      console.log(`Initial remaining time on client: ${initialRemainingSeconds} seconds`);
+      if (initialRemainingSeconds <= 0) {
+        console.warn('WARNING: Invoice already expired or about to expire on client side!');
+      }
+    } else {
+         console.warn('WARNING: expiresAt prop is null or invalid in InvoiceModal.');
+    }
+    console.log('--- FRONTEND DEBUG END ---');
+  }, [expiresAt]); // Log when expiresAt changes
 
   // Effect for countdown timer
   useEffect(() => {
     if (!expiresAt) {
       setCountdown(0);
+      setIsExpired(true);
       return;
     }
 
@@ -22,25 +41,19 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
 
       if (remaining <= 0) {
         clearInterval(timerIntervalRef.current);
-        // If the modal is still open and time runs out, trigger expired state
-        // This relies on PaymentForm's polling to eventually confirm expiry or payment.
-        // For a more immediate UI feedback, you might need a local state in PaymentForm
-        // to directly set modal.expired after this countdown reaches 0, but
-        // backend confirmation is always safer.
+        setIsExpired(true);
+      } else {
+        setIsExpired(false);
       }
     };
 
-    // Set initial countdown
     calculateRemaining();
-
-    // Set up interval to update countdown
     timerIntervalRef.current = setInterval(calculateRemaining, 1000);
 
-    // Cleanup function to clear interval when component unmounts or expiresAt changes
     return () => {
       clearInterval(timerIntervalRef.current);
     };
-  }, [expiresAt]); // Rerun effect if expiresAt changes
+  }, [expiresAt]);
 
   // Effect for QR code generation
   useEffect(() => {
@@ -57,7 +70,6 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
       .catch(err => {
         console.error('Failed to generate QR code data URL in InvoiceModal:', err);
         setQrCodeDataUrl('');
-        // You might want to pass an error state back to PaymentForm or display it here
       });
     } else {
       setQrCodeDataUrl('');
@@ -66,15 +78,15 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
 
 
   const formatTime = sec => {
-    if (sec < 0) return '0:00'; // Handle negative time gracefully
+    if (sec < 0) return '0:00';
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
-    return `${min}:${s}`;
+    return `<span class="math-inline">\{min\}\:</span>{s}`;
   };
 
   const handleCopyToClipboard = () => {
     const text = order?.invoice || '';
-    if (!text) return; // No invoice to copy
+    if (!text || isExpired) return;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -94,7 +106,11 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
         <h2 className="modal-title" style={{ color: 'var(--primary-green)' }}>Complete Payment</h2>
 
         <div className="invoice-countdown" data-testid="countdown-timer">
-          Expires in: {formatTime(countdown)}
+          {isExpired ? (
+            <span style={{color: 'red', fontWeight: 'bold'}}>Invoice Expired!</span>
+          ) : (
+            `Expires in: ${formatTime(countdown)}`
+          )}
         </div>
 
         <div className="amount-display mb-md">
@@ -106,8 +122,10 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
           fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
         >
           <div className="qr-container mb-md">
-            {qrCodeDataUrl ? (
+            {qrCodeDataUrl && !isExpired ? (
               <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={140} height={140} />
+            ) : isExpired ? (
+              <p className="alert alert-danger">QR code expired.</p>
             ) : (
               isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
             )}
@@ -117,7 +135,11 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
           </div>
         </QRErrorBoundary>
 
-        <button className="btn btn-primary" onClick={handleCopyToClipboard} disabled={!isValidQRValue(invoiceText)}>
+        <button
+          className="btn btn-primary"
+          onClick={handleCopyToClipboard}
+          disabled={!isValidQRValue(invoiceText) || isExpired}
+        >
           {copied ? 'Copied!' : 'Copy Invoice'}
         </button>
 
