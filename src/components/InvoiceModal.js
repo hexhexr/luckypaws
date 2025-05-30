@@ -9,33 +9,18 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const timerIntervalRef = useRef(null);
 
-  // --- NEW LOGS HERE ---
-  useEffect(() => {
-    console.log('--- FRONTEND DEBUG START ---');
-    console.log('InvoiceModal received expiresAt prop:', expiresAt, 'Type:', typeof expiresAt);
-    console.log('Client Date.now() at component render:', Date.now());
-    if (expiresAt) {
-      const initialRemainingSeconds = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
-      console.log(`Initial remaining time on client: ${initialRemainingSeconds} seconds`);
-      if (initialRemainingSeconds <= 0) {
-        console.warn('WARNING: Invoice already expired or about to expire on client side!');
-      }
-    } else {
-         console.warn('WARNING: expiresAt prop is null or invalid in InvoiceModal.');
-    }
-    console.log('--- FRONTEND DEBUG END ---');
-  }, [expiresAt]); // Log when expiresAt changes
-
   // Effect for countdown timer
   useEffect(() => {
-    if (!expiresAt) {
+    // If expiresAt is not provided or invalid, treat as expired
+    if (!expiresAt || typeof expiresAt !== 'number' || expiresAt <= 0) {
       setCountdown(0);
       setIsExpired(true);
       return;
     }
 
     const calculateRemaining = () => {
-      const now = Date.now();
+      const now = Date.now(); // Current client time in milliseconds
+      // Calculate remaining time in seconds
       const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
       setCountdown(remaining);
 
@@ -47,18 +32,21 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
       }
     };
 
+    // Set initial countdown immediately
     calculateRemaining();
+    // Set up interval to update countdown every second
     timerIntervalRef.current = setInterval(calculateRemaining, 1000);
 
+    // Cleanup function to clear interval when component unmounts or deps change
     return () => {
       clearInterval(timerIntervalRef.current);
     };
-  }, [expiresAt]);
+  }, [expiresAt]); // Re-run effect if expiresAt changes
 
   // Effect for QR code generation
   useEffect(() => {
     const invoiceText = order?.invoice || '';
-    if (invoiceText && isValidQRValue(invoiceText)) {
+    if (invoiceText && isValidQRValue(invoiceText) && !isExpired) { // Only generate QR if valid and not expired
       QRCodeLib.toDataURL(invoiceText, {
         errorCorrectionLevel: 'M',
         width: 140,
@@ -72,10 +60,9 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
         setQrCodeDataUrl('');
       });
     } else {
-      setQrCodeDataUrl('');
+      setQrCodeDataUrl(''); // Clear QR if no invoice, invalid, or expired
     }
-  }, [order?.invoice, isValidQRValue]);
-
+  }, [order?.invoice, isValidQRValue, isExpired]); // Add isExpired to dependencies for QR generation
 
   const formatTime = sec => {
     if (sec < 0) return '0:00';
@@ -86,7 +73,7 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
 
   const handleCopyToClipboard = () => {
     const text = order?.invoice || '';
-    if (!text || isExpired) return;
+    if (!text || isExpired) return; // Prevent copying if expired
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -95,7 +82,7 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
     });
   };
 
-  if (!order) return null;
+  if (!order) return null; // Don't render if no order data
 
   const invoiceText = order.invoice || '';
 
@@ -122,7 +109,7 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
           fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
         >
           <div className="qr-container mb-md">
-            {qrCodeDataUrl && !isExpired ? (
+            {qrCodeDataUrl && !isExpired ? ( // Only show QR if data exists and not expired
               <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={140} height={140} />
             ) : isExpired ? (
               <p className="alert alert-danger">QR code expired.</p>

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
     const payment = await response.json();
 
-    // --- NEW LOGGING START ---
+    // --- DEBUG LOGGING ---
     console.log('--- DEBUG: Speed API Response Start ---');
     console.log('Raw Speed API payment object:', JSON.stringify(payment, null, 2));
     console.log('Current server time (Date.now()):', Date.now());
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
         console.warn('WARNING: Speed API did not return expires_at in the response.');
     }
     console.log('--- DEBUG: Speed API Response End ---');
-    // --- NEW LOGGING END ---
+    // --- END DEBUG LOGGING ---
 
     // Validate Speed API response
     if (
@@ -64,6 +64,7 @@ export default async function handler(req, res) {
 
     const invoice = payment.payment_method_options.lightning.payment_request;
 
+    // --- Retrieve expiresAt from Speed API (already in milliseconds) ---
     let expiresAt = null;
     if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
       expiresAt = payment.expires_at; // Use directly as it's already in milliseconds
@@ -73,7 +74,6 @@ export default async function handler(req, res) {
         expiresAt = parsedExpiresAt; // Use directly as it's already in milliseconds
       }
     }
-
     // --- LOGGING for expiresAt AFTER parsing ---
     console.log('Parsed expiresAt to be sent to frontend:', expiresAt);
     if (expiresAt && (expiresAt - Date.now() <= 0)) {
@@ -84,6 +84,7 @@ export default async function handler(req, res) {
     let btc = 'N/A';
     const requestedAmountUSD = parseFloat(amount);
 
+    // Calculate BTC amount or fetch from CoinGecko if Speed API doesn't provide it
     if (payment.amount_in_satoshis && typeof payment.amount_in_satoshis === 'number' && payment.amount_in_satoshis > 0) {
       btc = (payment.amount_in_satoshis / 100000000).toFixed(8);
     } else {
@@ -106,6 +107,7 @@ export default async function handler(req, res) {
       }
     }
 
+    // Save order with invoice for frontend QR code
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -113,13 +115,14 @@ export default async function handler(req, res) {
       amount,
       btc,
       method,
-      status: 'pending',
-      invoice,
+      status: 'pending', // Initial status
+      invoice, // IMPORTANT: raw Lightning invoice string here
       created: new Date().toISOString(),
-      expiresAt: expiresAt,
+      expiresAt: expiresAt, // Store the actual expiry timestamp in Firebase
       paidManually: false,
     });
 
+    // IMPORTANT: Returning expiresAt to the frontend
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
     console.error('Speed API or payment processing error:', err.message || err);

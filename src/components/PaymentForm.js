@@ -1,13 +1,13 @@
 // src/components/PaymentForm.js
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../lib/firebaseClient'; // Adjust path based on your lib folder
-import QRCodeLib from 'qrcode'; // Import the base qrcode library
+import { db } from '../lib/firebaseClient';
+import QRCodeLib from 'qrcode';
 
-// Import Modals (assuming they are in the same src/components/ directory)
+// Import Modals
 import InvoiceModal from './InvoiceModal';
 import ExpiredModal from './ExpiredModal';
 import ReceiptModal from './ReceiptModal';
-import QRErrorBoundary from './QRErrorBoundary'; // Ensure this path is correct
+import QRErrorBoundary from './QRErrorBoundary';
 
 export default function PaymentForm() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -18,11 +18,9 @@ export default function PaymentForm() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false });
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(''); // State for QR code data URL
 
   // Use a ref to store the expiresAt timestamp for more reliable countdown
   const expiresAtRef = useRef(null);
-
   const pollingRef = useRef(null);
 
   useEffect(() => {
@@ -38,8 +36,12 @@ export default function PaymentForm() {
     loadGames();
   }, []);
 
+  // Polling useEffect for status updates
   useEffect(() => {
-    if (!order || status !== 'pending') return;
+    if (!order || status !== 'pending') {
+      clearInterval(pollingRef.current); // Ensure polling stops if not in pending state
+      return;
+    }
 
     // Clear any existing polling interval before setting a new one
     if (pollingRef.current) {
@@ -50,6 +52,7 @@ export default function PaymentForm() {
       try {
         const res = await fetch(`/api/check-status?id=${order.orderId}`);
         const data = await res.json();
+        
         if (data?.status === 'paid') {
           setStatus('paid');
           setOrder(prev => ({ ...prev, status: 'paid' }));
@@ -67,29 +70,8 @@ export default function PaymentForm() {
       }
     }, 3000); // Poll every 3 seconds
 
-    return () => clearInterval(pollingRef.current);
-  }, [order, status]);
-
-  // Effect for QR code generation
-  useEffect(() => {
-    const invoiceText = order?.invoice || '';
-    if (invoiceText && isValidQRValue(invoiceText)) {
-      QRCodeLib.toDataURL(invoiceText, {
-        errorCorrectionLevel: 'M',
-        width: 140,
-        margin: 2,
-      })
-      .then(url => {
-        setQrCodeDataUrl(url);
-      })
-      .catch(err => {
-        console.error('Failed to generate QR code data URL in PaymentForm component:', err);
-        setQrCodeDataUrl('');
-      });
-    } else {
-      setQrCodeDataUrl('');
-    }
-  }, [order?.invoice]); // Regenerate QR code if invoice changes
+    return () => clearInterval(pollingRef.current); // Cleanup
+  }, [order, status]); // Dependencies: re-run if order or overall status changes
 
   const resetAllModals = () => {
     setModals({ invoice: false, receipt: false, expired: false });
@@ -97,7 +79,8 @@ export default function PaymentForm() {
     expiresAtRef.current = null; // Clear expiry timestamp
     clearInterval(pollingRef.current); // Ensure polling stops
     setError('');
-    setQrCodeDataUrl(''); // Also clear QR code
+    // Optionally reset form if you want the user to start fresh
+    // setForm({ username: '', game: '', amount: '', method: 'lightning' });
   };
 
   const copyToClipboard = () => {
@@ -250,7 +233,6 @@ export default function PaymentForm() {
           setCopied={setCopied}
           copied={copied}
           resetModals={resetAllModals}
-          qrCodeDataUrl={qrCodeDataUrl} // Pass the generated QR code URL
           isValidQRValue={isValidQRValue}
         />
       )}
