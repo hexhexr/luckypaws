@@ -18,8 +18,8 @@ export default async function handler(req, res) {
   const payload = {
     amount: Number(amount),
     currency: 'USD',
-    success_url: 'https://luckypaws.vercel.app/receipt',
-    cancel_url: 'https://luckypaws.vercel.app',
+    success_url: 'https://luckypaws.vercel.app/receipt', // Ensure this URL is correct for your app
+    cancel_url: 'https://luckypaws.vercel.app', // Ensure this URL is correct for your app
   };
 
   try {
@@ -35,21 +35,35 @@ export default async function handler(req, res) {
     });
 
     const payment = await response.json();
-    // Confirmed from your Speed API response: 'expires_at' is already in MILLISECONDS.
-    // console.log('Speed API payment object:', payment);
+
+    // --- NEW LOGGING START ---
+    console.log('--- DEBUG: Speed API Response Start ---');
+    console.log('Raw Speed API payment object:', JSON.stringify(payment, null, 2));
+    console.log('Current server time (Date.now()):', Date.now());
+    if (payment.expires_at) {
+        console.log('Speed API expires_at:', payment.expires_at, '(Unix ms timestamp)');
+        const remainingTimeOnServer = Math.max(0, Math.floor((payment.expires_at - Date.now()) / 1000));
+        console.log(`Remaining time on server before expiry: ${remainingTimeOnServer} seconds`);
+        if (remainingTimeOnServer <= 0) {
+            console.error('ERROR: Invoice expires_at is already in the past or very short on server!');
+        }
+    } else {
+        console.warn('WARNING: Speed API did not return expires_at in the response.');
+    }
+    console.log('--- DEBUG: Speed API Response End ---');
+    // --- NEW LOGGING END ---
 
     // Validate Speed API response
     if (
       !payment.id ||
       !payment.payment_method_options?.lightning?.payment_request
     ) {
-      console.error('Invalid response from Speed API:', JSON.stringify(payment, null, 2));
+      console.error('Invalid response from Speed API: Missing ID or invoice', JSON.stringify(payment, null, 2));
       return res.status(500).json({ message: 'Invalid response from Speed API', payment });
     }
 
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // --- Retrieve expiresAt from Speed API (already in milliseconds) ---
     let expiresAt = null;
     if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
       expiresAt = payment.expires_at; // Use directly as it's already in milliseconds
@@ -59,7 +73,13 @@ export default async function handler(req, res) {
         expiresAt = parsedExpiresAt; // Use directly as it's already in milliseconds
       }
     }
-    // --- End expiresAt retrieval ---
+
+    // --- LOGGING for expiresAt AFTER parsing ---
+    console.log('Parsed expiresAt to be sent to frontend:', expiresAt);
+    if (expiresAt && (expiresAt - Date.now() <= 0)) {
+        console.error('ERROR: Parsed expiresAt is past current server time!');
+    }
+    // --- End Logging ---
 
     let btc = 'N/A';
     const requestedAmountUSD = parseFloat(amount);
@@ -96,14 +116,13 @@ export default async function handler(req, res) {
       status: 'pending',
       invoice,
       created: new Date().toISOString(),
-      expiresAt: expiresAt, // Store the actual expiry timestamp
+      expiresAt: expiresAt,
       paidManually: false,
     });
 
-    // IMPORTANT: Returning expiresAt to the frontend
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
-    console.error('Speed API error:', err);
-    return res.status(500).json({ message: 'Speed API failed', error: err.message });
+    console.error('Speed API or payment processing error:', err.message || err);
+    return res.status(500).json({ message: 'Payment creation failed', error: err.message });
   }
 }
