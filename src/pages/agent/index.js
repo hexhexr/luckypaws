@@ -75,7 +75,7 @@ export default function AgentPage() {
           const data = docSnapshot.data();
           if (data.locked && data.pageCode) {
             setPageCode(data.pageCode);
-            setLockCodePage(true);
+            setLockCodePage(true); // <--- This sets the checkbox
             // Only show success message if not currently saving, to avoid conflicts
             if (!isSavingPageCode) { 
                 setMessage({ text: 'Page code loaded and locked from Firebase.', type: 'success' });
