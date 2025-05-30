@@ -1,4 +1,4 @@
-import { db } from '../../lib/firebaseAdmin'; // Adjust path to firebaseAdmin
+import { db } from '../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -12,31 +12,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-    const cashoutsSnapshot = await db
-      .collection('cashouts') // Assuming you have a 'cashouts' collection
-      .where('username', '==', username)
+    const snapshot = await db
+      .collection('cashouts')
+      .where('username', '==', username.trim().toLowerCase())
       .where('createdAt', '>=', twentyFourHoursAgo)
       .get();
 
-    let totalCashoutsIn24Hours = 0;
-    cashoutsSnapshot.forEach(doc => {
-      totalCashoutsIn24Hours += parseFloat(doc.data().amount || 0);
+    let totalCashouts = 0;
+    snapshot.forEach(doc => {
+      const amt = parseFloat(doc.data()?.amount || 0);
+      if (!isNaN(amt)) totalCashouts += amt;
     });
 
-    const maxCashoutLimit = 300; // Define your 24-hour limit
-    const remainingLimit = Math.max(0, maxCashoutLimit - totalCashoutsIn24Hours);
+    const maxLimit = 300;
+    const remaining = Math.max(0, maxLimit - totalCashouts);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      username: username,
-      totalCashoutsToday: totalCashoutsIn24Hours,
-      remainingLimit: remainingLimit,
+      username,
+      totalCashoutsToday: totalCashouts,
+      remainingLimit: remaining,
     });
-
-  } catch (error) {
-    console.error('Error fetching cashout limit:', error);
-    res.status(500).json({ message: `Failed to fetch cashout limit: ${error.message}` });
+  } catch (err) {
+    console.error('Error getting cashout limit:', err);
+    return res.status(500).json({ message: `Internal error: ${err.message}` });
   }
 }
