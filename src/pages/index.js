@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react'; // Import useRef
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import PaymentForm from '../components/PaymentForm';
+import PaymentForm from '../components/PaymentForm'; // Import the new PaymentForm component
 
 export default function Home() {
   const paymentFormRef = useRef(null); // Create a ref for the payment form section
@@ -46,7 +46,7 @@ export default function Home() {
             <div className="card">
               <h2 className="card-header text-center">Secure & Instant Top-Up</h2>
               <div className="card-body">
-                <PaymentForm />
+                <PaymentForm /> {/* Render the PaymentForm component here */}
               </div>
             </div>
           </div>

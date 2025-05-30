@@ -81,7 +81,7 @@ export default function InvoiceModal({ order, expiresAt, setCopied, copied, rese
     if (sec < 0) return '0:00';
     const min = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, '0');
-    return `<span class="math-inline">\{min\}\:</span>{s}`;
+    return `${min}:${s}`;
   };
 
   const handleCopyToClipboard = () => {

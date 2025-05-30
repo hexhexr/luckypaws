@@ -25,7 +25,7 @@ class QRErrorBoundary extends React.Component {
         <div className="alert alert-danger">
           <p>⚠️ Error displaying QR code.</p>
           <p>Please try copying the invoice text manually.</p>
-          {this.state.error && <p style={{fontSize: 'small', marginTop: '10px'}}><strong>Error details:</strong> {this.state.error.toString()}</p>}
+          {this.state.error && <p style={{fontSize: 'small', marginTop: '10px'}}><strong>Error details:</strong> {this.state.error.toString()}</p>}\
         </div>
       );
     }

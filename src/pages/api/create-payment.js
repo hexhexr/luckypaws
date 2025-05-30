@@ -1,3 +1,4 @@
+// pages/api/create-payment.js
 import { db } from '../../lib/firebaseAdmin';
 
 export default async function handler(req, res) {
@@ -34,67 +35,73 @@ export default async function handler(req, res) {
     });
 
     const payment = await response.json();
-    console.log('Speed API payment object:', payment); // Added for debugging Speed API response
+    // Confirmed from your Speed API response: 'expires_at' is already in MILLISECONDS.
+    // console.log('Speed API payment object:', payment);
 
     // Validate Speed API response
     if (
       !payment.id ||
       !payment.payment_method_options?.lightning?.payment_request
     ) {
-      // Log the full payment object for better debugging in case of invalid response
       console.error('Invalid response from Speed API:', JSON.stringify(payment, null, 2));
       return res.status(500).json({ message: 'Invalid response from Speed API', payment });
     }
 
-    // Lightning invoice from Speed API
     const invoice = payment.payment_method_options.lightning.payment_request;
 
-    // BTC calculation (use sats if available, fallback to CoinGecko)
-    let btc = 'N/A'; // Default to 'N/A' to indicate calculation issues
-    const requestedAmountUSD = parseFloat(amount); // Ensure amount is a number
+    // --- Retrieve expiresAt from Speed API (already in milliseconds) ---
+    let expiresAt = null;
+    if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
+      expiresAt = payment.expires_at; // Use directly as it's already in milliseconds
+    } else if (typeof payment.expires_at === 'string') {
+      const parsedExpiresAt = Number(payment.expires_at);
+      if (!isNaN(parsedExpiresAt) && parsedExpiresAt > 0) {
+        expiresAt = parsedExpiresAt; // Use directly as it's already in milliseconds
+      }
+    }
+    // --- End expiresAt retrieval ---
 
-    // Prioritize Speed API's amount_in_satoshis if available and valid
+    let btc = 'N/A';
+    const requestedAmountUSD = parseFloat(amount);
+
     if (payment.amount_in_satoshis && typeof payment.amount_in_satoshis === 'number' && payment.amount_in_satoshis > 0) {
-      btc = (payment.amount_in_satoshis / 100000000).toFixed(8); // Convert sats to BTC
+      btc = (payment.amount_in_satoshis / 100000000).toFixed(8);
     } else {
-      // Fallback to CoinGecko if sats are not provided or are zero
       try {
         const btcRes = await fetch(
           'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
         );
         const btcData = await btcRes.json();
-        console.log('CoinGecko Data:', btcData); // Added for debugging CoinGecko response
-        const rate = btcData?.bitcoin?.usd; // Safely access nested property
+        const rate = btcData?.bitcoin?.usd;
 
         if (rate && typeof rate === 'number' && rate > 0) {
-          btc = (requestedAmountUSD / rate).toFixed(8); // Calculate BTC from USD and rate
+          btc = (requestedAmountUSD / rate).toFixed(8);
         } else {
-          console.warn('CoinGecko rate not found or invalid:', rate); // Log if rate is problematic
-          btc = 'N/A - Rate Error'; // More specific fallback message
+          console.warn('CoinGecko rate not found or invalid:', rate);
+          btc = 'N/A - Rate Error';
         }
       } catch (e) {
-        console.error('CoinGecko BTC fallback failed:', e); // Log CoinGecko fetch errors
-        btc = 'N/A - CoinGecko Error'; // More specific fallback message
+        console.error('CoinGecko BTC fallback failed:', e);
+        btc = 'N/A - CoinGecko Error';
       }
     }
 
-    // Save order with invoice for frontend QR code
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
       game,
       amount,
-      btc, // Use the calculated BTC string
+      btc,
       method,
       status: 'pending',
-      invoice, // IMPORTANT: raw Lightning invoice string here
+      invoice,
       created: new Date().toISOString(),
+      expiresAt: expiresAt, // Store the actual expiry timestamp
       paidManually: false,
     });
 
-    // Return invoice and orderId for frontend
-    // Ensure btc is returned as part of the response
-    return res.status(200).json({ orderId: payment.id, invoice, btc });
+    // IMPORTANT: Returning expiresAt to the frontend
+    return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
     console.error('Speed API error:', err);
     return res.status(500).json({ message: 'Speed API failed', error: err.message });
