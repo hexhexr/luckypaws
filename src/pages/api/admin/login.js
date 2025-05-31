@@ -1,30 +1,28 @@
-// pages/api/admin/login.js
-import { auth as adminAuth } from '../../lib/firebaseAdmin'; // Import Firebase Admin Auth
+// src/pages/api/admin/login.js
+// This API route handles custom username/password validation for admin login
+// and generates a Firebase Custom Token upon success.
+
+import { auth as adminAuth } from '../../../lib/firebaseAdmin'; // Corrected import path
 
 export default async function handler(req, res) {
+  // Ensure only POST requests are allowed for login attempts.
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { username, password } = req.body;
 
-  // --- BEGIN DEBUGGING LOGS (REMOVE AFTER CONFIRMATION) ---
-  console.log('--- Admin Login Attempt (Custom Token Flow) ---');
-  console.log('Received Username:', username);
-  console.log('Received Password:', password ? '********' : 'undefined');
+  // Load environment variables directly within the handler
   const VALID_ADMIN_USERNAME = process.env.ADMIN_USERNAME;
   const VALID_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-  console.log('Expected Username (from env):', VALID_ADMIN_USERNAME);
-  console.log('Expected Password (from env):', VALID_ADMIN_PASSWORD ? '********' : 'undefined');
-  // --- END DEBUGGING LOGS ---
 
   // Perform the custom validation against environment variables
   if (username === VALID_ADMIN_USERNAME && password === VALID_ADMIN_PASSWORD) {
     try {
-      // Assuming you have a specific Firebase UID for your "master" admin account.
-      // This UID should be the same as the document ID in your 'users' collection for the admin.
-      // You created this user in Firebase Auth in "Part 2" of the previous guide.
-      const adminFirebaseUid = process.env.FIREBASE_ADMIN_UID; // YOU MUST SET THIS ENV VAR!
+      // Get the Firebase UID for your "master" admin account from environment variables.
+      // This UID should be the same as the document ID in your 'users' collection for the admin,
+      // and the UID of the user you created in Firebase Authentication.
+      const adminFirebaseUid = process.env.FIREBASE_ADMIN_UID;
       
       if (!adminFirebaseUid) {
           console.error("FIREBASE_ADMIN_UID environment variable is not set!");
@@ -32,6 +30,7 @@ export default async function handler(req, res) {
       }
 
       // Generate a Firebase Custom Token for the specific admin UID
+      // The { admin: true } claim can be used in Firestore Security Rules
       const customToken = await adminAuth.createCustomToken(adminFirebaseUid, { admin: true });
       
       console.log('Admin login: Credentials MATCHED. Custom token generated.');
