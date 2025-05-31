@@ -7,7 +7,7 @@ import { auth as firebaseAuth } from '../../../../lib/firebaseClient'; // Correc
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
-// --- Helper Components (using Tailwind CSS classes) ---
+// --- Helper Components (using Tailwind CSS classes) ---e
 
 const StatCard = ({ title, value, icon, color }) => (
     <div className="bg-white rounded-lg shadow-md p-6 relative overflow-hidden border-t-4" style={{ borderColor: color }}>
