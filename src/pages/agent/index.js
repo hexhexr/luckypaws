@@ -1,140 +1,136 @@
 // pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-import { db } from '../../lib/firebaseClient'; // Ensure this path is correct for your Firebase client initialization
+import { db, auth } from '../../lib/firebaseClient'; // Import auth from firebaseClient
+import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc } from 'firebase/firestore'; // Import Firestore functions
+import { useRouter } from 'next/router';
 
 export default function AgentPage() {
+  const router = useRouter();
+  const [user, setUser] = useState(null); // Current authenticated user
+  const [agentProfile, setAgentProfile] = useState(null); // Agent's profile from 'users' collection
+
   const [pageCode, setPageCode] = useState('');
   const [lockPageCode, setLockCodePage] = useState(false);
-  const [isSavingPageCode, setIsSavingPageCode] = useState(false); // New state for saving page code to Firebase
+  const [isSavingPageCode, setIsSavingPageCode] = useState(false);
   const [facebookName, setFacebookName] = useState('');
-  const [generatedUsername, setGeneratedUsername] = useState(''); // Single username
+  const [generatedUsername, setGeneratedUsername] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
   const [isLoading, setIsLoading] = useState(false);
 
-  // For selected customer financials
   const [customerUsername, setCustomerUsername] = useState('');
-  const [cashoutLimitRemaining, setCashoutLimitRemaining] = useState(300); // Default to 300
+  const [cashoutLimitRemaining, setCashoutLimitRemaining] = useState(null); // Set to null initially
   const [customerFinancialsLoading, setCustomerFinancialsLoading] = useState(false);
+  const [cashoutMessage, setCashoutMessage] = useState({ text: '', type: '' });
 
-  // For global live deposits
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
-  const [allDepositsListener, setAllDepositsListener] = useState(null); // Listener for all deposits
+  // allDepositsListener state is not strictly needed if cleanup is handled by useEffect return
 
-
-  // --- Firebase Page Code Locking Logic ---
-  // Firebase Document Reference for Agent Settings (assuming a single agent config for now)
+  // --- Firebase Document Reference for Agent Settings (assuming a single agent config for now) ---
   const agentSettingsRef = useMemo(() => {
-    return db ? db.collection('agentSettings').doc('pageCodeConfig') : null;
-  }, [db]);
+    // This assumes a document 'pageCodeConfig' in the 'agentSettings' collection.
+    // Make sure your Firestore rules allow access to this path.
+    return doc(db, 'agentSettings', 'pageCodeConfig');
+  }, []);
 
-  // Function to save page code settings to Firebase
-  const savePageCodeSettingsToFirebase = useCallback(async (codeToSave, lockState) => {
-    if (!agentSettingsRef) {
-      console.warn('Firebase client (db) not initialized for saving agent settings.');
-      setMessage({ text: 'Firebase is not ready to save settings. Please check your Firebase setup.', type: 'error' });
-      return;
-    }
-    setIsSavingPageCode(true);
-    try {
-      if (lockState) {
-        await agentSettingsRef.set({
-          pageCode: codeToSave,
-          locked: true,
-          updatedAt: new Date().toISOString()
-        });
-        setMessage({ text: 'Page code locked and saved to Firebase!', type: 'success' });
-      } else {
-        // When unlocking, clear the pageCode in Firebase and set locked to false
-        await agentSettingsRef.set({
-          pageCode: '', 
-          locked: false,
-          updatedAt: new Date().toISOString()
-        });
-        setMessage({ text: 'Page code unlocked and cleared from Firebase.', type: 'success' });
+  // --- Authentication Protection & Agent Profile Fetch ---
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        // No user is logged in, redirect to agent login
+        console.log('No user logged in, redirecting to /agent/login');
+        router.replace('/agent/login');
+        return;
       }
+
+      setUser(currentUser); // Set the current Firebase Auth user
+
+      // Fetch user role from Firestore
+      try {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists() && userDocSnap.data().role === 'agent') {
+          setAgentProfile(userDocSnap.data());
+          console.log('Agent user authenticated:', currentUser.email);
+          // Only record login time if this is a fresh login, or if session persisted (handled by login page)
+          // The login page already sends a record-login request on successful authentication.
+          // This ensures the page is only accessed by authenticated agents.
+        } else {
+          // User is authenticated but not an agent
+          console.warn('Authenticated user is not an agent. Signing out.');
+          await auth.signOut();
+          router.replace('/agent/login?error=unauthorized');
+        }
+      } catch (error) {
+        console.error('Error fetching agent profile:', error);
+        await auth.signOut(); // Sign out on error
+        router.replace('/agent/login?error=profile_fetch_failed');
+      }
+    });
+
+    return () => unsubscribeAuth(); // Clean up auth listener
+  }, [router]);
+
+  // --- Page Code Locking Logic ---
+  useEffect(() => {
+    if (!user) return; // Only run if user is authenticated
+
+    const unsubscribe = onSnapshot(agentSettingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setPageCode(data.pageCode || '');
+        setLockCodePage(data.locked || false);
+        setMessage({ text: 'Page code settings loaded.', type: 'success' });
+      } else {
+        setMessage({ text: 'No page code settings found. Create one.', type: 'error' });
+        setPageCode('');
+        setLockCodePage(false);
+      }
+    }, (error) => {
+      console.error('Error listening to page code settings:', error);
+      setMessage({ text: 'Error fetching page code settings: ' + error.message, type: 'error' });
+    });
+
+    return () => unsubscribe(); // Clean up listener on component unmount
+  }, [user, agentSettingsRef]); // Depend on user to ensure it runs after authentication
+
+  const savePageCodeSettingsToFirebase = useCallback(async () => {
+    setIsSavingPageCode(true);
+    setMessage({ text: '', type: '' });
+    try {
+      // Only an admin should be able to update pageCodeConfig
+      // The frontend button should ideally be hidden from agents, or API should check roles.
+      // For now, it's accessible, but Firestore rules will prevent agent writes.
+      await updateDoc(agentSettingsRef, {
+        pageCode: pageCode,
+        locked: lockPageCode,
+        lastUpdated: new Date().toISOString(),
+      });
+      setMessage({ text: 'Page code settings saved successfully!', type: 'success' });
     } catch (error) {
-      console.error('Error saving page code to Firebase:', error);
-      setMessage({ text: `Failed to save page code settings: ${error.message}`, type: 'error' });
+      console.error('Error saving page code settings:', error);
+      setMessage({ text: 'Failed to save page code settings. ' + error.message, type: 'error' });
     } finally {
       setIsSavingPageCode(false);
     }
-  }, [agentSettingsRef]);
+  }, [pageCode, lockPageCode, agentSettingsRef]);
 
-  // Effect to load page code and lock status from Firebase on component mount
-  useEffect(() => {
-    if (!agentSettingsRef) {
-      console.warn('Firebase client (db) not initialized for loading agent settings.');
-      return;
-    }
-
-    // Subscribe to real-time updates for agent settings
-    const unsubscribe = agentSettingsRef.onSnapshot(
-      (docSnapshot) => {
-        if (docSnapshot.exists) {
-          const data = docSnapshot.data();
-          if (data.locked && data.pageCode) {
-            setPageCode(data.pageCode);
-            setLockCodePage(true); // <--- This sets the checkbox
-            // Only show success message if not currently saving, to avoid conflicts
-            if (!isSavingPageCode) { 
-                setMessage({ text: 'Page code loaded and locked from Firebase.', type: 'success' });
-            }
-          } else {
-            // If unlocked in Firebase or no data, ensure UI reflects it
-            setLockCodePage(false);
-            setPageCode(''); // Clear page code if it's unlocked in Firebase
-          }
-        } else {
-          // Document doesn't exist, so no locked page code
-          setLockCodePage(false);
-          setPageCode(''); // Clear page code if nothing in Firebase
-        }
-      },
-      (error) => {
-        console.error('Error loading page code from Firebase:', error);
-        setMessage({ text: `Failed to load page code settings: ${error.message}`, type: 'error' });
-      }
-    );
-
-    return () => unsubscribe(); // Unsubscribe on component unmount
-  }, [agentSettingsRef, isSavingPageCode]); // isSavingPageCode added to re-render if it changes, to update messages
-
-
-  // Handler for when the "Lock Code" checkbox is toggled
-  const handleLockPageCodeChange = async (e) => {
-    const newLockState = e.target.checked;
-    setLockCodePage(newLockState); // Update local state immediately
-    await savePageCodeSettingsToFirebase(pageCode, newLockState); // Explicitly save to Firebase
-  };
-
-  // Handler for when pageCode input loses focus (only save if locked)
-  const handlePageCodeBlur = async () => {
-    if (lockPageCode && pageCode.trim() !== '') {
-      await savePageCodeSettingsToFirebase(pageCode, true);
-    }
-  };
-
-
+  // --- Username Generation Logic ---
   const handleGenerateUsername = async (e) => {
     e.preventDefault();
-    setMessage({ text: '', type: '' });
     setGeneratedUsername('');
+    setMessage({ text: '', type: '' });
     setIsLoading(true);
 
-    if (!facebookName.trim()) {
-      setMessage({ text: 'Please enter a Facebook name.', type: 'error' });
-      setIsLoading(false);
-      return;
-    }
-    if (!pageCode.trim()) {
-      setMessage({ text: 'Please enter a Page Code.', type: 'error' });
+    if (!facebookName.trim() || !pageCode.trim()) {
+      setMessage({ text: 'Please enter Facebook Name and Page Code.', type: 'error' });
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/generate-username', { // Changed to single username API
+      const response = await fetch('/api/generate-username', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ facebookName, pageCode }),
@@ -146,173 +142,196 @@ export default function AgentPage() {
         setGeneratedUsername(data.username);
         setMessage({ text: data.message, type: 'success' });
       } else {
-        setMessage({ text: data.message || 'An unknown error occurred.', type: 'error' });
-        setGeneratedUsername(data.username || ''); // Still show attempted username for context
+        setMessage({ text: data.message || 'Failed to generate username.', type: 'error' });
       }
     } catch (error) {
-      console.error('Frontend error:', error);
-      setMessage({ text: 'Network error. Please try again.', type: 'error' });
+      console.error('Error generating username:', error);
+      setMessage({ text: 'An unexpected error occurred while generating username.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- Customer Cashout Limit Logic (now with a button) ---
-  const fetchCustomerCashoutLimit = useCallback(async () => {
+  // --- Customer Cashout Limit Logic ---
+  const fetchCustomerCashoutLimit = async (e) => {
+    e.preventDefault();
+    setCashoutLimitRemaining(null);
+    setCashoutMessage({ text: '', type: '' });
+    setCustomerFinancialsLoading(true);
+
     if (!customerUsername.trim()) {
-      setMessage({ text: 'Please enter a customer username to check limit.', type: 'error' });
-      setCashoutLimitRemaining(300); // Reset to default if no username
+      setCashoutMessage({ text: 'Please enter a customer username.', type: 'error' });
+      setCustomerFinancialsLoading(false);
       return;
     }
 
-    setCustomerFinancialsLoading(true);
-    setMessage({ text: '', type: '' }); // Clear any previous messages
-
     try {
-      const cashoutRes = await fetch(`/api/customer-cashout-limit?username=${encodeURIComponent(customerUsername)}`);
-      const cashoutData = await cashoutRes.json();
-      if (cashoutRes.ok) {
-        setCashoutLimitRemaining(cashoutData.remainingLimit);
+      const response = await fetch(`/api/customer-cashout-limit?username=${encodeURIComponent(customerUsername.trim())}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setCashoutLimitRemaining(data.remainingLimit);
+        setCashoutMessage({
+          text: `Limit for ${data.username}: $${data.remainingLimit.toFixed(2)} (Total cashed out: $${data.totalCashoutsToday.toFixed(2)})`,
+          type: 'success'
+        });
       } else {
-        setMessage({ text: `Cashout limit error: ${cashoutData.message}`, type: 'error' });
-        setCashoutLimitRemaining(300); // Reset to default on error
+        setCashoutMessage({ text: data.message || 'Failed to fetch cashout limit.', type: 'error' });
       }
     } catch (error) {
       console.error('Error fetching cashout limit:', error);
-      setMessage({ text: 'Network error fetching cashout limit.', type: 'error' });
+      setCashoutMessage({ text: 'An unexpected error occurred while fetching cashout limit.', type: 'error' });
     } finally {
       setCustomerFinancialsLoading(false);
     }
-  }, [customerUsername]);
+  };
 
-
-  // Effect for GLOBAL Last 10 Deposits (live)
+  // --- Live Deposit Checker (Last 10 Deposits) ---
   useEffect(() => {
-    // Ensure db is available before trying to use it
-    if (!db) {
-      console.warn('Firebase client (db) not initialized. This might be a server-side render or build environment. Live deposits will not load.');
-      setMessage({ text: 'Failed to load live deposits for all users: Firebase not initialized.', type: 'error' });
-      return;
-    }
+    if (!user) return; // Only run if user is authenticated
 
-    // If an existing listener is active, unsubscribe it first
-    if (allDepositsListener) {
-      allDepositsListener();
-    }
-
-    const depositsRef = db
-      .collection('orders')
-      .where('status', '==', 'paid') // Only paid deposits
-      .orderBy('createdAt', 'desc')
-      .limit(10); // Get the last 10 for all users
-
-    const unsubscribe = depositsRef.onSnapshot(
-      (snapshot) => {
-        const deposits = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setLast10AllDeposits(deposits);
-        // Clear message if it was a Firebase initialization error, but keep other errors
-        if (message.type === 'error' && message.text.includes('Firebase not initialized')) {
-            setMessage({ text: '', type: '' }); 
-        }
-      },
-      (error) => {
-        console.error('Error fetching real-time deposits for all users:', error);
-        setMessage({ text: 'Failed to load live deposits for all users: Connection error. Check Firebase rules and network.', type: 'error' });
-      }
+    // Query for last 10 paid deposits, ordered by creation time
+    const depositsQuery = query(
+      collection(db, 'orders'),
+      where('status', '==', 'paid'),
+      orderBy('createdAt', 'desc'), // Ensure 'createdAt' field exists and is indexed
+      // limit(10) // Limit is optional for real-time listener if you want all, but useful for initial fetch
     );
-    setAllDepositsListener(() => unsubscribe); // Store the unsubscribe function
 
-    // Cleanup function to unsubscribe from listener when component unmounts
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+    const unsubscribe = onSnapshot(depositsQuery, (snapshot) => {
+      const deposits = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        deposits.push({
+          id: doc.id,
+          username: data.username,
+          amount: parseFloat(data.amount || 0),
+          createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : null, // Handle Firebase Timestamp or ISO string
+        });
+      });
+      setLast10AllDeposits(deposits.slice(0, 10)); // Take only the last 10 from the fetched results
+      setMessage({ text: 'Live deposits updated.', type: 'success' });
+    }, (error) => {
+      console.error('Error fetching live deposits:', error);
+      setMessage({ text: 'Error fetching live deposits: ' + error.message, type: 'error' });
+    });
+
+    return () => unsubscribe(); // Clean up listener on component unmount
+  }, [user]); // Depend on user to ensure it runs after authentication
+
+  // --- Logout Functionality ---
+  const handleLogout = async () => {
+    if (user) {
+      try {
+        // Record logout time
+        await fetch('/api/agent/record-logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: user.uid }),
+        });
+        await auth.signOut(); // Sign out from Firebase
+        console.log('User signed out.');
+        router.replace('/agent/login'); // Redirect to login page
+      } catch (error) {
+        console.error('Error during logout:', error);
+        setMessage({ text: 'Failed to log out: ' + error.message, type: 'error' });
       }
-    };
-  }, [db, allDepositsListener, message.text, message.type]); // Added message dependencies to re-evaluate message display
+    }
+  };
 
-  const styles = useMemo(() => ({
+
+  // --- Styling (kept similar to original) ---
+  const styles = {
     container: {
       minHeight: '100vh',
       padding: '0 0.5rem',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
       alignItems: 'center',
       backgroundColor: '#f0f2f5',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '14px', // Smaller base font for extension
+      fontFamily: 'Inter, sans-serif',
+      paddingTop: '2rem',
+      paddingBottom: '2rem',
+    },
+    header: {
+      width: '100%',
+      maxWidth: '900px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '2rem',
+      padding: '0 1rem',
     },
     main: {
-      padding: '1.5rem', // Smaller padding
+      padding: '2rem',
       borderRadius: '8px',
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', // Lighter shadow
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
       backgroundColor: '#ffffff',
       textAlign: 'center',
-      maxWidth: '400px', // Smaller max width
+      maxWidth: '900px',
       width: '100%',
     },
     title: {
-      fontSize: '1.5rem', // Smaller title
-      marginBottom: '1rem',
+      fontSize: '2.5rem',
+      marginBottom: '1.5rem',
       color: '#333',
-    },
-    description: {
-      fontSize: '0.9rem',
-      color: '#555',
-      marginBottom: '1rem',
     },
     section: {
-      border: '1px solid #e0e0e0',
-      borderRadius: '6px',
-      padding: '1rem',
-      marginBottom: '1rem',
-      backgroundColor: '#f9f9f9',
+      marginBottom: '2rem',
+      border: '1px solid #eee',
+      padding: '1.5rem',
+      borderRadius: '8px',
+      backgroundColor: '#fafafa',
     },
     sectionTitle: {
-      fontSize: '1.1rem',
-      color: '#333',
-      marginBottom: '0.8rem',
-      borderBottom: '1px solid #eee',
-      paddingBottom: '0.5rem',
+      fontSize: '1.8rem',
+      marginBottom: '1rem',
+      color: '#0070f3',
     },
     form: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '0.8rem', // Smaller gap
+      gap: '1rem',
       marginBottom: '1rem',
+      alignItems: 'flex-start',
     },
     inputGroup: {
+      width: '100%',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'flex-start',
+      marginBottom: '0.5rem',
     },
     label: {
-      marginBottom: '0.4rem',
-      fontSize: '0.85rem',
+      marginBottom: '0.5rem',
+      fontSize: '0.9rem',
       color: '#444',
     },
     input: {
       width: '100%',
-      padding: '0.6rem', // Smaller padding
-      fontSize: '0.9rem',
+      padding: '0.8rem',
+      fontSize: '1rem',
       border: '1px solid #ddd',
       borderRadius: '4px',
     },
-    checkboxGroup: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      justifyContent: 'flex-start',
-    },
     button: {
-      padding: '0.6rem 1rem', // Smaller padding
-      fontSize: '0.9rem',
+      padding: '0.8rem 1.5rem',
+      fontSize: '1rem',
       backgroundColor: '#0070f3',
       color: 'white',
       border: 'none',
       borderRadius: '4px',
       cursor: 'pointer',
       transition: 'background-color 0.2s ease-in-out',
+      width: 'fit-content', // Adjusted to fit content
+      alignSelf: 'flex-end', // Aligns button to the right within flex column
+    },
+    buttonSecondary: {
+      backgroundColor: '#6c757d',
+    },
+    buttonDanger: {
+      backgroundColor: '#dc3545',
     },
     buttonDisabled: {
       backgroundColor: '#cccccc',
@@ -320,44 +339,18 @@ export default function AgentPage() {
     },
     successMessage: {
       color: '#28a745',
-      fontSize: '0.9rem',
-      marginTop: '0.8rem',
+      fontSize: '0.95rem',
+      marginTop: '1rem',
     },
     errorMessage: {
       color: '#dc3545',
-      fontSize: '0.9rem',
-      marginTop: '0.8rem',
+      fontSize: '0.95rem',
+      marginTop: '1rem',
     },
-    resultContainer: {
-      marginTop: '1.5rem',
-      padding: '1rem',
-      border: '1px dashed #0070f3',
-      borderRadius: '8px',
-      backgroundColor: '#e6f2ff',
-      textAlign: 'left',
-    },
-    resultTitle: {
-      fontSize: '1.1rem',
-      color: '#0070f3',
-      marginBottom: '0.6rem',
-    },
-    usernameDisplay: { // For single username
-      fontSize: '1.2rem',
-      fontWeight: 'bold',
-      color: '#333',
-      wordBreak: 'break-all',
-      textAlign: 'center',
-      padding: '0.5rem',
-      backgroundColor: '#fff',
-      border: '1px solid #ccc',
-      borderRadius: '4px',
-    },
-    financialsSummary: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '0.5rem',
-      textAlign: 'left',
-      fontSize: '0.9rem',
+    infoMessage: {
+      color: '#17a2b8',
+      fontSize: '0.95rem',
+      marginTop: '1rem',
     },
     depositsTable: {
       width: '100%',
@@ -365,63 +358,101 @@ export default function AgentPage() {
       marginTop: '1rem',
     },
     tableHeader: {
-      backgroundColor: '#e0e0e0',
-      padding: '0.5rem',
-      border: '1px solid #ccc',
+      borderBottom: '2px solid #ddd',
+      padding: '10px',
       textAlign: 'left',
-      fontSize: '0.8rem',
+      backgroundColor: '#e9ecef',
     },
     tableCell: {
-      padding: '0.5rem',
-      border: '1px solid #eee',
+      borderBottom: '1px solid #eee',
+      padding: '10px',
       textAlign: 'left',
-      fontSize: '0.8rem',
     },
-    textSuccess: { color: '#28a745' },
-    textDanger: { color: '#dc3545' },
-    textWarning: { color: '#ffc107' },
-  }), []);
+  };
+
+  if (!user || !agentProfile) {
+    // Optionally render a loading spinner or empty div until auth check is complete
+    return (
+      <div style={styles.container}>
+        <Head><title>Loading Agent Page...</title></Head>
+        <p>Loading agent dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
       <Head>
-        <title>Agent Username & Customer Tracker</title>
-        <meta name="description" content="Generate usernames and track customer financials for agents" />
+        <title>Agent Dashboard</title>
+        <meta name="description" content="Agent dashboard for managing customers and orders" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main style={styles.main}>
-        <h1 style={styles.title}>Agent Tools</h1>
+      <div style={styles.header}>
+        <h1 style={{ ...styles.title, marginBottom: 0 }}>Agent Dashboard</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {agentProfile && (
+            <span style={{ fontSize: '1rem', color: '#555' }}>
+              Welcome, {agentProfile.name || agentProfile.email}!
+            </span>
+          )}
+          <button
+            onClick={handleLogout}
+            style={{ ...styles.button, ...styles.buttonDanger }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
 
+      <main style={styles.main}>
+        {message.text && (
+          <p style={message.type === 'success' ? styles.successMessage : styles.errorMessage}>
+            {message.text}
+          </p>
+        )}
+
+        {/* Page Code Locking Section */}
         <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Generate Username</h2>
-          <form onSubmit={handleGenerateUsername} style={styles.form}>
+          <h2 style={styles.sectionTitle}>Page Code Management</h2>
+          <form style={styles.form}>
             <div style={styles.inputGroup}>
-              <label htmlFor="pageCode" style={styles.label}>Page Code:</label>
+              <label htmlFor="pageCode" style={styles.label}>Current Page Code:</label>
               <input
                 type="text"
                 id="pageCode"
                 value={pageCode}
                 onChange={(e) => setPageCode(e.target.value)}
-                onBlur={handlePageCodeBlur}
-                placeholder="e.g., 7976"
-                required
+                placeholder="Enter page code"
                 style={styles.input}
-                disabled={isLoading || isSavingPageCode}
+                disabled={lockPageCode || isSavingPageCode}
               />
-              <div style={styles.checkboxGroup}>
-                <input
-                  type="checkbox"
-                  id="lockPageCode"
-                  checked={lockPageCode}
-                  onChange={handleLockPageCodeChange}
-                  disabled={isSavingPageCode}
-                />
-                <label htmlFor="lockPageCode" style={styles.label}>Lock Code (Save to Firebase)</label>
-                {isSavingPageCode && <span style={{fontSize: '0.8em', marginLeft: '0.5rem', color: '#0070f3'}}>Saving...</span>}
-              </div>
             </div>
+            {lockPageCode && (
+              <p style={styles.infoMessage}>
+                This page code is locked by admin. You cannot change it.
+              </p>
+            )}
+            {!lockPageCode && (
+              <button
+                type="button"
+                onClick={savePageCodeSettingsToFirebase}
+                style={isSavingPageCode ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+                disabled={isSavingPageCode}
+              >
+                {isSavingPageCode ? 'Saving...' : 'Save Page Code'}
+              </button>
+            )}
+            <p style={{ fontSize: '0.85rem', color: '#777', marginTop: '0.5rem' }}>
+              *Page code can be locked by an admin from Firebase.
+            </p>
+          </form>
+        </div>
 
+        {/* Username Generation Section */}
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>Generate Customer Username</h2>
+          <form onSubmit={handleGenerateUsername} style={styles.form}>
             <div style={styles.inputGroup}>
               <label htmlFor="facebookName" style={styles.label}>Customer Facebook Name:</label>
               <input
@@ -429,76 +460,72 @@ export default function AgentPage() {
                 id="facebookName"
                 value={facebookName}
                 onChange={(e) => setFacebookName(e.target.value)}
-                placeholder="e.g., Mandi Lee"
+                placeholder="e.g., John Doe"
                 required
                 style={styles.input}
                 disabled={isLoading}
               />
             </div>
-
-            <button type="submit" disabled={isLoading} style={isLoading ? { ...styles.button, ...styles.buttonDisabled } : styles.button}>
+            <p style={{ fontSize: '0.9rem', color: '#555', alignSelf: 'flex-start' }}>
+              Page Code will be automatically used from the "Page Code Management" section above.
+            </p>
+            <button
+              type="submit"
+              style={isLoading ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+              disabled={isLoading}
+            >
               {isLoading ? 'Generating...' : 'Generate Username'}
             </button>
           </form>
-
-          {message.text && (
-            <p style={message.type === 'success' ? styles.successMessage : styles.errorMessage}>
-              {message.text}
-            </p>
-          )}
-
           {generatedUsername && (
-            <div style={styles.resultContainer}>
-              <h3 style={styles.resultTitle}>Generated Username:</h3>
-              <p style={styles.usernameDisplay}>{generatedUsername}</p>
-            </div>
+            <p style={styles.successMessage}>
+              Generated Username: <strong>{generatedUsername}</strong>
+            </p>
           )}
         </div>
 
+        {/* Customer Cashout Limit Section */}
         <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Customer Cashout Tracker</h2>
-          <div style={styles.form}>
+          <h2 style={styles.sectionTitle}>Check Customer Cashout Limit</h2>
+          <form onSubmit={fetchCustomerCashoutLimit} style={styles.form}>
             <div style={styles.inputGroup}>
-              <label htmlFor="customerUsername" style={styles.label}>Enter Customer Username:</label>
+              <label htmlFor="customerUsername" style={styles.label}>Customer Username:</label>
               <input
                 type="text"
                 id="customerUsername"
                 value={customerUsername}
                 onChange={(e) => setCustomerUsername(e.target.value)}
-                placeholder="e.g., mandilee7976"
+                placeholder="Enter customer username"
+                required
                 style={styles.input}
                 disabled={customerFinancialsLoading}
               />
             </div>
             <button
-              type="button"
-              onClick={fetchCustomerCashoutLimit}
-              disabled={customerFinancialsLoading || !customerUsername.trim()}
-              style={customerFinancialsLoading || !customerUsername.trim() ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+              type="submit"
+              style={customerFinancialsLoading ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+              disabled={customerFinancialsLoading}
             >
-              {customerFinancialsLoading ? 'Checking Limit...' : 'Check Cashout Limit'}
+              {customerFinancialsLoading ? 'Checking...' : 'Check Cashout Limit'}
             </button>
-          </div>
-
-          {customerFinancialsLoading ? (
-            <p style={{...styles.successMessage, color: '#0070f3'}}>Loading customer data...</p>
-          ) : (
-            customerUsername.trim() && (
-              <div style={styles.financialsSummary}>
-                <p>24-hour Cashout Limit Remaining:
-                  <strong style={{ color: cashoutLimitRemaining >= 100 ? styles.textSuccess.color : styles.textWarning.color }}>
-                    ${cashoutLimitRemaining.toFixed(2)}
-                  </strong> / $300.00
-                </p>
-              </div>
-            )
+          </form>
+          {cashoutLimitRemaining !== null && (
+            <p style={styles.infoMessage}>
+              Remaining Limit: <strong>${cashoutLimitRemaining.toFixed(2)}</strong>
+            </p>
+          )}
+          {cashoutMessage.text && (
+            <p style={cashoutMessage.type === 'success' ? styles.successMessage : styles.errorMessage}>
+              {cashoutMessage.text}
+            </p>
           )}
         </div>
 
+        {/* Live Deposit Checker Section */}
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>Live Deposit Checker (Last 10 Deposits)</h2>
           {last10AllDeposits.length === 0 ? (
-            <p>No recent deposits found. {message.type === 'error' && message.text.includes('live deposits') ? `(${message.text})` : ''}</p>
+            <p>No recent paid deposits found. {message.type === 'error' && message.text.includes('live deposits') ? `(${message.text})` : ''}</p>
           ) : (
             <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
               <table style={styles.depositsTable}>
@@ -514,7 +541,7 @@ export default function AgentPage() {
                     <tr key={deposit.id}>
                       <td style={styles.tableCell}>{deposit.username}</td>
                       <td style={styles.tableCell}>${Number(deposit.amount).toFixed(2)}</td>
-                      <td style={styles.tableCell}>{new Date(deposit.createdAt).toLocaleString()}</td>
+                      <td style={styles.tableCell}>{deposit.createdAt ? new Date(deposit.createdAt).toLocaleString() : 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>

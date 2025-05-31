@@ -2,17 +2,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
-export default function AdminLogin() {
+export default function AdminLogin() { // Original component name
   const router = useRouter();
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if the user is already authenticated
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') { //
+    // Check if the user is already authenticated via localStorage
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
       router.replace('/admin/dashboard'); // Redirect to dashboard if already logged in
     }
-  }, [router]); // Depend on router to ensure effect runs when router is ready
+  }, [router]);
 
   const handleChange = e => {
     const { name, value } = e.target;
