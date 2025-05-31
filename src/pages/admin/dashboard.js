@@ -1,9 +1,9 @@
 // src/pages/admin/dashboard.js
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head'; // Import Head for meta tags
-import { db } from '../../lib/firebaseClient'; // Corrected import path
-import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Corrected import path
+import Head from 'next/head';
+import { db } from '../../lib/firebaseClient'; // Using the import path that works for your setup
+import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Using the import path that works for your setup
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
@@ -112,12 +112,12 @@ export default function AdminDashboard() {
   const [modalOrder, setModalOrder] = useState(null);
 
   const [agentName, setAgentName] = useState('');
-  const [agentEmail, setAgentEmail] = useState('');
+  const [agentEmail, setAgentEmail] = '';
   const [agentPassword, setAgentPassword] = useState('');
   const [createAgentMessage, setCreateAgentMessage] = useState({ text: '', type: '' });
   const [agents, setAgents] = useState([]);
   const [agentWorkHours, setAgentWorkHours] = useState({});
-  const [agentLeaves, setAgentLeaves] = {};
+  const [agentLeaves, setAgentLeaves] = useState({}); // Corrected initialization
   const [selectedAgentForDetails, setSelectedAgentForDetails] = useState(null);
   const [selectedAgentForEdit, setSelectedAgentForEdit] = useState(null); // New state for editing agent
   const [leaveReason, setLeaveReason] = useState('');
@@ -587,7 +587,8 @@ export default function AdminDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {agentWorkHours[selectedAgentForDetails.id].map((log, index) => {
+                                { /* FIX: Ensure agentWorkHours[selectedAgentForDetails.id] is an array */ }
+                                {(agentWorkHours[selectedAgentForDetails.id] || []).map((log, index) => {
                                     const loginTime = log.loginTime ? (log.loginTime.toDate ? log.loginTime.toDate() : new Date(log.loginTime)) : null;
                                     const logoutTime = log.logoutTime ? (log.logoutTime.toDate ? log.logoutTime.toDate() : new Date(log.logoutTime)) : null;
                                     const duration = (logoutTime && loginTime) ? ((logoutTime.getTime() - loginTime.getTime()) / (1000 * 60 * 60)).toFixed(2) : 'N/A';
@@ -619,7 +620,8 @@ export default function AdminDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {agentLeaves[selectedAgentForDetails.id].map((leave) => (
+                                { /* FIX: Ensure agentLeaves[selectedAgentForDetails.id] is an array */ }
+                                {(agentLeaves[selectedAgentForDetails.id] || []).map((leave) => (
                                     <tr key={leave.id}>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{leave.reason}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{leave.days}</td>
