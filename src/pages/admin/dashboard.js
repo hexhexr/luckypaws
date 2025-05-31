@@ -6,7 +6,7 @@ import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import auth 
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Import for creating agent users and anonymous sign-in
 
-// --- Helper Components using classes from globals.css ---
+// --- Helper Components using classes from globals.css ---dd
 
 const StatCard = ({ title, value, icon, color }) => (
     <div className="card" style={{ borderTop: `4px solid ${color}` }}>
