@@ -3,10 +3,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '../../lib/firebaseClient'; // Import db for Firestore
 import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import auth for Firebase Auth client-side
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Import for creating agent users and anonymous sign-in
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore"; // Added setDoc for creating user roles
+import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // Removed signInAnonymously
 
-// --- Helper Components using classes from globals.css ---dd
+// --- Helper Components (No changes needed, kept for context) ---
 
 const StatCard = ({ title, value, icon, color }) => (
     <div className="card" style={{ borderTop: `4px solid ${color}` }}>
@@ -43,7 +43,7 @@ const OrderDetailModal = ({ order, onClose }) => {
 export default function AdminDashboard() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false); // State for Vercel-based admin authentication
-  const [firebaseUser, setFirebaseUser] = useState(null); // State for the Firebase authenticated user (anonymous for admin)
+  const [firebaseUser, setFirebaseUser] = useState(null); // State for the Firebase authenticated user (now the specific admin user)
 
   const [orders, setOrders] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -64,44 +64,33 @@ export default function AdminDashboard() {
   const [leaveDays, setLeaveDays] = useState(0);
   const [selectedAgentForLeave, setSelectedAgentForLeave] = useState(null);
 
-  // --- Authentication Check (Vercel-based Admin Login) ---
+  // --- Authentication Check (Combined Vercel-based Admin Login + Firebase Auth) ---
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const adminAuth = localStorage.getItem('admin_auth');
-      if (adminAuth === '1') {
-        setIsAuthenticated(true);
-      } else {
-        router.replace('/admin'); // Redirect to admin login if not authenticated via Vercel
-      }
+    if (typeof window === 'undefined') return;
+
+    const adminAuth = localStorage.getItem('admin_auth');
+    if (adminAuth !== '1') {
+      router.replace('/admin'); // Redirect to admin login if Vercel-based auth flag is not set
+      return;
     }
-  }, [router]);
 
-  // --- Firebase Anonymous Sign-in for Client-side Operations ---
-  // This ensures there's an authenticated Firebase user for Firestore reads/writes
-  // even if the admin logged in via the Vercel system.
-  useEffect(() => {
-    if (!isAuthenticated) return; // Only proceed if Vercel-based admin is authenticated
-
+    // Now, listen to Firebase Auth state
     const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       if (user) {
         setFirebaseUser(user);
-        console.log('Firebase user (anonymous or existing) is signed in for admin dashboard.');
+        setIsAuthenticated(true); // Vercel-based auth is 1 AND Firebase user exists
+        console.log('Firebase user (admin) is signed in for admin dashboard.');
       } else {
-        // If no Firebase user, sign in anonymously
-        signInAnonymously(firebaseAuth)
-          .then((userCredential) => {
-            setFirebaseUser(userCredential.user);
-            console.log('Signed in Firebase anonymously for admin dashboard operations.');
-          })
-          .catch((error) => {
-            console.error('Error signing in anonymously:', error);
-            // Handle error, e.g., show a message, log out Vercel admin if critical
-          });
+        // If localStorage flag exists but Firebase user doesn't, something went wrong, log out.
+        // Or, it means the Firebase session expired/was cleared.
+        console.log('Firebase user not found. Redirecting to admin login.');
+        localStorage.removeItem('admin_auth'); // Clear Vercel-based flag too
+        router.replace('/admin');
       }
     });
 
     return () => unsubscribe(); // Clean up Firebase Auth listener
-  }, [isAuthenticated]); // Depend on Vercel-based authentication status
+  }, [router]);
 
   // --- Real-time Order Data Fetching ---
   useEffect(() => {
@@ -130,6 +119,7 @@ export default function AdminDashboard() {
     }, (error) => {
       console.error("Error fetching orders:", error);
       // Handle error, maybe show a message to the admin
+      alert('Error fetching orders: ' + error.message + '. Check Firestore Rules or Indexes.');
     });
 
     return () => unsubscribe();
@@ -149,13 +139,11 @@ export default function AdminDashboard() {
       setAgents(fetchedAgents);
     }, (error) => {
       console.error("Error fetching agents:", error);
+      alert('Error fetching agents: ' + error.message + '. Check Firestore Rules or Indexes.');
     });
 
-    // Fetch work hours for all agents (this might need to be optimized if many agents)
-    // IMPORTANT: Ensure 'workHours' collection exists directly under root, not as subcollection
-    // if you intend to query all work hours at once. If it's a subcollection of 'agents',
-    // you'll need to query per agent or use collection group queries (requires indexes).
-    const workHoursQuery = query(collection(db, 'workHours')); // Assuming top-level collection
+    // Fetch work hours for all agents
+    const workHoursQuery = query(collection(db, 'workHours'));
     const unsubscribeWorkHours = onSnapshot(workHoursQuery, (snapshot) => {
         const hoursData = {};
         snapshot.docs.forEach(doc => {
@@ -171,10 +159,11 @@ export default function AdminDashboard() {
         setAgentWorkHours(hoursData);
     }, (error) => {
         console.error("Error fetching work hours:", error);
+        alert('Error fetching work hours: ' + error.message + '. Check Firestore Rules or Indexes.');
     });
 
     // Fetch leave requests for all agents
-    const leavesQuery = query(collection(db, 'leaves')); // Assuming top-level collection
+    const leavesQuery = query(collection(db, 'leaves'));
     const unsubscribeLeaves = onSnapshot(leavesQuery, (snapshot) => {
         const leavesData = {};
         snapshot.docs.forEach(doc => {
@@ -190,6 +179,7 @@ export default function AdminDashboard() {
         setAgentLeaves(leavesData);
     }, (error) => {
         console.error("Error fetching leave requests:", error);
+        alert('Error fetching leave requests: ' + error.message + '. Check Firestore Rules or Indexes.');
     });
 
     return () => {
@@ -211,7 +201,7 @@ export default function AdminDashboard() {
       console.log(`Order ${orderId} marked as read.`);
     } catch (error) {
       console.error('Error marking order as read:', error);
-      alert('Failed to mark order as read: ' + error.message); // Use alert for now
+      alert('Failed to mark order as read: ' + error.message);
     }
   };
 
@@ -222,7 +212,7 @@ export default function AdminDashboard() {
             console.log(`Order ${orderId} archived.`);
         } catch (error) {
             console.error('Error archiving order:', error);
-            alert('Failed to archive order: ' + error.message); // Use alert for now
+            alert('Failed to archive order: ' + error.message);
         }
     }
   };
@@ -239,13 +229,12 @@ export default function AdminDashboard() {
 
     try {
       // 1. Create user in Firebase Authentication
-      // This operation requires a Firebase authenticated user on the client-side (our anonymous user)
+      // This operation requires a Firebase authenticated user on the client-side (our admin user)
       const userCredential = await createUserWithEmailAndPassword(firebaseAuth, agentEmail, agentPassword);
       const user = userCredential.user;
 
       // 2. Store agent details and role in Firestore 'users' collection
-      // This write is subject to Firestore rules, which will allow if isAuthenticated()
-      // and if the request.auth.uid matches the userId being created, or if isAdmin()
+      // This write is subject to Firestore rules, which should allow if isAdmin()
       await setDoc(doc(db, 'users', user.uid), {
         name: agentName,
         email: agentEmail,
@@ -276,8 +265,6 @@ export default function AdminDashboard() {
             await deleteDoc(doc(db, 'users', agentId));
 
             // Also delete their work hours and leave records if desired
-            // Note: These queries will fetch all docs and then delete them.
-            // For production, consider using a Cloud Function to handle cascading deletes.
             const workHoursSnapshot = await getDocs(query(collection(db, 'workHours'), where('agentId', '==', agentId)));
             workHoursSnapshot.forEach(async (d) => await deleteDoc(d.ref));
 
@@ -358,10 +345,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('admin_auth'); // Clear local storage flag for Vercel-based admin
-      firebaseAuth.signOut().catch(console.error); // Also sign out the anonymous Firebase user
+      await firebaseAuth.signOut().catch(console.error); // Sign out the Firebase admin user
       router.push('/admin'); // Redirect to admin login page
     }
   };

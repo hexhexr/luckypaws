@@ -1,40 +1,50 @@
 // pages/api/admin/login.js
-// This API route handles custom username/password validation for admin login.
+import { auth as adminAuth } from '../../lib/firebaseAdmin'; // Import Firebase Admin Auth
 
 export default async function handler(req, res) {
-  // Ensure only POST requests are allowed for login attempts.
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { username, password } = req.body;
 
-  // --- DEBUGGING LOGS ---
-  console.log('--- Admin Login Attempt ---');
+  // --- BEGIN DEBUGGING LOGS (REMOVE AFTER CONFIRMATION) ---
+  console.log('--- Admin Login Attempt (Custom Token Flow) ---');
   console.log('Received Username:', username);
-  console.log('Received Password:', password ? '********' : 'undefined'); // Mask password for security in logs
-
-  // Load environment variables directly within the handler for debugging
+  console.log('Received Password:', password ? '********' : 'undefined');
   const VALID_ADMIN_USERNAME = process.env.ADMIN_USERNAME;
   const VALID_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
   console.log('Expected Username (from env):', VALID_ADMIN_USERNAME);
-  console.log('Expected Password (from env):', VALID_ADMIN_PASSWORD ? '********' : 'undefined'); // Mask password
+  console.log('Expected Password (from env):', VALID_ADMIN_PASSWORD ? '********' : 'undefined');
+  // --- END DEBUGGING LOGS ---
 
-  // --- IMPORTANT: REPLACE THIS WITH YOUR ACTUAL SECURE ADMIN VALIDATION LOGIC ---
-  // This is a placeholder for your existing admin username and password validation.
-  // In a real application, you would typically fetch these credentials from a secure
-  // database or environment variables and compare them securely (e.g., using hashing).
-
-  // Perform the custom validation
+  // Perform the custom validation against environment variables
   if (username === VALID_ADMIN_USERNAME && password === VALID_ADMIN_PASSWORD) {
-    console.log('Admin login: Credentials MATCHED.');
-    // If validation passes, return a success response.
-    // The client-side (pages/admin/index.js) will then set localStorage and redirect.
-    return res.status(200).json({ success: true, message: 'Admin login successful.' });
+    try {
+      // Assuming you have a specific Firebase UID for your "master" admin account.
+      // This UID should be the same as the document ID in your 'users' collection for the admin.
+      // You created this user in Firebase Auth in "Part 2" of the previous guide.
+      const adminFirebaseUid = process.env.FIREBASE_ADMIN_UID; // YOU MUST SET THIS ENV VAR!
+      
+      if (!adminFirebaseUid) {
+          console.error("FIREBASE_ADMIN_UID environment variable is not set!");
+          return res.status(500).json({ success: false, message: "Server configuration error: Admin UID missing." });
+      }
+
+      // Generate a Firebase Custom Token for the specific admin UID
+      const customToken = await adminAuth.createCustomToken(adminFirebaseUid, { admin: true });
+      
+      console.log('Admin login: Credentials MATCHED. Custom token generated.');
+      
+      // Return the custom token to the client
+      return res.status(200).json({ success: true, message: 'Admin login successful.', token: customToken });
+
+    } catch (error) {
+      console.error('Error generating Firebase custom token:', error);
+      return res.status(500).json({ success: false, message: 'Failed to generate authentication token.' });
+    }
   } else {
     console.log('Admin login: Credentials MISMATCH.');
-    // If validation fails, return an unauthorized error.
     return res.status(401).json({ success: false, message: 'Invalid username or password.' });
   }
 }

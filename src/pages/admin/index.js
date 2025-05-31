@@ -1,6 +1,7 @@
 // pages/admin/index.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -8,11 +9,17 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if the user is already authenticated via Vercel system (localStorage)
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
-      router.replace('/admin/dashboard'); // Redirect to dashboard if already logged in
-    }
-  }, [router]); // Depend on router to ensure effect runs when router is ready
+    // Check if the user is already authenticated via localStorage (Vercel-based)
+    // AND if a Firebase user is already signed in (from a previous session)
+    const adminAuthFlag = typeof window !== 'undefined' ? localStorage.getItem('admin_auth') : null;
+    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
+      if (adminAuthFlag === '1' && user) {
+        router.replace('/admin/dashboard'); // Redirect if both flags are set
+      }
+    });
+
+    return () => unsubscribe(); // Clean up auth listener
+  }, [router]);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -24,7 +31,7 @@ export default function AdminLogin() {
     setError(''); // Clear previous errors
 
     try {
-      // Make a request to your custom Next.js API route for admin login
+      // 1. Make request to your custom Next.js API route for admin login
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,16 +41,32 @@ export default function AdminLogin() {
       const data = await res.json();
 
       if (!res.ok) {
-        // If the response is not OK (e.g., status 401 Unauthorized), throw an error
         throw new Error(data.message || 'Login failed');
       }
 
-      // If login is successful, set the authentication flag in local storage
+      // 2. If Vercel-based login is successful, get the custom token
+      const customToken = data.token;
+      if (!customToken) {
+        throw new Error('No authentication token received.');
+      }
+
+      // 3. Sign into Firebase Authentication on the client-side using the custom token
+      await firebaseAuth.signInWithCustomToken(customToken);
+
+      // 4. Set the authentication flag in local storage (for Vercel-based state)
       localStorage.setItem('admin_auth', '1');
+      
+      console.log('Admin successfully logged in via custom token and redirected.');
       router.push('/admin/dashboard'); // Redirect to dashboard after successful login
+
     } catch (err) {
-      console.error("Admin login error:", err); // Log the actual error
-      setError(err.message); // Display the error message to the user
+      console.error("Admin login error:", err);
+      // Specific Firebase errors might be caught here if signInWithCustomToken fails
+      if (err.code && err.message) {
+        setError(`Firebase Auth Error: ${err.message}`);
+      } else {
+        setError(err.message);
+      }
     }
   };
 
