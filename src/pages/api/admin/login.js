@@ -20,8 +20,6 @@ export default async function handler(req, res) {
   if (username === VALID_ADMIN_USERNAME && password === VALID_ADMIN_PASSWORD) {
     try {
       // Get the Firebase UID for your "master" admin account from environment variables.
-      // This UID should be the same as the document ID in your 'users' collection for the admin,
-      // and the UID of the user you created in Firebase Authentication.
       const adminFirebaseUid = process.env.FIREBASE_ADMIN_UID;
       
       if (!adminFirebaseUid) {
@@ -29,8 +27,11 @@ export default async function handler(req, res) {
           return res.status(500).json({ success: false, message: "Server configuration error: Admin UID missing." });
       }
 
+      // --- ADD THIS CONSOLE.LOG ---
+      console.log('Attempting to create custom token for UID:', adminFirebaseUid);
+      // --- END ADDITION ---
+
       // Generate a Firebase Custom Token for the specific admin UID
-      // The { admin: true } claim can be used in Firestore Security Rules
       const customToken = await adminAuth.createCustomToken(adminFirebaseUid, { admin: true });
       
       console.log('Admin login: Credentials MATCHED. Custom token generated.');
@@ -40,6 +41,8 @@ export default async function handler(req, res) {
 
     } catch (error) {
       console.error('Error generating Firebase custom token:', error);
+      // Log the full error object for more details
+      console.error('Full error details:', error); 
       return res.status(500).json({ success: false, message: 'Failed to generate authentication token.' });
     }
   } else {
