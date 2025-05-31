@@ -2,12 +2,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head'; // Import Head for meta tags
-import { db } from '../../../../lib/firebaseClient'; // Corrected import path
-import { auth as firebaseAuth } from '../../../../lib/firebaseClient'; // Corrected import path
+import { db } from '../../../lib/firebaseClient'; // Corrected import path
+import { auth as firebaseAuth } from '../../../lib/firebaseClient'; // Corrected import path
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
-// --- Helper Components (using Tailwind CSS classes) ---e
+// --- Helper Components (using Tailwind CSS classes) ---
 
 const StatCard = ({ title, value, icon, color }) => (
     <div className="bg-white rounded-lg shadow-md p-6 relative overflow-hidden border-t-4" style={{ borderColor: color }}>
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
   const [createAgentMessage, setCreateAgentMessage] = useState({ text: '', type: '' });
   const [agents, setAgents] = useState([]);
   const [agentWorkHours, setAgentWorkHours] = useState({});
-  const [agentLeaves, setAgentLeaves] = useState({});
+  const [agentLeaves, setAgentLeaves] = {};
   const [selectedAgentForDetails, setSelectedAgentForDetails] = useState(null);
   const [selectedAgentForEdit, setSelectedAgentForEdit] = useState(null); // New state for editing agent
   const [leaveReason, setLeaveReason] = useState('');
