@@ -8,8 +8,8 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if the user is already authenticated
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') { //
+    // Check if the user is already authenticated via Vercel system (localStorage)
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
       router.replace('/admin/dashboard'); // Redirect to dashboard if already logged in
     }
   }, [router]); // Depend on router to ensure effect runs when router is ready
@@ -21,19 +21,29 @@ export default function AdminLogin() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    setError('');
+    setError(''); // Clear previous errors
+
     try {
+      // Make a request to your custom Next.js API route for admin login
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
-      localStorage.setItem('admin_auth', '1'); // Set the authentication flag in local storage
+
+      if (!res.ok) {
+        // If the response is not OK (e.g., status 401 Unauthorized), throw an error
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // If login is successful, set the authentication flag in local storage
+      localStorage.setItem('admin_auth', '1');
       router.push('/admin/dashboard'); // Redirect to dashboard after successful login
     } catch (err) {
-      setError(err.message);
+      console.error("Admin login error:", err); // Log the actual error
+      setError(err.message); // Display the error message to the user
     }
   };
 
