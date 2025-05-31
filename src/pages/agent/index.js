@@ -1,7 +1,7 @@
-// pages/agent/index.js
+// src/pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-import { db, auth } from '../../lib/firebaseClient';
+import { db, auth } from '../../lib/firebaseClient'; // Corrected import path
 import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 
@@ -293,18 +293,28 @@ export default function AgentPage() {
     }
 
     try {
-      await addDoc(collection(db, 'agentCashoutRequests'), { // New collection for agent cashout requests
-        agentId: user.uid,
-        agentName: agentProfile.name || agentProfile.email,
-        amount: amount,
-        status: 'pending', // pending, approved, rejected
-        requestedAt: serverTimestamp(),
+      // Call the new API route to submit agent's cashout request
+      const response = await fetch('/api/agent/submit-cashout-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: user.uid,
+          agentName: agentProfile.name || agentProfile.email,
+          amount: amount,
+        }),
       });
-      setCashoutRequestMessage({ text: 'Cashout request submitted successfully!', type: 'success' });
-      setCashoutRequestAmount('');
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCashoutRequestMessage({ text: data.message, type: 'success' });
+        setCashoutRequestAmount('');
+      } else {
+        setCashoutRequestMessage({ text: data.message || 'Failed to submit cashout request.', type: 'error' });
+      }
     } catch (error) {
       console.error('Error submitting cashout request:', error);
-      setCashoutRequestMessage({ text: 'Failed to submit cashout request: ' + error.message, type: 'error' });
+      setCashoutRequestMessage({ text: 'An unexpected error occurred while submitting cashout request.', type: 'error' });
     }
   };
 
@@ -340,12 +350,12 @@ export default function AgentPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 font-inter">
       {/* Tailwind CSS CDN script - IMPORTANT: Ensure this is loaded in your _document.js or layout if not already */}
-      <script src="https://cdn.tailwindcss.com"></script>
+      <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
       <Head>
         <title>Agent Dashboard</title>
         <meta name="description" content="Agent dashboard for managing customers and orders" />
         <link rel="icon" href="/favicon.ico" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+        <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap)" rel="stylesheet" />
       </Head>
 
       <header className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-6">
@@ -358,7 +368,7 @@ export default function AgentPage() {
             Dashboard
           </button>
           <button
-            onClick={() => router.push('/admin')} // Link to Admin Login
+            onClick={() => router.push('/admin')}
             className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors shadow-sm"
           >
             Admin Login
@@ -385,12 +395,11 @@ export default function AgentPage() {
             <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
                 <h3 className="text-xl font-semibold mb-3 text-green-700">Your Work Summary</h3>
                 <p className="text-gray-700 text-lg">Total Hours Today: <span className="font-bold text-gray-900">{calculateOwnTotalHours()} hrs</span></p>
-                {/* You might want to filter work hours by current day/week for this display */}
                 <div className="mt-4 text-gray-600 text-sm">
                     <h4 className="font-semibold mb-2">Recent Login/Logout:</h4>
                     {agentWorkHours.length > 0 ? (
                         <ul className="list-disc list-inside space-y-1">
-                            {agentWorkHours.slice(0, 3).map((log, index) => ( // Show last 3
+                            {agentWorkHours.slice(0, 3).map((log, index) => (
                                 <li key={index}>
                                     Login: {log.loginTime ? new Date(log.loginTime).toLocaleString() : 'N/A'} - 
                                     Logout: {log.logoutTime ? new Date(log.logoutTime).toLocaleString() : 'Active'}
@@ -414,7 +423,7 @@ export default function AgentPage() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {agentLeaves.slice(0, 5).map((leave) => ( // Show last 5 leaves
+                                {agentLeaves.slice(0, 5).map((leave) => (
                                     <tr key={leave.id}>
                                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">{leave.reason}</td>
                                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">{leave.days}</td>
@@ -484,7 +493,7 @@ export default function AgentPage() {
             </div>
             {lockPageCode && (
               <p className="text-blue-600 text-sm">
-                This page code is locked by admin. You cannot change it.
+                This page code is locked by an admin. You cannot change it.
               </p>
             )}
             {!lockPageCode && (
@@ -607,3 +616,10 @@ export default function AgentPage() {
     </div>
   );
 }
+
+ 
+
+
+
+
+

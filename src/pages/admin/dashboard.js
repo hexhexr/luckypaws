@@ -1,9 +1,9 @@
-// pages/admin/dashboard.js
+// src/pages/admin/dashboard.js
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head'; // Import Head for meta tags
-import { db } from '../../../lib/firebaseClient';
-import { auth as firebaseAuth } from '../../../lib/firebaseClient';
+import { db } from '../../../../lib/firebaseClient'; // Corrected import path
+import { auth as firebaseAuth } from '../../../../lib/firebaseClient'; // Corrected import path
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
