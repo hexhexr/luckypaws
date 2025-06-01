@@ -1,3 +1,5 @@
+
+// src/pages/admin/dashboard.js
 // src/pages/admin/dashboard.js
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
@@ -522,9 +524,9 @@ export default function AdminDashboard() {
                 </div>
             )}
             </div>
-          </div>
-          {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
-        </div>
+        </section>
+
+        {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
       </main>
     </div>
   );
