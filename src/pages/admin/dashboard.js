@@ -10,13 +10,13 @@ import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/aut
 // --- Helper Components ---
 
 const StatCard = ({ title, value, icon, color }) => (
-    // Uses .card as a base and integrates global CSS variables
-    <div className="card p-lg relative overflow-hidden border-t-4 flex flex-col justify-between" style={{ borderColor: color }}>
+    // Uses .card as a base but keeps specific styling for layout and dynamic color
+    <div className="card stat-card" style={{ borderColor: color }}> {/* Added explicit shadow matching .card */}
         <div>
-            <h4 className="text-lg font-semibold mb-sm" style={{ color }}>{title}</h4>
-            <h2 className="text-4xl font-bold text-text-dark">{value}</h2> {/* Use text-dark */}
+            <h4 className="stat-card-title" style={{ color }}>{title}</h4>
+            <h2 className="stat-card-value">{value}</h2>
         </div>
-        <span className="absolute right-md top-md text-6xl opacity-20 pointer-events-none" style={{ color }}>{icon}</span>
+        <span className="stat-card-icon" style={{ color }}>{icon}</span>
     </div>
 );
 
@@ -24,27 +24,22 @@ const OrderDetailModal = ({ order, onClose }) => {
     if (!order) return null;
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
                 <button className="modal-close-btn" onClick={onClose}>&times;</button>
-                <div className="modal-title mb-md"> {/* Use modal-title, adjust margin */}
-                    Order Details: <span className="text-primary-green">{order.id}</span> {/* Use primary-green */}
+                <div className="modal-header">
+                    Order Details: <span className="text-[var(--primary-color)] font-semibold">{order.id}</span>
                 </div>
-                <div className="modal-body space-y-md text-sm text-text-dark"> {/* Use text-dark, space-y-md */}
-                    <p><strong>Username:</strong> {order.username}</p>
-                    <p><strong>Amount:</strong> <span className="font-semibold text-primary-green">${parseFloat(order.amount || 0).toFixed(2)}</span></p> {/* Use primary-green */}
-                    <p><strong>Status:</strong>
-                        <span className={`ml-2 font-semibold px-2.5 py-1 rounded-full text-xs ${
-                            order.status === 'paid' ? 'bg-green-light text-primary-green' : // Use global vars
-                            order.status === 'pending' ? 'bg-yellow-light text-yellow-warning' : // Use global vars
-                            order.status === 'archived' ? 'bg-bg-medium-light text-text-light' : // Use global vars
-                            'bg-gray-100 text-gray-500' // Keep fallback if no global var
-                        }`}>{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}</span>
+                <div className="modal-body modal-body-spaced text-sm">
+                    <p><strong className="text-bold text-secondary-color">Username:</strong> {order.username}</p>
+                    <p><strong className="text-bold text-secondary-color">Amount:</strong> <span className="text-success">${parseFloat(order.amount || 0).toFixed(2)}</span></p>
+                    <p><strong className="text-bold text-secondary-color">Status:</strong>
+                        <span className={`status-badge status-${order.status}`}>{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}</span>
                     </p>
-                    <p><strong>Created:</strong> {order.created ? new Date(order.created).toLocaleString() : 'N/A'}</p>
-                    {order.pageCode && <p><strong>Page Code:</strong> {order.pageCode}</p>}
-                    {order.read !== undefined && <p><strong>Read:</strong> {order.read ? <span className="text-primary-green">Yes</span> : <span className="text-red-alert">No</span>}</p>} {/* Use global vars */}
+                    <p><strong className="text-bold text-secondary-color">Created:</strong> {order.created ? new Date(order.created).toLocaleString() : 'N/A'}</p>
+                    {order.pageCode && <p><strong className="text-bold text-secondary-color">Page Code:</strong> {order.pageCode}</p>}
+                    {order.read !== undefined && <p><strong className="text-bold text-secondary-color">Read:</strong> {order.read ? <span className="text-success">Yes</span> : <span className="text-danger">No</span>}</p>}
                 </div>
-                <div className="modal-footer mt-lg"> {/* Add margin top */}
+                <div className="modal-footer">
                     <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
                 </div>
             </div>
@@ -67,23 +62,23 @@ const AgentEditModal = ({ agent, onClose, onSave }) => {
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal modal-md" onClick={e => e.stopPropagation()}>
                 <button className="modal-close-btn" onClick={onClose}>&times;</button>
-                <div className="modal-title mb-md"> {/* Use modal-title, adjust margin */}
-                    Edit Agent: <span className="text-primary-green">{agent.name}</span>
+                <div className="modal-header">
+                    Edit Agent: <span className="text-[var(--primary-color)]">{agent.name}</span>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <div className="modal-body space-y-md"> {/* Use space-y-md */}
-                        <div className="form-group"> {/* Use form-group */}
+                    <div className="modal-body modal-body-spaced">
+                        <div>
                             <label htmlFor="agentNameEdit">Name:</label>
-                            <input type="text" id="agentNameEdit" className="input-field" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSaving} />
+                            <input type="text" id="agentNameEdit" className="input" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSaving} />
                         </div>
-                        <div className="form-group"> {/* Use form-group */}
+                        <div>
                             <label htmlFor="agentEmailEdit">Email:</label>
-                            <input type="email" id="agentEmailEdit" className="input-field" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSaving} />
+                            <input type="email" id="agentEmailEdit" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSaving} />
                         </div>
                     </div>
-                    <div className="modal-footer mt-lg"> {/* Add margin top */}
+                    <div className="modal-footer">
                         <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={isSaving}>Cancel</button>
                         <button type="submit" className="btn btn-primary btn-sm" disabled={isSaving}>
                             {isSaving ? 'Saving...' : 'Save Changes'}
@@ -112,7 +107,7 @@ export default function AdminDashboard() {
   const [modalOrder, setModalOrder] = useState(null);
 
   const [agentName, setAgentName] = useState('');
-  const [agentEmail, setAgentEmail] = useState('');
+  const [agentEmail, setAgentEmail] = useState(''); // Corrected: useState('')
   const [agentPassword, setAgentPassword] = useState('');
   const [createAgentMessage, setCreateAgentMessage] = useState({ text: '', type: '' });
   const [agents, setAgents] = useState([]);
@@ -260,19 +255,26 @@ export default function AdminDashboard() {
     const numLeaveDays = parseInt(leaveDays, 10);
     if (!selectedAgentForLeave || !leaveReason || isNaN(numLeaveDays) || numLeaveDays <= 0) { alert('Valid agent, reason, and positive days required.'); return; }
     try {
-        await addDoc(collection(db, 'leaves'), { agentId: selectedAgentForLeave.id, agentName: selectedAgentForLeave.name, reason: leaveReason, days: numLeaveDays, status: 'pending', requestedAt: serverTimestamp() });
-        alert('Leave request submitted!');
-        setLeaveReason(''); setLeaveDays(''); setSelectedAgentForLeave(null);
+      await addDoc(collection(db, 'leaves'), { agentId: selectedAgentForLeave.id, agentName: selectedAgentForLeave.name, reason: leaveReason, days: numLeaveDays, status: 'pending', requestedAt: serverTimestamp() });
+      alert('Leave request submitted!');
+      setLeaveReason(''); setLeaveDays(''); setSelectedAgentForLeave(null);
     } catch (e) { console.error(e); alert('Failed to submit leave request.'); }
   };
-  const handleLogout = async () => { if (typeof window !== 'undefined') { localStorage.removeItem('admin_auth'); await firebaseAuth.signOut().catch(console.error); router.push('/admin'); }};
 
-  if (!isAuthenticated) { return <div className="min-h-screen flex items-center justify-center text-lg">Loading or Redirecting...</div>; }
+  const handleLogout = async () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_auth');
+      await firebaseAuth.signOut().catch(console.error);
+      router.push('/admin');
+    }
+  };
 
-  const actionButtonBase = "btn btn-sm transition-transform transform hover:scale-105"; // Added transform here
+  if (!isAuthenticated) {
+    return <div className="loading-screen">Loading or Redirecting...</div>;
+  }
 
   return (
-    <div className="min-h-screen p-md sm:p-lg lg:p-xl font-inter bg-bg-light text-text-dark"> {/* Apply bg-light and text-dark from globals.css */}
+    <div className="dashboard-container"> {/* Body background from globals.css */}
       <Head>
         <title>Admin Dashboard</title>
         <meta name="description" content="Admin dashboard for managing orders and agents" />
@@ -280,231 +282,245 @@ export default function AdminDashboard() {
         {/* Font is in globals.css, but keeping this for explicitness if needed */}
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
-
-      <header className="main-header mb-xl"> {/* Use main-header and mb-xl */}
-        <div className="header-content"> {/* Use header-content */}
-          <h1 className="text-2xl sm:text-3xl mb-md sm:mb-0 text-text-dark">Admin Dashboard</h1> {/* Adjust font size, use text-dark */}
-          <nav>
-            <ul className="main-nav"> {/* Use main-nav */}
-                <li><button onClick={() => router.push('/admin/dashboard')} className="btn btn-primary">Dashboard</button></li>
-                <li><button onClick={() => router.push('/agent/login')} className="btn btn-secondary">Agent Login</button></li> {/* Use btn-secondary */}
-                <li><button onClick={handleLogout} className="btn btn-danger">Logout</button></li>
-            </ul>
-          </nav>
-        </div>
+      <header className="dashboard-header">
+        <h1 className="dashboard-title">Admin Dashboard</h1>
+        <nav className="dashboard-nav">
+          <button onClick={() => router.push('/admin/dashboard')} className="btn btn-primary">Dashboard</button>
+          <button onClick={() => router.push('/agent/login')} className="btn btn-secondary">Agent Login</button>
+          <button onClick={handleLogout} className="btn btn-danger">Logout</button>
+        </nav>
       </header>
-
-      <main className="container space-y-xl pb-xl"> {/* Use .container for max-width and center, space-y-xl for gaps */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-md"> {/* Use gap-md */}
-          <StatCard title="Total Orders" value={totalOrders} icon="📦" color="var(--primary-green)" /> {/* Use primary-green */}
-          <StatCard title="Pending Orders" value={unpaidOrders} icon="⏳" color="var(--yellow-warning)" /> {/* Use yellow-warning */}
-          <StatCard title="Paid Orders" value={paidOrders} icon="✅" color="var(--primary-green)" /> {/* Use primary-green */}
-          <StatCard title="Total Earnings" value={`$${totalEarnings.toFixed(2)}`} icon="💰" color="#6f42c1" /> {/* Keep distinct color if intended */}
-          <StatCard title="Total Cashouts" value={`$${totalCashouts.toFixed(2)}`} icon="💸" color="#fd7e14" /> {/* Keep distinct color if intended */}
-          <StatCard title="Net Profit" value={`$${netProfit.toFixed(2)}`} icon="📈" color="#20c997" /> {/* Keep distinct color if intended */}
+      <main className="dashboard-main">
+        <div className="stats-grid">
+          <StatCard title="Total Orders" value={totalOrders} icon="📦" color="var(--accent-color)" />
+          <StatCard title="Pending Orders" value={unpaidOrders} icon="⏳" color="var(--warning-color)" />
+          <StatCard title="Paid Orders" value={paidOrders} icon="✅" color="var(--primary-color)" /> {/* Using primary for paid */}
+          <StatCard title="Total Earnings" value={`$${totalEarnings.toFixed(2)}`} icon="💰" color="var(--primary-green)" />
+          <StatCard title="Total Cashouts" value={`$${totalCashouts.toFixed(2)}`} icon="💸" color="var(--red-alert)" />
+          <StatCard title="Net Profit" value={`$${netProfit.toFixed(2)}`} icon="📈" color="var(--green-dark)" />
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <h2>Agent Management</h2>
+        <section className="card-section">
+          <div className="card-header">Create New Agent</div>
+          <div className="card-body">
+            <form onSubmit={handleCreateAgent} className="form-grid">
+              <div>
+                <label htmlFor="agentName">Name:</label>
+                <input type="text" id="agentName" className="input" value={agentName} onChange={(e) => setAgentName(e.target.value)} required />
+              </div>
+              <div>
+                <label htmlFor="agentEmail">Email:</label>
+                <input type="email" id="agentEmail" className="input" value={agentEmail} onChange={(e) => setAgentEmail(e.target.value)} required />
+              </div>
+              <div>
+                <label htmlFor="agentPassword">Password:</label>
+                <input type="password" id="agentPassword" className="input" value={agentPassword} onChange={(e) => setAgentPassword(e.target.value)} required />
+              </div>
+              <div className="form-full-width">
+                <button type="submit" className="btn btn-primary btn-full-width">Create Agent</button>
+              </div>
+            </form>
+            {createAgentMessage.text && (
+              <p className={`alert ${createAgentMessage.type === 'error' ? 'alert-danger' : 'alert-success'} mt-md`}>
+                {createAgentMessage.text}
+              </p>
+            )}
           </div>
-          <div className="card-body space-y-lg"> {/* Use space-y-lg */}
-            <div className="card p-lg bg-input-bg"> {/* Use card, p-lg, bg-input-bg */}
-              <h3 className="card-subtitle text-primary-green mb-md">Create New Agent</h3> {/* Use card-subtitle, text-primary-green, mb-md */}
-              <form onSubmit={handleCreateAgent} className="grid grid-cols-1 md:grid-cols-3 gap-md items-end"> {/* Use gap-md */}
-                <input type="text" placeholder="Agent Name" value={agentName} onChange={(e) => setAgentName(e.target.value)} required className="input-field" /> {/* Use input-field */}
-                <input type="email" placeholder="Agent Email" value={agentEmail} onChange={(e) => setAgentEmail(e.target.value)} required className="input-field" /> {/* Use input-field */}
-                <input type="password" placeholder="Password (min 6 chars)" value={agentPassword} onChange={(e) => setAgentPassword(e.target.value)} required className="input-field" /> {/* Use input-field */}
-                <button type="submit" className="btn btn-primary md:col-span-3 mt-md">Create Agent</button> {/* Use mt-md */}
-              </form>
-              {createAgentMessage.text && (
-                <div className={`alert mt-md ${createAgentMessage.type === 'success' ? 'alert-success' : 'alert-danger'}`}> {/* Use mt-md */}
-                  {createAgentMessage.text}
-                </div>
-              )}
-            </div>
+        </section>
 
-            <div>
-              <h3 className="section-subtitle mb-md">Registered Agents</h3> {/* Use section-subtitle, mb-md */}
-              {agents.length === 0 ? (
-                <p className="text-center italic py-lg text-text-light">No agents registered yet.</p> {/* Use text-text-light */}
-              ) : (
-                <div className="overflow-x-auto card"> {/* Use card for table container */}
-                  <table className="min-w-full">
-                    <thead>
-                      <tr>
-                        <th>Name</th><th>Email</th><th>Total Hours</th><th>Leaves (Pending/Approved)</th><th>Actions</th>
+        <section className="card-section">
+          <div className="card-header">All Agents</div>
+          <div className="card-body">
+            {agents.length === 0 ? (
+              <p className="text-center text-light">No agents found.</p>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Work Hours</th>
+                      <th>Leaves</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agents.map(agent => (
+                      <tr key={agent.id}>
+                        <td>{agent.name}</td>
+                        <td>{agent.email}</td>
+                        <td>{calculateTotalHours(agent.id)} hrs</td>
+                        <td>{(agentLeaves[agent.id] || []).filter(l => l.status === 'pending').length} pending</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button className="btn btn-secondary btn-small" onClick={() => setSelectedAgentForEdit(agent)}>Edit</button>
+                            <button className="btn btn-danger btn-small" onClick={() => handleDeleteAgent(agent.id)}>Delete</button>
+                            <button className="btn btn-primary btn-small" onClick={() => setSelectedAgentForLeave(agent)}>Apply Leave</button>
+                            <button className="btn btn-info btn-small" onClick={() => setSelectedAgentForDetails(agent)}>Details</button>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {agents.map(agent => (
-                        <tr key={agent.id}>
-                          <td className="font-medium text-text-dark">{agent.name}</td> {/* Use text-dark */}
-                          <td className="text-text-dark">{agent.email}</td> {/* Use text-dark */}
-                          <td className="text-text-dark">{calculateTotalHours(agent.id)} hrs</td> {/* Use text-dark */}
-                          <td className="text-text-dark"> {/* Use text-dark */}
-                            <span className="font-semibold">{agentLeaves[agent.id]?.filter(l => l.status === 'pending').length || 0}</span> Pending / {' '}
-                            <span className="font-semibold text-primary-green">{agentLeaves[agent.id]?.filter(l => l.status === 'approved').length || 0}</span> Approved
-                          </td>
-                          <td>
-                            <div className="flex flex-wrap gap-xs"> {/* Use gap-xs */}
-                              <button className={`${actionButtonBase} bg-green-light text-text-white hover:bg-green-dark`} onClick={() => setSelectedAgentForDetails(agent)}>Details</button> {/* Use global colors */}
-                              <button className={`${actionButtonBase} bg-green-light text-text-white hover:bg-green-dark`} onClick={() => setSelectedAgentForEdit(agent)}>Edit</button> {/* Use global colors */}
-                              <button className={`${actionButtonBase} bg-green-light text-text-white hover:bg-green-dark`} onClick={() => setSelectedAgentForLeave(agent)}>Apply Leave</button> {/* Use global colors */}
-                              <button className={`${actionButtonBase} btn-danger`} onClick={() => handleDeleteAgent(agent.id)}>Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
 
+        {/* Agent Details Modal */}
         {selectedAgentForDetails && (
             <div className="modal-overlay" onClick={() => setSelectedAgentForDetails(null)}>
-              <div className="modal" onClick={e => e.stopPropagation()}>
-                <button className="modal-close-btn" onClick={() => setSelectedAgentForDetails(null)}>&times;</button>
-                <div className="modal-title mb-md"> {/* Use modal-title, adjust margin */}
-                    Agent Records: <span className="text-primary-green">{selectedAgentForDetails.name}</span>
+                <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+                    <button className="modal-close-btn" onClick={() => setSelectedAgentForDetails(null)}>&times;</button>
+                    <div className="modal-header">Agent Details: {selectedAgentForDetails.name}</div>
+                    <div className="modal-body modal-body-spaced">
+                        <p><strong className="text-bold text-secondary-color">Name:</strong> {selectedAgentForDetails.name}</p>
+                        <p><strong className="text-bold text-secondary-color">Email:</strong> {selectedAgentForDetails.email}</p>
+
+                        <h4 className="modal-section-title">Work Hours:</h4>
+                        {agentWorkHours[selectedAgentForDetails.id] && agentWorkHours[selectedAgentForDetails.id].length > 0 ? (
+                            <ul className="modal-list">
+                                {agentWorkHours[selectedAgentForDetails.id].map((entry, index) => (
+                                    <li key={index}>
+                                        <span className="modal-list-item-label">Login:</span> {entry.loginTime ? new Date(entry.loginTime.toDate()).toLocaleString() : 'N/A'}
+                                        <span className="modal-list-item-label">Logout:</span> {entry.logoutTime ? new Date(entry.logoutTime.toDate()).toLocaleString() : 'N/A'}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-center text-light">No work hour records.</p>
+                        )}
+
+                        <h4 className="modal-section-title">Leave Requests:</h4>
+                        {agentLeaves[selectedAgentForDetails.id] && agentLeaves[selectedAgentForDetails.id].length > 0 ? (
+                            <div className="table-responsive">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Reason</th>
+                                            <th>Days</th>
+                                            <th>Status</th>
+                                            <th>Requested</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {agentLeaves[selectedAgentForDetails.id].map((leave, index) => (
+                                            <tr key={index}>
+                                                <td>{leave.reason}</td>
+                                                <td>{leave.days}</td>
+                                                <td>
+                                                    <span className={`status-badge status-${leave.status}`}>
+                                                        {leave.status}
+                                                    </span>
+                                                </td>
+                                                <td>{leave.requestedAt ? new Date(leave.requestedAt.toDate()).toLocaleString() : 'N/A'}</td>
+                                                <td>
+                                                    <div className="action-buttons">
+                                                        {leave.status === 'pending' && (
+                                                            <>
+                                                                <button className="btn btn-success btn-xsmall" onClick={() => approveLeave(leave.id)}>Approve</button>
+                                                                <button className="btn btn-danger btn-xsmall" onClick={() => rejectLeave(leave.id)}>Reject</button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-center text-light">No leave requests.</p>
+                        )}
+                    </div>
+                    <div className="modal-footer">
+                        <button className="btn btn-secondary btn-sm" onClick={() => setSelectedAgentForDetails(null)}>Close</button>
+                    </div>
                 </div>
-                <div className="modal-body space-y-lg pr-xs"> {/* Use space-y-lg, pr-xs */}
-                    <p className="text-sm border-b border-border-subtle pb-sm text-text-dark"><strong>Email:</strong> {selectedAgentForDetails.email}</p> {/* Use border-subtle, pb-sm, text-dark */}
-                    {[
-                        { title: 'Work History', data: agentWorkHours[selectedAgentForDetails.id], emptyMsg: 'No work history recorded.',
-                          headers: ['Login Time', 'Logout Time', 'Duration'],
-                          renderRow: (log, index) => {
-                            const loginTime = log.loginTime?.toDate ? log.loginTime.toDate() : (log.loginTime ? new Date(log.loginTime) : null);
-                            const logoutTime = log.logoutTime?.toDate ? log.logoutTime.toDate() : (log.logoutTime ? new Date(log.logoutTime) : null);
-                            const duration = (logoutTime && loginTime && !isNaN(loginTime.getTime()) && !isNaN(logoutTime.getTime())) ? ((logoutTime.getTime() - loginTime.getTime()) / (36e5)).toFixed(2) : 'N/A';
-                            return (
-                                <tr key={log.id || index}>
-                                    <td className="text-xs text-text-dark">{loginTime && !isNaN(loginTime.getTime()) ? loginTime.toLocaleString() : 'N/A'}</td> {/* Use text-dark */}
-                                    <td className="text-xs text-text-dark">{logoutTime && !isNaN(logoutTime.getTime()) ? logoutTime.toLocaleString() : <span className="italic text-text-light">In Progress</span>}</td> {/* Use text-dark, text-light */}
-                                    <td className="text-xs font-semibold text-text-dark">{duration !== 'N/A' ? `${duration} hrs` : duration}</td> {/* Use text-dark */}
-                                </tr>
-                            );
-                          }
-                        },
-                        { title: 'Leave Requests', data: agentLeaves[selectedAgentForDetails.id], emptyMsg: 'No leave requests found.',
-                          headers: ['Reason', 'Days', 'Status', 'Requested', 'Actions'],
-                          renderRow: (leave) => (
-                            <tr key={leave.id}>
-                                <td className="text-xs text-text-dark max-w-xs truncate" title={leave.reason}>{leave.reason}</td> {/* Use text-dark */}
-                                <td className="text-xs text-center text-text-dark">{leave.days}</td> {/* Use text-dark */}
-                                <td className="text-xs font-semibold">
-                                    <span className={`px-2 py-0.5 inline-flex text-[11px] leading-4 font-semibold rounded-full ${
-                                        leave.status === 'approved' ? 'bg-green-light text-primary-green' : // Use global vars
-                                        leave.status === 'rejected' ? 'bg-red-light text-red-alert' : // Use global vars
-                                        'bg-yellow-light text-yellow-warning' // Use global vars
-                                    }`}>{leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</span>
-                                </td>
-                                <td className="text-xs text-text-dark">{leave.requestedAt?.toDate ? leave.requestedAt.toDate().toLocaleDateString() : (leave.requestedAt ? new Date(leave.requestedAt).toLocaleDateString() : 'N/A')}</td> {/* Use text-dark */}
-                                <td>
-                                    {leave.status === 'pending' && (
-                                        <div className="flex gap-xs"> {/* Use gap-xs */}
-                                            <button className={`${actionButtonBase} btn-primary btn-xsmall`} onClick={() => approveLeave(leave.id)}>Approve</button> {/* Use btn-primary, btn-xsmall */}
-                                            <button className={`${actionButtonBase} btn-danger btn-xsmall`} onClick={() => rejectLeave(leave.id)}>Reject</button> {/* Use btn-danger, btn-xsmall */}
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                          )
-                        }
-                    ].map(section => (
-                        <div key={section.title}>
-                            <h4 className="card-subtitle text-primary-green mb-sm">{section.title}</h4> {/* Use card-subtitle, text-primary-green, mb-sm */}
-                            {(section.data && section.data.length > 0) ? (
-                                <div className="overflow-x-auto card"> {/* Use card for table container */}
-                                    <table className="min-w-full">
-                                        <thead className="sticky top-0 z-10">
-                                            <tr>{section.headers.map(h => <th key={h} className="text-xs text-text-dark bg-bg-medium-light">{h}</th>)}</tr> {/* Use text-dark, bg-medium-light */}
-                                        </thead>
-                                        <tbody>{section.data.map(section.renderRow)}</tbody>
-                                    </table>
-                                </div>
-                            ) : <p className="italic text-sm text-text-light">{section.emptyMsg}</p>} {/* Use text-light */}
-                        </div>
-                    ))}
-                </div>
-                <div className="modal-footer mt-lg"> {/* Add margin top */}
-                    <button className="btn btn-secondary btn-sm" onClick={() => setSelectedAgentForDetails(null)}>Close</button>
-                </div>
-              </div>
             </div>
-          )}
+        )}
 
-        {selectedAgentForEdit && <AgentEditModal agent={selectedAgentForEdit} onClose={() => setSelectedAgentForEdit(null)} onSave={handleEditAgent} />}
+        {/* Agent Edit Modal */}
+        {selectedAgentForEdit && (
+          <AgentEditModal agent={selectedAgentForEdit} onClose={() => setSelectedAgentForEdit(null)} onSave={handleEditAgent} />
+        )}
 
+        {/* Apply Leave Modal */}
         {selectedAgentForLeave && (
             <div className="modal-overlay" onClick={() => setSelectedAgentForLeave(null)}>
-                <div className="modal" onClick={e => e.stopPropagation()}>
+                <div className="modal modal-md" onClick={e => e.stopPropagation()}>
                     <button className="modal-close-btn" onClick={() => setSelectedAgentForLeave(null)}>&times;</button>
-                    <div className="modal-title mb-md">Apply Leave for <span className="text-primary-green">{selectedAgentForLeave.name}</span></div> {/* Use modal-title, mb-md, text-primary-green */}
+                    <div className="modal-header">Apply Leave for {selectedAgentForLeave.name}</div>
                     <form onSubmit={handleApplyLeave}>
-                        <div className="modal-body space-y-md"> {/* Use space-y-md */}
-                            <div className="form-group"> {/* Use form-group */}
+                        <div className="modal-body modal-body-spaced">
+                            <div>
                                 <label htmlFor="leaveReason">Reason:</label>
-                                <input type="text" id="leaveReason" value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} required placeholder="e.g., Vacation" className="input-field" /> {/* Use input-field */}
+                                <input type="text" id="leaveReason" className="input" value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} required />
                             </div>
-                            <div className="form-group"> {/* Use form-group */}
+                            <div>
                                 <label htmlFor="leaveDays">Number of Days:</label>
-                                <input type="number" id="leaveDays" value={leaveDays} onChange={(e) => setLeaveDays(e.target.value)} min="1" required placeholder="e.g., 3" className="input-field" /> {/* Use input-field */}
+                                <input type="number" id="leaveDays" className="input" value={leaveDays} onChange={(e) => setLeaveDays(e.target.value)} min="1" required />
                             </div>
                         </div>
-                        <div className="modal-footer mt-lg"> {/* Add margin top */}
-                             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedAgentForLeave(null)}>Cancel</button>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedAgentForLeave(null)}>Cancel</button>
                             <button type="submit" className="btn btn-primary btn-sm">Submit Request</button>
                         </div>
                     </form>
                 </div>
             </div>
-          )}
+        )}
 
-        <div className="card">
-          <div className="card-header"><h2>All Orders</h2></div>
-          <div className="card-body">
-            <div className="overflow-x-auto card"> {/* Use card for table container */}
-              <table className="min-w-full">
-                <thead>
-                  <tr><th>Username</th><th>Status</th><th>Amount</th><th>Created At</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {orders.length === 0 ? (
-                    <tr><td colSpan="5" className="text-center italic py-lg text-text-light">No orders found.</td></tr> {/* Use py-lg, text-light */}
-                  ) : (
-                    orders.map(order => (
-                      <tr key={order.id} className={`${!order.read && order.status === 'paid' ? 'bg-yellow-light border-l-4 border-yellow-warning' : ''}`}> {/* Use yellow-light, yellow-warning */}
-                        <td className="font-medium text-text-dark">{order.username}</td> {/* Use text-dark */}
+        <section className="card-section">
+            <div className="card-header">Recent Orders</div>
+            <div className="card-body">
+            {orders.length === 0 ? (
+                <p className="text-center text-light">No orders found.</p>
+            ) : (
+                <div className="table-responsive">
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Username</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {orders.map((order) => (
+                        <tr key={order.id}>
+                        <td>{order.id}</td>
+                        <td>{order.username}</td>
                         <td>
-                          <span className={`font-semibold px-2.5 py-1 rounded-full text-xs ${
-                            order.status === 'paid' ? 'bg-green-light text-primary-green' : // Use global vars
-                            order.status === 'pending' ? 'bg-yellow-light text-yellow-warning' : // Use global vars
-                            order.status === 'archived' ? 'bg-bg-medium-light text-text-light' : // Use global vars
-                            'bg-gray-100 text-gray-500'
-                          }`}>{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}</span>
+                            <span className={`status-badge status-${order.status}`}>
+                                {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}
+                            </span>
                         </td>
-                        <td className="font-medium text-text-dark">${parseFloat(order.amount || 0).toFixed(2)}</td> {/* Use text-dark */}
-                        <td className="text-text-dark">{order.created ? new Date(order.created).toLocaleString() : 'N/A'}</td> {/* Use text-dark */}
+                        <td className="text-bold">${parseFloat(order.amount || 0).toFixed(2)}</td>
+                        <td>{order.created ? new Date(order.created).toLocaleString() : 'N/A'}</td>
                         <td>
-                          <div className="flex flex-wrap gap-xs"> {/* Use gap-xs */}
-                            <button className={`${actionButtonBase} bg-green-light text-text-white hover:bg-green-dark`} onClick={() => viewOrderDetails(order.id)}>Details</button> {/* Use global colors */}
-                            {order.status === 'paid' && !order.read && (
-                              <button className={`${actionButtonBase} btn-primary`} onClick={() => markAsRead(order.id)}>Mark Read</button>
-                            )}
-                            {order.status !== 'archived' && (
-                                <button className={`${actionButtonBase} btn-secondary`} onClick={() => archiveOrder(order.id)}>Archive</button> {/* Use btn-secondary */}
-                            )}
-                          </div>
+                            <div className="action-buttons">
+                                <button className="btn btn-info btn-small" onClick={() => viewOrderDetails(order.id)}>Details</button>
+                                {order.status === 'paid' && !order.read && (
+                                <button className="btn btn-success btn-small" onClick={() => markAsRead(order.id)}>Mark Read</button>
+                                )}
+                                {order.status !== 'archived' && (
+                                    <button className="btn btn-secondary btn-small" onClick={() => archiveOrder(order.id)}>Archive</button>
+                                )}
+                            </div>
                         </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+                </div>
+            )}
             </div>
           </div>
           {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
