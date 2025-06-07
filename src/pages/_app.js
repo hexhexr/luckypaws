@@ -1,5 +1,5 @@
 // pages/_app.js
-import '../src/lib/firebaseClient'; // <--- ADD THIS LINE TO INITIALIZE CLIENT-SIDE FIREBASE
+import '../lib/firebaseClient';
 
 import React from 'react';
 import App from 'next/app';
