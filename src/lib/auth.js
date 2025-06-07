@@ -29,18 +29,25 @@ export function clearAuthCookie(res) {
   }));
 }
 
-// Function to check auth on server-side (for getServerSideProps)
+// Function to check auth on server-side
 export function isAuthenticated(req) {
   const cookies = parse(req.headers.cookie || '');
   const adminAuth = cookies[ADMIN_AUTH_COOKIE_NAME];
 
-  // For this simple admin_auth, we just check its presence.
-  // If you were using JWT, you'd verify the token here:
-  // try {
-  //   verify(adminAuth, JWT_SECRET);
-  //   return true;
-  // } catch (err) {
-  //   return false;
-  // }
+  // For this simple admin_auth, we just check its presence and value.
+  // If you were using JWT, you'd verify the token here.
   return adminAuth === 'authenticated'; // Simple check for the 'authenticated' string
+}
+
+/**
+ * Authorizes admin access for API routes.
+ * Checks for the 'admin_auth' cookie.
+ * @param {object} req - The Next.js API request object.
+ * @returns {object} An object with 'authenticated' (boolean) and 'message' (string, if not authenticated).
+ */
+export async function authorizeAdmin(req) {
+  if (isAuthenticated(req)) {
+    return { authenticated: true };
+  }
+  return { authenticated: false, message: 'Unauthorized: Admin access required.' };
 }
