@@ -1,9 +1,6 @@
-// pages/admin/profit-loss.js
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link'; // Import Link for navigation
 import { fetchProfitLossData, addCashout } from '../../services/profitLossService';
-import { isAuthenticated } from '../../lib/auth'; // Import server-side auth utility
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -28,158 +25,150 @@ const LoadingSkeleton = () => (
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
         background-size: 200% 100%;
         animation: loading 1.5s infinite;
-        margin-bottom: var(--spacing-sm);
         border-radius: 4px;
+        margin-bottom: 0.5rem;
       }
       @keyframes loading {
-        0% { background-position: -100% 0; }
-        100% { background-position: 100% 0; }
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
       }
     `}</style>
   </div>
 );
 
-export default function AdminProfitLoss({ isAuthenticatedUser }) {
+export default function AdminProfitLoss() {
   const router = useRouter();
-  const [profitLossData, setProfitLossData] = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
   const [cashoutForm, setCashoutForm] = useState({ username: '', amount: '', description: '' });
-  const [filterType, setFilterType] = useState('all'); // 'all', 'deposit', 'cashout'
-  const [sortConfig, setSortConfig] = useState({ key: 'net', direction: 'descending' });
-  const [searchQuery, setSearchQuery] = useState('');
+  const [isCashoutModalOpen, setIsCashoutModalOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // Number of items per page
 
-  // Client-side effect for logout (only if the server-side check didn't redirect)
+  // Authentication check
   useEffect(() => {
-    if (!isAuthenticatedUser && typeof window !== 'undefined') {
-        router.replace('/admin');
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin/login');
     }
-  }, [isAuthenticatedUser, router]);
-
-  const logout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      router.replace('/admin');
-    } catch (err) {
-      console.error('Logout API error:', err);
-      setError('Failed to log out.');
-    }
-  };
+  }, []);
 
   const loadProfitLossData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchProfitLossData();
-      setProfitLossData(data);
+      const fetchedData = await fetchProfitLossData();
+      setData(fetchedData);
     } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to load profit/loss data.');
+      console.error('Failed to fetch profit/loss data:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // Only load data if the user is authenticated (passed from getServerSideProps)
-    if (isAuthenticatedUser) {
-      loadProfitLossData();
-    }
-  }, [loadProfitLossData, isAuthenticatedUser]);
+    loadProfitLossData();
+  }, [loadProfitLossData]);
 
-  const handleCashoutFormChange = (e) => {
+  const handleCashoutChange = (e) => {
     const { name, value } = e.target;
     setCashoutForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleAddCashout = async (e) => {
     e.preventDefault();
-    if (!cashoutForm.username || !cashoutForm.amount || isNaN(parseFloat(cashoutForm.amount))) {
-      setError('Please provide a valid username and amount for cashout.');
-      return;
-    }
     setError('');
     try {
-      await addCashout(cashoutForm.username, parseFloat(cashoutForm.amount), cashoutForm.description);
-      setCashoutForm({ username: '', amount: '', description: '' }); // Clear form
+      await addCashout(cashoutForm.username, cashoutForm.amount, cashoutForm.description);
+      alert('Cashout added successfully!');
+      setCashoutForm({ username: '', amount: '', description: '' });
+      setIsCashoutModalOpen(false);
       loadProfitLossData(); // Refresh data
     } catch (err) {
-      setError(err.message || 'Failed to add cashout.');
+      console.error('Error adding cashout:', err);
+      setError(err.message);
     }
   };
 
-  const getFilteredAndSortedData = useMemo(() => {
-    let filteredData = profitLossData;
+  // Process data for display (aggregation, filtering, sorting)
+  const processedData = useMemo(() => {
+    const userMap = new Map();
 
-    // Apply type filter
-    if (filterType !== 'all') {
-      filteredData = filteredData.filter(item => item.type === filterType);
-    }
-
-    // Aggregate by user
-    const users = {};
-    filteredData.forEach(item => {
-      if (!users[item.username]) {
-        users[item.username] = {
+    data.forEach(item => {
+      if (!userMap.has(item.username)) {
+        userMap.set(item.username, {
           username: item.username,
-          fbUsername: item.fbUsername || item.username, // Assuming fbUsername might be a display name
+          fbUsername: item.fbUsername || item.username, // Use fbUsername if available, else username
           totalDeposit: 0,
           totalCashout: 0,
           net: 0,
-        };
+          profitMargin: 0,
+        });
       }
+
+      const user = userMap.get(item.username);
       if (item.type === 'deposit') {
-        users[item.username].totalDeposit += parseFloat(item.amount || 0);
+        user.totalDeposit += parseFloat(item.amount || 0);
       } else if (item.type === 'cashout') {
-        users[item.username].totalCashout += parseFloat(item.amount || 0);
+        user.totalCashout += parseFloat(item.amount || 0);
       }
-      users[item.username].net = users[item.username].totalDeposit - users[item.username].totalCashout;
-      users[item.username].profitMargin = users[item.username].totalDeposit > 0
-        ? ((users[item.username].net / users[item.username].totalDeposit) * 100).toFixed(2)
-        : '0.00';
     });
 
-    let aggregatedUsers = Object.values(users);
+    const users = Array.from(userMap.values()).map(user => {
+      user.net = user.totalDeposit - user.totalCashout;
+      user.profitMargin = user.totalDeposit > 0
+        ? ((user.net / user.totalDeposit) * 100).toFixed(2)
+        : 0;
+      return user;
+    });
 
-    // Apply search filter
-    if (searchQuery) {
-      aggregatedUsers = aggregatedUsers.filter(user =>
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.fbUsername.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+    // Filter by search term
+    const filteredUsers = search
+      ? users.filter(user =>
+        user.username.toLowerCase().includes(search.toLowerCase()) ||
+        user.fbUsername.toLowerCase().includes(search.toLowerCase())
+      )
+      : users;
 
-    // Sort data
+    // Sort users
     if (sortConfig.key) {
-      aggregatedUsers.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
+      filteredUsers.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        // Handle numeric sorting for amount, net, profitMargin
+        if (['totalDeposit', 'totalCashout', 'net', 'profitMargin'].includes(sortConfig.key)) {
+          aValue = parseFloat(aValue);
+          bValue = parseFloat(bValue);
+        }
+
+        if (aValue < bValue) {
           return sortConfig.direction === 'ascending' ? -1 : 1;
         }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
+        if (aValue > bValue) {
           return sortConfig.direction === 'ascending' ? 1 : -1;
         }
         return 0;
       });
     }
 
-    return aggregatedUsers;
-  }, [profitLossData, filterType, sortConfig, searchQuery]);
-
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  };
+    return filteredUsers;
+  }, [data, search, sortConfig]);
 
   // Pagination logic
-  const totalPages = Math.ceil(getFilteredAndSortedData.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const filteredAndSortedUsersForTable = getFilteredAndSortedData.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(processedData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const filteredAndSortedUsersForTable = processedData.slice(startIndex, endIndex);
 
   const nextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
@@ -189,106 +178,103 @@ export default function AdminProfitLoss({ isAuthenticatedUser }) {
     setCurrentPage(prev => Math.max(prev - 1, 1));
   };
 
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key) => {
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'ascending' ? ' ⬆️' : ' ⬇️';
+    }
+    return '';
+  };
+
+
+  if (loading) return <LoadingSkeleton />;
 
   return (
-    <div className="container mt-lg">
-      <div className="card">
-        <h1 className="card-header">Profit & Loss Overview</h1>
-        <nav className="admin-nav">
-          <Link href="/admin/dashboard" className="btn btn-secondary mr-sm">
-            Dashboard
-          </Link>
-          <Link href="/admin/games" className="btn btn-secondary mr-sm">
-            Manage Games
-          </Link>
-          <Link href="/admin/profit-loss" className="btn btn-secondary mr-sm">
-            Profit & Loss
-          </Link>
-          <Link href="/admin/agents" className="btn btn-secondary mr-sm">
-            Manage Agents
-          </Link>
-          <button onClick={logout} className="btn btn-danger">Logout</button>
-        </nav>
+    <div className="container mt-xl">
+      <h1 className="card-header">Profit & Loss Analysis</h1>
 
-        {error && <p className="error-message mt-md">{error}</p>}
+      {error && <div className="alert alert-danger">{error}</div>}
 
-        <div className="add-cashout-section mt-lg">
-          <h2 className="section-header">Add Manual Cashout</h2>
-          <form onSubmit={handleAddCashout} className="cashout-form">
+      <div className="card mt-lg">
+        <h2 className="card-header">Overview</h2>
+        <div className="card-body">
+          <div className="search-and-add-controls">
             <input
               type="text"
-              name="username"
-              className="input"
-              placeholder="Username"
-              value={cashoutForm.username}
-              onChange={handleCashoutFormChange}
-              required
+              placeholder="Search by username..."
+              className="input search-input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
-            <input
-              type="number"
-              name="amount"
-              className="input"
-              placeholder="Amount (USD)"
-              value={cashoutForm.amount}
-              onChange={handleCashoutFormChange}
-              step="0.01"
-              required
-            />
-            <textarea
-              name="description"
-              className="input"
-              placeholder="Description (optional)"
-              value={cashoutForm.description}
-              onChange={handleCashoutFormChange}
-              rows="2"
-            ></textarea>
-            <button className="btn btn-primary" type="submit">Add Cashout</button>
-          </form>
-        </div>
+            <button className="btn btn-primary" onClick={() => setIsCashoutModalOpen(true)}>Add New Cashout</button>
+          </div>
 
-        <div className="controls-row mt-lg">
-          <input
-            type="text"
-            className="input search-input"
-            placeholder="Search by username"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <select
-            className="select status-select"
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
-          >
-            <option value="all">All Transactions</option>
-            <option value="deposit">Deposits Only</option>
-            <option value="cashout">Cashouts Only</option>
-          </select>
-        </div>
+          {isCashoutModalOpen && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h2 className="modal-title">Add Cashout</h2>
+                <form onSubmit={handleAddCashout}>
+                  <label htmlFor="cashout-username">Username:</label>
+                  <input
+                    id="cashout-username"
+                    className="input"
+                    name="username"
+                    value={cashoutForm.username}
+                    onChange={handleCashoutChange}
+                    required
+                  />
 
-        {loading ? <LoadingSkeleton /> : (
-          <div className="table-responsive mt-md">
-            {getFilteredAndSortedData.length === 0 && !error ? (
-              <p className="text-center">No profit/loss data found for the current filters.</p>
-            ) : (
+                  <label htmlFor="cashout-amount">Amount (USD):</label>
+                  <input
+                    id="cashout-amount"
+                    className="input"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    value={cashoutForm.amount}
+                    onChange={handleCashoutChange}
+                    required
+                  />
+                  <label htmlFor="cashout-description">Description (optional):</label>
+                  <textarea
+                    id="cashout-description"
+                    className="input"
+                    name="description"
+                    value={cashoutForm.description}
+                    onChange={handleCashoutChange}
+                    rows="3"
+                  ></textarea>
+
+                  <div className="form-actions">
+                    <button className="btn btn-primary" type="submit">Submit Cashout</button>
+                    <button className="btn btn-secondary ml-sm" type="button" onClick={() => setIsCashoutModalOpen(false)}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+
+          {filteredAndSortedUsersForTable.length === 0 && !loading ? (
+            <p>No profit/loss data found for the current filters.</p>
+          ) : (
+            <div className="table-responsive">
               <table className="table">
                 <thead>
                   <tr>
-                    <th onClick={() => requestSort('username')}>
-                      Username {sortConfig.key === 'username' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                    </th>
-                    <th>Facebook Username</th>
-                    <th onClick={() => requestSort('totalDeposit')}>
-                      Total Deposit (USD) {sortConfig.key === 'totalDeposit' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                    </th>
-                    <th onClick={() => requestSort('totalCashout')}>
-                      Total Cashout (USD) {sortConfig.key === 'totalCashout' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                    </th>
-                    <th onClick={() => requestSort('net')}>
-                      Net (USD) {sortConfig.key === 'net' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                    </th>
-                    <th onClick={() => requestSort('profitMargin')}>
-                      Profit Margin (%) {sortConfig.key === 'profitMargin' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                    </th>
+                    <th onClick={() => requestSort('username')}>Username{getSortIndicator('username')}</th>
+                    <th>Firebase Username</th>
+                    <th onClick={() => requestSort('totalDeposit')}>Total Deposit (USD){getSortIndicator('totalDeposit')}</th>
+                    <th onClick={() => requestSort('totalCashout')}>Total Cashout (USD){getSortIndicator('totalCashout')}</th>
+                    <th onClick={() => requestSort('net')}>Net P/L (USD){getSortIndicator('net')}</th>
+                    <th onClick={() => requestSort('profitMargin')}>Profit Margin (%) {getSortIndicator('profitMargin')}</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -302,57 +288,37 @@ export default function AdminProfitLoss({ isAuthenticatedUser }) {
                       <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
                       <td>{user.profitMargin}%</td>
                       <td>
-                        <Link href={`/admin/customer/${user.username}`} className="btn-link">View Details</Link>
+                        <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
+            </div>
+          )}
 
-            {filteredAndSortedUsersForTable.length > 0 && totalPages > 1 && (
-              <div className="pagination-controls mt-lg text-center">
-                <button
-                  className="btn btn-secondary mr-md"
-                  onClick={prevPage}
-                  disabled={currentPage === 1}
-                >
-                  ← Previous
-                </button>
-                <span>Page {currentPage} of {totalPages}</span>
-                <button
-                  className="btn btn-secondary ml-md"
-                  onClick={nextPage}
-                  disabled={currentPage === totalPages}
-                >
-                  Next →
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          {/* Pagination Controls */}
+          {processedData.length > itemsPerPage && (
+            <div className="pagination-controls mt-lg text-center">
+              <button
+                className="btn btn-secondary mr-md"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </button>
+              <span>Page {currentPage} of {totalPages}</span>
+              <button
+                className="btn btn-secondary ml-md"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
-}
-
-// Server-side authentication check for AdminProfitLoss
-export async function getServerSideProps(context) {
-  const { req } = context;
-  const { isAuthenticated } = await import('../../lib/auth');
-
-  if (!isAuthenticated(req)) {
-    return {
-      redirect: {
-        destination: '/admin',
-        permanent: false,
-      },
-    };
-  }
-
-  return {
-    props: {
-      isAuthenticatedUser: true,
-    },
-  };
 }

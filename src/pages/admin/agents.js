@@ -10,21 +10,12 @@ export default function AdminAgents() {
   const [editingAgent, setEditingAgent] = useState(null); // Stores agent being edited
   const [editedAgentForm, setEditedAgentForm] = useState({ username: '', password: '', pageCode: '', role: '' });
 
-  // Authentication check
+  // Authentication check: Ensure the user is logged in as an admin
+  // This client-side check redirects if 'admin_auth' token is not in local storage.
+  // For robust role-based access, server-side API routes should also verify the admin's role.
   useEffect(() => {
-    const sessionCookie = typeof window !== 'undefined' ? document.cookie.split('; ').find(row => row.startsWith('session=')) : null;
-    if (!sessionCookie) {
-      router.replace('/admin'); // Redirect to admin login if no session
-      return;
-    }
-    try {
-      const sessionData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]));
-      if (sessionData.role !== 'admin') {
-        router.replace('/admin/dashboard'); // Redirect if not admin
-      }
-    } catch (e) {
-      console.error('Error parsing session cookie:', e);
-      router.replace('/admin');
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin'); // Redirect to admin login if not authenticated
     }
   }, []);
 
