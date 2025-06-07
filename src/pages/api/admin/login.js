@@ -1,28 +1,24 @@
-// pages/api/admin/login.js
-// Import the utility from lib/auth.js
-import { setAuthCookie } from '../../../lib/auth'; // Adjust path if your lib folder is elsewhere
+// src/pages/api/admin/login.js
+import { setAuthCookie } from '../../../lib/auth'; // Import from your server-side lib/auth.js
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { username, password } = req.body;
-  // Use environment variables for admin credentials
-  const { ADMIN_USER = 'admin', ADMIN_PASS = '123456' } = process.env;
+  // --- IMPORTANT: Implement your actual admin verification logic here ---
+  // This could be checking a username/password against a database (NOT recommended for admin with Firebase Auth)
+  // Or, if this route is for *agents*, it would verify agent credentials.
+  // For *super admin* with Gmail, the logic is in /api/auth/set-admin-claim.js
 
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Missing credentials' });
-  }
+  const { username, password } = req.body; // Example for traditional login fields
 
-  const isValid = username === ADMIN_USER && password === ADMIN_PASS;
-
-  if (!isValid) {
+  // Placeholder for actual, secure authentication logic
+  // REPLACE THIS with a secure credential check (e.g., hashing passwords)
+  if (username === 'admin' && password === 'your_super_secure_password') {
+    setAuthCookie(res); // Set the cookie after successful verification
+    return res.status(200).json({ message: 'Login successful' });
+  } else {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
-
-  // Use the utility function to set the authentication cookie
-  setAuthCookie(res);
-
-  return res.status(200).json({ success: true });
 }

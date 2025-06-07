@@ -1,75 +1,111 @@
-// Admin login page component (e.g., pages/admin/login.js)
-import firebase from 'firebase/app';
-import 'firebase/auth';
-import 'firebase/firestore';
-import { useState } from 'react';
+// src/pages/admin/games.js
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-// Ensure your firebaseClient config is imported and initialized
+import { clientAuth, getAuthToken, hasRole } from '../../lib/clientAuth'; // Import from client-side auth helpers
 
-const AdminLoginPage = () => {
+const GamesPage = () => {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(true); // Start as loading to check auth state
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [games, setGames] = useState([]); // State to store fetched games data
+  const [error, setError] = useState(null); // State to store any errors
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setErrorMessage('');
-    const provider = new firebase.auth.GoogleAuthProvider();
+  useEffect(() => {
+    // Listener for Firebase authentication state changes
+    const unsubscribe = clientAuth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // User is logged in, now check their custom role
+        const userIsAdmin = await hasRole('admin'); // Uses getAuthTokenResult to check claims
+        if (userIsAdmin) {
+          setIsAdminUser(true);
+          await fetchGamesData(); // Fetch games data only if the user is an admin
+        } else {
+          // User is logged in but not an admin, redirect them
+          router.push('/admin/login');
+        }
+      } else {
+        // No user logged in, redirect to login page
+        router.push('/admin/login');
+      }
+      setLoading(false); // Authentication check is complete
+    });
+
+    // Cleanup the listener when the component unmounts
+    return () => unsubscribe();
+  }, []); // Empty dependency array means this effect runs once on mount
+
+  const fetchGamesData = async () => {
+    setError(null); // Clear any previous errors before fetching
     try {
-      const result = await firebase.auth().signInWithPopup(provider);
-      const user = result.user; // This is the Firebase Auth user object
+      const token = await getAuthToken(); // Get the user's ID token for API authorization
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
 
-      // STEP 1: Get the ID token immediately after sign-in
-      const idToken = await user.getIdToken();
-
-      // STEP 2: Send ID token to your new server-side API to set custom claims
-      const response = await fetch('/api/auth/set-admin-claim', {
-        method: 'POST',
+      // Make API call to your server-side API (e.g., /api/admin/games)
+      const response = await fetch('/api/admin/games', {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`, // Send the token for server verification
+          'Authorization': `Bearer ${token}`, // Send the token in the Authorization header
         },
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        // If server says access denied, it means this Gmail is not the super admin
-        await firebase.auth().signOut(); // Log out the user
-        setErrorMessage(data.message || 'Login failed due to authorization.');
-        return;
+        const errorData = await response.json();
+        if (response.status === 403) {
+            // Specific handling for Forbidden access
+            throw new Error('Access Denied: You do not have permission to view games.');
+        }
+        throw new Error(errorData.message || 'Failed to fetch games.');
       }
 
-      // STEP 3: Force a token refresh so the new custom claims are loaded
-      await user.getIdToken(true); // 'true' forces a refresh
-
-      // STEP 4: Now, check if the user actually has the admin claim locally
-      // (This is redundant if set-admin-claim API confirms success, but good for robust checks)
-      const decodedToken = await user.getIdTokenResult();
-      if (decodedToken.claims.role === 'admin') {
-        router.push('/admin/dashboard'); // Redirect to admin dashboard
-      } else {
-        await firebase.auth().signOut();
-        setErrorMessage('Access Denied: Your account does not have administrator privileges. (Claim not set)');
+      const data = await response.json();
+      setGames(data); // Set the fetched games data to state
+    } catch (err) {
+      console.error("Error fetching games:", err);
+      setError(err.message); // Set error message
+      // If unauthorized or forbidden, log out the user and redirect to login
+      if (err.message.includes('Access Denied') || err.message.includes('Unauthorized')) {
+          clientAuth.signOut(); // Log out potentially invalid session
+          router.push('/admin/login');
       }
-
-    } catch (error) {
-      console.error("Admin Google login failed:", error);
-      setErrorMessage("Login failed: " + error.message);
-    } finally {
-      setLoading(false);
     }
   };
 
+  if (loading) {
+    return <div>Loading page and verifying access...</div>;
+  }
+
+  if (!isAdminUser) {
+    // This state should ideally be brief as the useEffect should redirect quickly
+    return <div>Access Denied. Redirecting to login...</div>;
+  }
+
   return (
     <div>
-      <h1>Admin Login</h1>
-      <button onClick={handleGoogleLogin} disabled={loading}>
-        {loading ? 'Logging in...' : 'Sign in with Google (Admin)'}
-      </button>
-      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+      <h1>Admin Games Management</h1>
+      <p>Welcome, Admin! Here you can manage games.</p>
+      {error && <p style={{ color: 'red', marginTop: '10px' }}>Error: {error}</p>}
+
+      {games.length === 0 && !error ? (
+        <p>No games found. Add some games!</p>
+      ) : (
+        <div>
+          <h2>Current Games:</h2>
+          <ul>
+            {games.map((game) => (
+              // Adjust these fields based on your actual game data structure
+              <li key={game.id}>
+                <strong>{game.name || 'Unnamed Game'}</strong> (Code: {game.pageCode || 'N/A'}) - Added By: {game.addedByAdminId || 'Unknown Admin'}
+                {/* Add edit/delete buttons here */}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* You can add forms/buttons for adding/editing games here */}
     </div>
   );
 };
 
-export default AdminLoginPage;
+export default GamesPage;
