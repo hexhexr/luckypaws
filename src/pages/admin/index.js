@@ -1,3 +1,4 @@
+// pages/admin/index.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
@@ -6,11 +7,8 @@ export default function AdminLogin() {
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
-      router.replace('/admin/dashboard');
-    }
-  }, []);
+  // No localStorage check needed here, the getServerSideProps will handle redirection on protected pages.
+  // This page is the login page itself.
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -28,7 +26,7 @@ export default function AdminLogin() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
-      localStorage.setItem('admin_auth', '1');
+      // No localStorage.setItem needed here, the cookie is handled by the API response.
       router.push('/admin/dashboard');
     } catch (err) {
       setError(err.message);
@@ -60,8 +58,8 @@ export default function AdminLogin() {
             required
           />
           <button className="btn btn-primary mt-md" type="submit">Login</button>
+          {error && <p className="text-danger mt-md text-center">{error}</p>}
         </form>
-        {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
     </div>
   );

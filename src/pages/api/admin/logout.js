@@ -1,27 +1,13 @@
-import { serialize } from 'cookie';
+// pages/api/admin/logout.js
+import { clearAuthCookie } from '../../../lib/auth'; // Adjust path as needed
 
 export default function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Clear both cookies
-  res.setHeader('Set-Cookie', [
-    serialize('admin_auth', '', {
-      path: '/',
-      maxAge: -1, // Expire immediately
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    }),
-    serialize('session', '', {
-      path: '/',
-      maxAge: -1, // Expire immediately
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    }),
-  ]);
+  // Use the utility to clear the cookie
+  clearAuthCookie(res);
 
   return res.status(200).json({ success: true, message: 'Logged out successfully' });
 }
