@@ -1,5 +1,6 @@
 // pages/api/admin/login.js
-import { setAuthCookie } from '../../../lib/auth'; // Adjust path as needed
+// Import the utility from lib/auth.js
+import { setAuthCookie } from '../../../lib/auth'; // Adjust path if your lib folder is elsewhere
 
 export default function handler(req, res) {
   if (req.method !== 'POST') {
@@ -7,6 +8,7 @@ export default function handler(req, res) {
   }
 
   const { username, password } = req.body;
+  // Use environment variables for admin credentials
   const { ADMIN_USER = 'admin', ADMIN_PASS = '123456' } = process.env;
 
   if (!username || !password) {
@@ -19,7 +21,7 @@ export default function handler(req, res) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
-  // Use the utility to set the cookie
+  // Use the utility function to set the authentication cookie
   setAuthCookie(res);
 
   return res.status(200).json({ success: true });
