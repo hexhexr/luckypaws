@@ -1,111 +1,103 @@
-// src/pages/admin/games.js
-import { useEffect, useState } from 'react';
+// pages/admin/index.js
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { clientAuth, getAuthToken, hasRole } from '../../lib/clientAuth'; // Import from client-side auth helpers
+import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
 
-const GamesPage = () => {
+export default function AdminLogin() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true); // Start as loading to check auth state
-  const [isAdminUser, setIsAdminUser] = useState(false);
-  const [games, setGames] = useState([]); // State to store fetched games data
-  const [error, setError] = useState(null); // State to store any errors
+  const [form, setForm] = useState({ username: '', password: '' });
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Listener for Firebase authentication state changes
-    const unsubscribe = clientAuth.onAuthStateChanged(async (user) => {
-      if (user) {
-        // User is logged in, now check their custom role
-        const userIsAdmin = await hasRole('admin'); // Uses getAuthTokenResult to check claims
-        if (userIsAdmin) {
-          setIsAdminUser(true);
-          await fetchGamesData(); // Fetch games data only if the user is an admin
-        } else {
-          // User is logged in but not an admin, redirect them
-          router.push('/admin/login');
-        }
-      } else {
-        // No user logged in, redirect to login page
-        router.push('/admin/login');
+    // Check if the user is already authenticated via localStorage (Vercel-based)
+    // AND if a Firebase user is already signed in (from a previous session)
+    const adminAuthFlag = typeof window !== 'undefined' ? localStorage.getItem('admin_auth') : null;
+    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
+      if (adminAuthFlag === '1' && user) {
+        router.replace('/admin/dashboard'); // Redirect if both flags are set
       }
-      setLoading(false); // Authentication check is complete
     });
 
-    // Cleanup the listener when the component unmounts
-    return () => unsubscribe();
-  }, []); // Empty dependency array means this effect runs once on mount
+    return () => unsubscribe(); // Clean up auth listener
+  }, [router]);
 
-  const fetchGamesData = async () => {
-    setError(null); // Clear any previous errors before fetching
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError(''); // Clear previous errors
+
     try {
-      const token = await getAuthToken(); // Get the user's ID token for API authorization
-      if (!token) {
-        throw new Error('Authentication token not found. Please log in again.');
-      }
-
-      // Make API call to your server-side API (e.g., /api/admin/games)
-      const response = await fetch('/api/admin/games', {
-        headers: {
-          'Authorization': `Bearer ${token}`, // Send the token in the Authorization header
-        },
+      // 1. Make request to your custom Next.js API route for admin login
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 403) {
-            // Specific handling for Forbidden access
-            throw new Error('Access Denied: You do not have permission to view games.');
-        }
-        throw new Error(errorData.message || 'Failed to fetch games.');
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Login failed');
       }
 
-      const data = await response.json();
-      setGames(data); // Set the fetched games data to state
+      // 2. If Vercel-based login is successful, get the custom token
+      const customToken = data.token;
+      if (!customToken) {
+        throw new Error('No authentication token received.');
+      }
+
+      // 3. Sign into Firebase Authentication on the client-side using the custom token
+      await firebaseAuth.signInWithCustomToken(customToken);
+
+      // 4. Set the authentication flag in local storage (for Vercel-based state)
+      localStorage.setItem('admin_auth', '1');
+      
+      console.log('Admin successfully logged in via custom token and redirected.');
+      router.push('/admin/dashboard'); // Redirect to dashboard after successful login
+
     } catch (err) {
-      console.error("Error fetching games:", err);
-      setError(err.message); // Set error message
-      // If unauthorized or forbidden, log out the user and redirect to login
-      if (err.message.includes('Access Denied') || err.message.includes('Unauthorized')) {
-          clientAuth.signOut(); // Log out potentially invalid session
-          router.push('/admin/login');
+      console.error("Admin login error:", err);
+      // Specific Firebase errors might be caught here if signInWithCustomToken fails
+      if (err.code && err.message) {
+        setError(`Firebase Auth Error: ${err.message}`);
+      } else {
+        setError(err.message);
       }
     }
   };
 
-  if (loading) {
-    return <div>Loading page and verifying access...</div>;
-  }
-
-  if (!isAdminUser) {
-    // This state should ideally be brief as the useEffect should redirect quickly
-    return <div>Access Denied. Redirecting to login...</div>;
-  }
-
   return (
-    <div>
-      <h1>Admin Games Management</h1>
-      <p>Welcome, Admin! Here you can manage games.</p>
-      {error && <p style={{ color: 'red', marginTop: '10px' }}>Error: {error}</p>}
-
-      {games.length === 0 && !error ? (
-        <p>No games found. Add some games!</p>
-      ) : (
-        <div>
-          <h2>Current Games:</h2>
-          <ul>
-            {games.map((game) => (
-              // Adjust these fields based on your actual game data structure
-              <li key={game.id}>
-                <strong>{game.name || 'Unnamed Game'}</strong> (Code: {game.pageCode || 'N/A'}) - Added By: {game.addedByAdminId || 'Unknown Admin'}
-                {/* Add edit/delete buttons here */}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* You can add forms/buttons for adding/editing games here */}
+    <div className="container mt-lg" style={{ maxWidth: '400px' }}>
+      <div className="card">
+        <h2 className="card-header text-center">🔐 Admin Access</h2>
+        <form onSubmit={handleSubmit}>
+          <label>Username</label>
+          <input
+            className="input"
+            name="username"
+            placeholder="Admin username"
+            value={form.username}
+            onChange={handleChange}
+            required
+          />
+          <label>Password</label>
+          <input
+            className="input"
+            name="password"
+            type="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={handleChange}
+            required
+          />
+          <button className="btn btn-primary mt-md" type="submit">Login</button>
+        </form>
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+      </div>
     </div>
   );
-};
-
-export default GamesPage;
+}

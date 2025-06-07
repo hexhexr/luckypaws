@@ -11,20 +11,8 @@ export default function CustomerProfile() {
   const [totals, setTotals] = useState({ usd: 0, btc: 0 });
 
   // 🔐 Auth check
-useEffect(() => {
-    const sessionCookie = typeof window !== 'undefined' ? document.cookie.split('; ').find(row => row.startsWith('session=')) : null;
-    if (!sessionCookie) {
-      router.replace('/admin/login');
-      return;
-    }
-    try {
-      const sessionData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]));
-      // Allow both admin and agent to view customer profiles if needed
-      if (sessionData.role !== 'admin' && sessionData.role !== 'agent') {
-        router.replace('/admin/login'); // Or to a general unauthorized page
-      }
-    } catch (e) {
-      console.error('Error parsing session cookie:', e);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin/login');
     }
   }, []);

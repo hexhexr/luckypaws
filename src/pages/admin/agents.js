@@ -1,271 +1,116 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+// pages/admin/agents.js
+
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 export default function AdminAgents() {
-  const router = useRouter();
   const [agents, setAgents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [newAgentForm, setNewAgentForm] = useState({ username: '', password: '', pageCode: '', role: 'agent' });
-  const [editingAgent, setEditingAgent] = useState(null); // Stores agent being edited
-  const [editedAgentForm, setEditedAgentForm] = useState({ username: '', password: '', pageCode: '', role: '' });
-
-  // Authentication check: Ensure the user is logged in as an admin
-  // This client-side check redirects if 'admin_auth' token is not in local storage.
-  // For robust role-based access, server-side API routes should also verify the admin's role.
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin'); // Redirect to admin login if not authenticated
-    }
-  }, []);
-
-  const fetchAgents = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/admin/agents');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to fetch agents');
-      setAgents(data);
-    } catch (err) {
-      console.error('Fetch agents error:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [search, setSearch] = useState("");
+  const [newAgent, setNewAgent] = useState({ username: "", password: "" });
 
   useEffect(() => {
     fetchAgents();
   }, []);
 
-  const handleNewAgentChange = (e) => {
-    const { name, value } = e.target;
-    setNewAgentForm(prev => ({ ...prev, [name]: value }));
+  const fetchAgents = async () => {
+    const res = await axios.get("/api/admin/agents");
+    setAgents(res.data);
   };
 
-  const handleEditAgentChange = (e) => {
-    const { name, value } = e.target;
-    setEditedAgentForm(prev => ({ ...prev, [name]: value }));
+  const handleSearch = (e) => {
+    setSearch(e.target.value);
   };
 
-  const handleAddAgent = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      const res = await fetch('/api/admin/agents/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAgentForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add agent');
-      alert(data.message);
-      setNewAgentForm({ username: '', password: '', pageCode: '', role: 'agent' });
-      fetchAgents(); // Refresh list
-    } catch (err) {
-      setError(err.message);
+  const filteredAgents = agents.filter((a) =>
+    a.username.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAddAgent = async () => {
+    if (!newAgent.username || !newAgent.password) return alert("Missing fields");
+    await axios.post("/api/admin/agents", newAgent);
+    setNewAgent({ username: "", password: "" });
+    fetchAgents();
+  };
+
+  const handleDelete = async (id) => {
+    if (confirm("Are you sure you want to delete this agent?")) {
+      await axios.delete(`/api/admin/agents/${id}`);
+      fetchAgents();
     }
   };
-
-  const startEditAgent = (agent) => {
-    setEditingAgent(agent);
-    setEditedAgentForm({
-      username: agent.username,
-      password: '', // Password should not be pre-filled for security
-      pageCode: agent.pageCode,
-      role: agent.role,
-    });
-  };
-
-  const handleUpdateAgent = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!editingAgent) return;
-
-    try {
-      const res = await fetch('/api/admin/agents/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: editingAgent.id, ...editedAgentForm }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update agent');
-      alert(data.message);
-      setEditingAgent(null); // Exit edit mode
-      fetchAgents(); // Refresh list
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleDeleteAgent = async (agentId) => {
-    if (!confirm('Are you sure you want to delete this agent?')) return;
-    setError('');
-    try {
-      const res = await fetch('/api/admin/agents/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to delete agent');
-      alert(data.message);
-      fetchAgents(); // Refresh list
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  if (loading) return <p className="text-center mt-xl">Loading agents...</p>;
 
   return (
-    <div className="container mt-xl">
-      <h1 className="card-header">Manage Agents</h1>
+    <div className="ml-72 p-4">
+      <h1 className="text-2xl font-bold mb-4">Agent Management</h1>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      <div className="flex flex-col md:flex-row gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Search agent"
+          className="w-full md:w-1/3 p-2 border rounded"
+          value={search}
+          onChange={handleSearch}
+        />
 
-      <div className="card mt-lg">
-        <h2 className="card-header">Add New Agent</h2>
-        <form onSubmit={handleAddAgent} className="form-grid">
-          <label htmlFor="new-username">Username:</label>
-          <input
-            id="new-username"
-            className="input"
-            name="username"
-            value={newAgentForm.username}
-            onChange={handleNewAgentChange}
-            required
-          />
+        <input
+          type="text"
+          placeholder="New agent username"
+          className="w-full md:w-1/4 p-2 border rounded"
+          value={newAgent.username}
+          onChange={(e) =>
+            setNewAgent({ ...newAgent, username: e.target.value })
+          }
+        />
 
-          <label htmlFor="new-password">Password:</label>
-          <input
-            id="new-password"
-            className="input"
-            name="password"
-            type="password"
-            value={newAgentForm.password}
-            onChange={handleNewAgentChange}
-            required
-          />
+        <input
+          type="password"
+          placeholder="New agent password"
+          className="w-full md:w-1/4 p-2 border rounded"
+          value={newAgent.password}
+          onChange={(e) =>
+            setNewAgent({ ...newAgent, password: e.target.value })
+          }
+        />
 
-          <label htmlFor="new-pageCode">Page Code:</label>
-          <input
-            id="new-pageCode"
-            className="input"
-            name="pageCode"
-            value={newAgentForm.pageCode}
-            onChange={handleNewAgentChange}
-            required
-          />
-
-          <label htmlFor="new-role">Role:</label>
-          <select
-            id="new-role"
-            className="input"
-            name="role"
-            value={newAgentForm.role}
-            onChange={handleNewAgentChange}
-          >
-            <option value="agent">Agent</option>
-            <option value="admin">Admin</option>
-          </select>
-          <div className="form-actions">
-            <button className="btn btn-primary" type="submit">Add Agent</button>
-          </div>
-        </form>
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={handleAddAgent}
+        >
+          Add Agent
+        </button>
       </div>
 
-      <div className="card mt-lg">
-        <h2 className="card-header">Existing Agents</h2>
-        {agents.length === 0 ? (
-          <p>No agents found.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Page Code</th>
-                  <th>Role</th>
-                  <th>Created At</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agents.map(agent => (
-                  <tr key={agent.id}>
-                    <td>{agent.username}</td>
-                    <td>{agent.pageCode}</td>
-                    <td>{agent.role}</td>
-                    <td>{new Date(agent.createdAt).toLocaleString()}</td>
-                    <td>
-                      <button className="btn btn-secondary btn-sm" onClick={() => startEditAgent(agent)}>Edit</button>
-                      <button className="btn btn-danger btn-sm ml-sm" onClick={() => handleDeleteAgent(agent.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="bg-white shadow rounded overflow-auto max-h-[600px]">
+        <table className="min-w-full text-sm text-left">
+          <thead className="bg-gray-100 text-gray-700">
+            <tr>
+              <th className="px-4 py-2">Username</th>
+              <th className="px-4 py-2">Created</th>
+              <th className="px-4 py-2">Total Customers</th>
+              <th className="px-4 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAgents.map((a, i) => (
+              <tr key={i} className="border-b">
+                <td className="px-4 py-2">{a.username}</td>
+                <td className="px-4 py-2">
+                  {new Date(a.createdAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-2">{a.customerCount || 0}</td>
+                <td className="px-4 py-2">
+                  <button
+                    onClick={() => handleDelete(a.id)}
+                    className="text-red-600 underline"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      {editingAgent && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h2 className="modal-title">Edit Agent: {editingAgent.username}</h2>
-            <form onSubmit={handleUpdateAgent} className="form-grid">
-              <label htmlFor="edit-username">Username:</label>
-              <input
-                id="edit-username"
-                className="input"
-                name="username"
-                value={editedAgentForm.username}
-                onChange={handleEditAgentChange}
-                required
-              />
-
-              <label htmlFor="edit-password">New Password (leave blank to keep current):</label>
-              <input
-                id="edit-password"
-                className="input"
-                name="password"
-                type="password"
-                value={editedAgentForm.password}
-                onChange={handleEditAgentChange}
-              />
-
-              <label htmlFor="edit-pageCode">Page Code:</label>
-              <input
-                id="edit-pageCode"
-                className="input"
-                name="pageCode"
-                value={editedAgentForm.pageCode}
-                onChange={handleEditAgentChange}
-                required
-              />
-
-              <label htmlFor="edit-role">Role:</label>
-              <select
-                id="edit-role"
-                className="input"
-                name="role"
-                value={editedAgentForm.role}
-                onChange={handleEditAgentChange}
-              >
-                <option value="agent">Agent</option>
-                <option value="admin">Admin</option>
-              </select>
-
-              <div className="form-actions">
-                <button className="btn btn-primary" type="submit">Update Agent</button>
-                <button className="btn btn-secondary ml-sm" type="button" onClick={() => setEditingAgent(null)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

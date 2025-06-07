@@ -1,15 +1,21 @@
 // pages/_app.js
-import '../lib/firebaseClient';
+import '../styles/globals.css';
+// If you want to use Roboto, import it like this:
+// import { Roboto } from '@next/font/google';
 
-import React from 'react';
-import App from 'next/app';
-// import any other global CSS or components you might have
+// const roboto = Roboto({
+//   weight: ['400', '500', '700'], // Specify weights you need
+//   subsets: ['latin'],
+//   variable: '--font-family-base', // Link to your CSS variable
+// });
 
-class MyApp extends App {
-  render() {
-    const { Component, pageProps } = this.props;
-    return <Component {...pageProps} />;
-  }
+function MyApp({ Component, pageProps }) {
+  // If using Roboto from @next/font, you'd add className={roboto.variable} to your root element (e.g., <body> or <div>)
+  return (
+    // <main className={roboto.variable}> // Uncomment this if you use @next/font
+    <Component {...pageProps} />
+    // </main>
+  );
 }
 
 export default MyApp;

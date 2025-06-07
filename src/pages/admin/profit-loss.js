@@ -25,263 +25,341 @@ const LoadingSkeleton = () => (
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
         background-size: 200% 100%;
         animation: loading 1.5s infinite;
+        margin-bottom: var(--spacing-sm); /* Smaller margin */
         border-radius: 4px;
-        margin-bottom: 0.5rem;
       }
       @keyframes loading {
-        0% {
-          background-position: 200% 0;
-        }
-        100% {
-          background-position: -200% 0;
-        }
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
       }
     `}</style>
   </div>
 );
 
-export default function AdminProfitLoss() {
+export default function ProfitLoss() {
   const router = useRouter();
-  const [data, setData] = useState([]);
+  const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [cashoutForm, setCashoutForm] = useState({ username: '', amount: '', description: '' });
-  const [isCashoutModalOpen, setIsCashoutModalOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  const [newCashout, setNewCashout] = useState({ username: '', amount: '' });
+  const [range, setRange] = useState({
+    from: new Date().toISOString().slice(0, 10),
+    to: new Date().toISOString().slice(0, 10)
+  });
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Number of items per page
+  const [itemsPerPage] = useState(10); // You can adjust this number
 
-  // Authentication check
+  // Sorting state
+  const [sortOption, setSortOption] = useState('username_asc'); // Default sort by username A-Z
+
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin/login');
     }
   }, []);
 
-  const loadProfitLossData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const fetchedData = await fetchProfitLossData();
-      setData(fetchedData);
-    } catch (err) {
-      console.error('Failed to fetch profit/loss data:', err);
-      setError(err.message);
+      const combined = await fetchProfitLossData();
+      setAllData(combined);
+    }
+    catch (err) {
+      setError('⚠️ Failed to load data');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProfitLossData();
-  }, [loadProfitLossData]);
-
-  const handleCashoutChange = (e) => {
-    const { name, value } = e.target;
-    setCashoutForm(prev => ({ ...prev, [name]: value }));
-  };
+    loadData();
+  }, [loadData]);
 
   const handleAddCashout = async (e) => {
     e.preventDefault();
     setError('');
+
+    const username = newCashout.username.trim();
+    const amount = parseFloat(newCashout.amount);
+    if (!username || isNaN(amount) || amount <= 0) {
+      setError('Please enter a valid username and amount');
+      return;
+    }
+
     try {
-      await addCashout(cashoutForm.username, cashoutForm.amount, cashoutForm.description);
-      alert('Cashout added successfully!');
-      setCashoutForm({ username: '', amount: '', description: '' });
-      setIsCashoutModalOpen(false);
-      loadProfitLossData(); // Refresh data
+      await addCashout(username, amount);
+      setNewCashout({ username: '', amount: '' });
+      await loadData(); // Reload data after successful cashout
     } catch (err) {
-      console.error('Error adding cashout:', err);
-      setError(err.message);
+      console.error(err);
+      setError('⚠️ Failed to add cashout.');
     }
   };
 
-  // Process data for display (aggregation, filtering, sorting)
-  const processedData = useMemo(() => {
-    const userMap = new Map();
+  // --- Grouped Data for Overall Summary (Date Filtered) ---
+  const overallSummaryData = useMemo(() => {
+    const fromDate = new Date(range.from);
+    const toDate = new Date(range.to);
+    toDate.setHours(23, 59, 59, 999);
 
-    data.forEach(item => {
-      if (!userMap.has(item.username)) {
-        userMap.set(item.username, {
-          username: item.username,
-          fbUsername: item.fbUsername || item.username, // Use fbUsername if available, else username
+    const filtered = allData.filter(entry => {
+      const entryDate = new Date(entry.time || entry.created);
+      return !isNaN(entryDate.getTime()) && entryDate >= fromDate && entryDate <= toDate;
+    });
+
+    let overallDeposit = 0;
+    let overallCashout = 0;
+
+    filtered.forEach(entry => {
+      const amount = parseFloat(entry.amount || 0);
+      if (entry.type === 'deposit') {
+        overallDeposit += amount;
+      } else if (entry.type === 'cashout') {
+        overallCashout += amount;
+      }
+    });
+
+    return { overallDeposit, overallCashout };
+  }, [allData, range]);
+
+  // --- Grouped Data for User Table (All Time) ---
+  const allTimeGroupedUsers = useMemo(() => {
+    const groups = {};
+    allData.forEach(entry => {
+      const uname = entry.username ? entry.username.toLowerCase() : 'unknown';
+      if (!groups[uname]) {
+        groups[uname] = {
+          username: entry.username || 'Unknown User',
+          fbUsername: entry.fbUsername || 'N/A',
           totalDeposit: 0,
           totalCashout: 0,
           net: 0,
-          profitMargin: 0,
-        });
+          profitMargin: 0
+        };
       }
-
-      const user = userMap.get(item.username);
-      if (item.type === 'deposit') {
-        user.totalDeposit += parseFloat(item.amount || 0);
-      } else if (item.type === 'cashout') {
-        user.totalCashout += parseFloat(item.amount || 0);
+      const amount = parseFloat(entry.amount || 0);
+      if (entry.type === 'deposit') {
+        groups[uname].totalDeposit += amount;
+      } else if (entry.type === 'cashout') {
+        groups[uname].totalCashout += amount;
       }
     });
 
-    const users = Array.from(userMap.values()).map(user => {
-      user.net = user.totalDeposit - user.totalCashout;
-      user.profitMargin = user.totalDeposit > 0
-        ? ((user.net / user.totalDeposit) * 100).toFixed(2)
+    Object.values(groups).forEach(group => {
+      group.net = group.totalDeposit - group.totalCashout;
+      group.profitMargin = group.totalDeposit > 0
+        ? ((group.net / group.totalDeposit) * 100).toFixed(2)
         : 0;
-      return user;
     });
 
-    // Filter by search term
-    const filteredUsers = search
-      ? users.filter(user =>
-        user.username.toLowerCase().includes(search.toLowerCase()) ||
-        user.fbUsername.toLowerCase().includes(search.toLowerCase())
-      )
-      : users;
+    return Object.values(groups);
+  }, [allData]);
 
-    // Sort users
-    if (sortConfig.key) {
-      filteredUsers.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
+  // --- Filtered and Sorted Users for Table ---
+  const filteredAndSortedUsersForTable = useMemo(() => {
+    let users = allTimeGroupedUsers.filter(group =>
+      group.username.toLowerCase().includes(search.toLowerCase()) ||
+      group.fbUsername.toLowerCase().includes(search.toLowerCase())
+    );
 
-        // Handle numeric sorting for amount, net, profitMargin
-        if (['totalDeposit', 'totalCashout', 'net', 'profitMargin'].includes(sortConfig.key)) {
-          aValue = parseFloat(aValue);
-          bValue = parseFloat(bValue);
-        }
+    // Apply sorting
+    users.sort((a, b) => {
+      if (sortOption === 'net_desc') {
+        return b.net - a.net; // Highest profit first
+      } else if (sortOption === 'net_asc') {
+        return a.net - b.net; // Highest loss first (or least profit)
+      } else if (sortOption === 'username_asc') {
+        return a.username.localeCompare(b.username); // A-Z
+      } else if (sortOption === 'username_desc') {
+        return b.username.localeCompare(a.username); // Z-A
+      }
+      return 0; // No sort
+    });
 
-        if (aValue < bValue) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
+    return users;
+  }, [allTimeGroupedUsers, search, sortOption]);
 
-    return filteredUsers;
-  }, [data, search, sortConfig]);
+  // Pagination Logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentUsers = filteredAndSortedUsersForTable.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAndSortedUsersForTable.length / itemsPerPage);
 
-  // Pagination logic
-  const totalPages = Math.ceil(processedData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const filteredAndSortedUsersForTable = processedData.slice(startIndex, endIndex);
+  const handleSortChange = (e) => {
+    setSortOption(e.target.value);
+    setCurrentPage(1); // Reset to first page on sort change
+  };
 
   const nextPage = () => {
-    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
   };
 
   const prevPage = () => {
-    setCurrentPage(prev => Math.max(prev - 1, 1));
-  };
-
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
     }
-    setSortConfig({ key, direction });
   };
 
-  const getSortIndicator = (key) => {
-    if (sortConfig.key === key) {
-      return sortConfig.direction === 'ascending' ? ' ⬆️' : ' ⬇️';
+  // Function to export data to CSV
+  const exportToCSV = useCallback(() => {
+    const headers = ["Username", "FB Username", "Deposits (USD)", "Cashouts (USD)", "Net P/L (USD)", "Profit Margin (%)"];
+    const rows = filteredAndSortedUsersForTable.map(user => [ // Use the sorted/filtered data
+      user.username,
+      user.fbUsername,
+      user.totalDeposit.toFixed(2),
+      user.totalCashout.toFixed(2),
+      user.net.toFixed(2),
+      user.profitMargin,
+    ].join(','));
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `profit-loss-report-${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
-    return '';
+  }, [filteredAndSortedUsersForTable]);
+
+
+  const logout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      localStorage.removeItem('admin_auth');
+      router.replace('/admin');
+    }
   };
-
-
-  if (loading) return <LoadingSkeleton />;
 
   return (
-    <div className="container mt-xl">
-      <h1 className="card-header">Profit & Loss Analysis</h1>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn active" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
+      </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      <div className="main-content">
+        <h2 className="section-title">📊 Profit & Loss Overview</h2>
 
-      <div className="card mt-lg">
-        <h2 className="card-header">Overview</h2>
-        <div className="card-body">
-          <div className="search-and-add-controls">
+        {/* Overall Summary Card - Compacted */}
+        <div className="card summary-card compact-card">
+          <h3 className="card-subtitle">Overall Summary</h3>
+          <div className="summary-grid">
+            <div className="date-range-controls">
+              <label htmlFor="fromDate">From:</label>
+              <input type="date" id="fromDate" value={range.from} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, from: e.target.value }))} />
+              <label htmlFor="toDate">To:</label>
+              <input type="date" id="toDate" value={range.to} onChange={e => setCurrentPage(1) || setRange(prev => ({ ...prev, to: e.target.value }))} />
+            </div>
+            <div className="summary-item">
+              <span>Total Deposits:</span>
+              <span className="summary-deposit">{formatCurrency(overallSummaryData.overallDeposit)}</span>
+            </div>
+            <div className="summary-item">
+              <span>Total Cashouts:</span>
+              <span className="summary-cashout">{formatCurrency(overallSummaryData.overallCashout)}</span>
+            </div>
+            <div className="summary-item">
+              <span>Net Profit/Loss:</span>
+              <span className="summary-net" style={{ color: (overallSummaryData.overallDeposit - overallSummaryData.overallCashout) >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
+                {formatCurrency(overallSummaryData.overallDeposit - overallSummaryData.overallCashout)}
+              </span>
+            </div>
+            <div className="summary-item">
+              <span>Profit Margin:</span>
+              <span className="summary-margin">
+                {overallSummaryData.overallDeposit > 0 ? ((overallSummaryData.overallDeposit - overallSummaryData.overallCashout) / overallSummaryData.overallDeposit * 100).toFixed(2) : '0'}%
+              </span>
+            </div>
+            <button onClick={exportToCSV} className="btn btn-secondary btn-export">Export All to CSV</button>
+          </div>
+        </div>
+
+        {/* Add New Cashout Card - Compacted */}
+        <div className="card add-cashout-card compact-card mt-md">
+          <h3 className="card-subtitle">💰 Add New Cashout</h3>
+          <form onSubmit={handleAddCashout} className="cashout-form-compact">
             <input
-              type="text"
-              placeholder="Search by username..."
-              className="input search-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              className="input"
+              placeholder="Username"
+              value={newCashout.username}
+              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
+              required
             />
-            <button className="btn btn-primary" onClick={() => setIsCashoutModalOpen(true)}>Add New Cashout</button>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              placeholder="Amount (USD)"
+              value={newCashout.amount}
+              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
+              required
+            />
+            <button className="btn btn-primary btn-add-cashout" type="submit">Add Cashout</button>
+          </form>
+          {error && <div className="alert alert-danger mt-sm">{error}</div>}
+        </div>
+
+        {/* User Profit & Loss Details Table */}
+        <div className="card user-profit-loss-table-card mt-md">
+          <h3 className="card-subtitle">User Profit & Loss Details (All Time)</h3>
+
+          <div className="sort-controls">
+            <label htmlFor="sort-by">Sort by:</label>
+            <select id="sort-by" className="select" value={sortOption} onChange={handleSortChange}>
+              <option value="net_desc">Highest Profit</option>
+              <option value="net_asc">Highest Loss</option>
+              <option value="username_asc">Username (A-Z)</option>
+              <option value="username_desc">Username (Z-A)</option>
+            </select>
+            <input
+              className="input search-input"
+              placeholder="Search username or FB username"
+              value={search}
+              onChange={e => setCurrentPage(1) || setSearch(e.target.value)}
+            />
           </div>
 
-          {isCashoutModalOpen && (
-            <div className="modal-overlay">
-              <div className="modal">
-                <h2 className="modal-title">Add Cashout</h2>
-                <form onSubmit={handleAddCashout}>
-                  <label htmlFor="cashout-username">Username:</label>
-                  <input
-                    id="cashout-username"
-                    className="input"
-                    name="username"
-                    value={cashoutForm.username}
-                    onChange={handleCashoutChange}
-                    required
-                  />
-
-                  <label htmlFor="cashout-amount">Amount (USD):</label>
-                  <input
-                    id="cashout-amount"
-                    className="input"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    value={cashoutForm.amount}
-                    onChange={handleCashoutChange}
-                    required
-                  />
-                  <label htmlFor="cashout-description">Description (optional):</label>
-                  <textarea
-                    id="cashout-description"
-                    className="input"
-                    name="description"
-                    value={cashoutForm.description}
-                    onChange={handleCashoutChange}
-                    rows="3"
-                  ></textarea>
-
-                  <div className="form-actions">
-                    <button className="btn btn-primary" type="submit">Submit Cashout</button>
-                    <button className="btn btn-secondary ml-sm" type="button" onClick={() => setIsCashoutModalOpen(false)}>Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-
-          {filteredAndSortedUsersForTable.length === 0 && !loading ? (
-            <p>No profit/loss data found for the current filters.</p>
+          {loading ? (
+            <LoadingSkeleton />
+          ) : currentUsers.length === 0 ? (
+            <p className="text-center mt-md">No user data found.</p>
           ) : (
             <div className="table-responsive">
               <table className="table">
                 <thead>
                   <tr>
-                    <th onClick={() => requestSort('username')}>Username{getSortIndicator('username')}</th>
-                    <th>Firebase Username</th>
-                    <th onClick={() => requestSort('totalDeposit')}>Total Deposit (USD){getSortIndicator('totalDeposit')}</th>
-                    <th onClick={() => requestSort('totalCashout')}>Total Cashout (USD){getSortIndicator('totalCashout')}</th>
-                    <th onClick={() => requestSort('net')}>Net P/L (USD){getSortIndicator('net')}</th>
-                    <th onClick={() => requestSort('profitMargin')}>Profit Margin (%) {getSortIndicator('profitMargin')}</th>
+                    <th>Username</th>
+                    <th>FB Username</th>
+                    <th>Deposits</th>
+                    <th>Cashouts</th>
+                    <th>Net P/L</th>
+                    <th>Margin</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedUsersForTable.map((user) => (
+                  {currentUsers.map(user => (
                     <tr key={user.username}>
-                      <td>{user.username}</td>
+                      <td><a href={`/admin/customer/${user.username}`} className="username-link">{user.username}</a></td>
                       <td>{user.fbUsername}</td>
                       <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
                       <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
@@ -298,7 +376,7 @@ export default function AdminProfitLoss() {
           )}
 
           {/* Pagination Controls */}
-          {processedData.length > itemsPerPage && (
+          {filteredAndSortedUsersForTable.length > itemsPerPage && (
             <div className="pagination-controls mt-lg text-center">
               <button
                 className="btn btn-secondary mr-md"

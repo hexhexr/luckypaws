@@ -1,37 +1,24 @@
 // pages/admin/games.js
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Link from 'next/link'; // Import Link for navigation
+import { useRouter } from 'next/router'; // Import useRouter for auth check
 import { db } from '../../lib/firebaseClient'; // Ensure this path is correct
-import { isAuthenticated } from '../../lib/auth'; // Import server-side auth utility
 
-export default function AdminGames({ isAuthenticatedUser }) {
-  const router = useRouter();
+export default function AdminGames() {
+  const router = useRouter(); // Initialize useRouter
   const [games, setGames] = useState([]);
   const [newGame, setNewGame] = useState('');
   const [editingGame, setEditingGame] = useState(null); // { id, name } of game being edited
   const [editedGameName, setEditedGameName] = useState('');
   const [error, setError] = useState('');
 
-  // Client-side effect for logout (only if the server-side check didn't redirect)
+  // Authentication check for admin pages
   useEffect(() => {
-    if (!isAuthenticatedUser && typeof window !== 'undefined') {
-        router.replace('/admin');
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin'); // Redirect to the admin login page
     }
-  }, [isAuthenticatedUser, router]);
-
-  const logout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      router.replace('/admin'); // Redirect to login after successful logout
-    } catch (err) {
-      console.error('Logout API error:', err);
-      setError('Failed to log out.');
-    }
-  };
+  }, []);
 
   const loadGames = async () => {
-    setError('');
     try {
       const snap = await db.collection('games').orderBy('name').get();
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -43,169 +30,213 @@ export default function AdminGames({ isAuthenticatedUser }) {
   };
 
   useEffect(() => {
-    // Only load games if the user is authenticated (passed from getServerSideProps)
-    if (isAuthenticatedUser) {
-      loadGames();
-    }
-  }, [isAuthenticatedUser]);
-
+    loadGames();
+  }, []);
 
   const handleAddGame = async (e) => {
     e.preventDefault();
-    if (!newGame.trim()) {
-      setError('Game name cannot be empty.');
+    setError('');
+
+    const trimmed = newGame.trim();
+    if (!trimmed) {
+      setError('Game name is required');
       return;
     }
-    setError('');
+
     try {
-      const res = await fetch('/api/admin/games/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGame }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add game');
+      await db.collection('games').add({ name: trimmed });
       setNewGame('');
-      loadGames(); // Refresh the list
+      await loadGames(); // Reload games after adding
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError('⚠️ Error adding game');
     }
   };
 
-  const handleEditGame = (game) => {
+  const handleEditClick = (game) => {
     setEditingGame(game);
     setEditedGameName(game.name);
+    setError(''); // Clear any previous errors
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingGame || !editedGameName.trim()) {
-      setError('Edited game name cannot be empty.');
+  const handleUpdateGame = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const trimmed = editedGameName.trim();
+    if (!trimmed) {
+      setError('Game name cannot be empty');
       return;
     }
-    setError('');
+    if (!editingGame) {
+      setError('No game selected for editing.');
+      return;
+    }
+
     try {
+      // Call your new API endpoint to update the game name
       const res = await fetch('/api/admin/games/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingGame.id, name: editedGameName }),
+        body: JSON.stringify({ id: editingGame.id, name: trimmed }),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update game');
-      setEditingGame(null);
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update game');
+      }
+
+      setEditingGame(null); // Exit editing mode
       setEditedGameName('');
-      loadGames(); // Refresh the list
+      await loadGames(); // Reload games after updating
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(`⚠️ Error updating game: ${err.message}`);
     }
   };
 
-  const handleDeleteGame = async (gameId) => {
-    if (!confirm('Are you sure you want to delete this game? This action cannot be undone.')) return;
-    setError('');
-    try {
-      const res = await fetch('/api/admin/games/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: gameId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to delete game');
-      loadGames(); // Refresh the list
-    } catch (err) {
-      setError(err.message);
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this game? This action cannot be undone.")) {
+      try {
+        await db.collection('games').doc(id).delete();
+        setGames(games.filter(g => g.id !== id));
+      } catch (err) {
+        console.error(err);
+        setError('⚠️ Failed to delete game');
+      }
     }
   };
+
+  const logout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout API error:', err);
+    } finally {
+      localStorage.removeItem('admin_auth');
+      router.replace('/admin');
+    }
+  };
+
 
   return (
-    <div className="container mt-lg">
-      <div className="card">
-        <h1 className="card-header">Manage Games</h1>
-        <nav className="admin-nav">
-          <Link href="/admin/dashboard" className="btn btn-secondary mr-sm">
-            Dashboard
-          </Link>
-          <Link href="/admin/games" className="btn btn-secondary mr-sm">
-            Manage Games
-          </Link>
-          <Link href="/admin/profit-loss" className="btn btn-secondary mr-sm">
-            Profit & Loss
-          </Link>
-          <Link href="/admin/agents" className="btn btn-secondary mr-sm">
-            Manage Agents
-          </Link>
-          <button onClick={logout} className="btn btn-danger">Logout</button>
-        </nav>
+    <div className="admin-dashboard"> {/* Using admin-dashboard layout */}
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
+      </div>
 
-        {error && <p className="error-message mt-md">{error}</p>}
+      <div className="main-content">
+        <h2 className="text-center mt-lg">🎮 Manage Games</h2>
 
-        <div className="form-section mt-lg">
-          <form onSubmit={handleAddGame} className="add-game-form">
+        {editingGame ? (
+          <form onSubmit={handleUpdateGame} className="form-inline mt-md">
             <input
-              type="text"
               className="input"
-              placeholder="Add new game name"
+              placeholder="Edit game name"
+              value={editedGameName}
+              onChange={(e) => setEditedGameName(e.target.value)}
+              required
+            />
+            <button className="btn btn-primary ml-sm" type="submit">Update Game</button>
+            <button className="btn btn-secondary ml-sm" type="button" onClick={() => setEditingGame(null)}>Cancel</button>
+          </form>
+        ) : (
+          <form onSubmit={handleAddGame} className="form-inline mt-md">
+            <input
+              className="input"
+              placeholder="Enter new game name"
               value={newGame}
               onChange={(e) => setNewGame(e.target.value)}
               required
             />
-            <button className="btn btn-primary" type="submit">Add Game</button>
+            <button className="btn btn-primary ml-sm" type="submit">Add Game</button>
           </form>
-        </div>
-
-        <h2 className="section-header mt-lg">Existing Games</h2>
-        {games.length === 0 && !error && <p className="text-center">No games added yet.</p>}
-        {games.length > 0 && (
-          <ul className="game-list">
-            {games.map((game) => (
-              <li key={game.id}>
-                {editingGame?.id === game.id ? (
-                  <>
-                    <input
-                      type="text"
-                      className="input"
-                      value={editedGameName}
-                      onChange={(e) => setEditedGameName(e.target.value)}
-                    />
-                    <div>
-                      <button className="btn btn-primary btn-sm" onClick={handleSaveEdit}>Save</button>
-                      <button className="btn btn-secondary btn-sm" onClick={() => setEditingGame(null)}>Cancel</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span>{game.name}</span>
-                    <div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => handleEditGame(game)}>Edit</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDeleteGame(game.id)}>Delete</button>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
         )}
+
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+
+        <div className="card mt-lg">
+          <h3 className="mb-sm">Available Games</h3>
+          {games.length === 0 ? (
+            <p>No games added yet.</p>
+          ) : (
+            // Updated game list styling
+            <ul className="game-list">
+              {games.map(game => (
+                <li key={game.id}>
+                  <span>{game.name}</span>
+                  <div>
+                    <button className="btn btn-sm btn-primary" onClick={() => handleEditClick(game)}>Edit</button>
+                    <button className="btn btn-sm btn-danger ml-sm" onClick={() => handleDelete(game.id)}>Delete</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+      <style jsx>{`
+        /* Styles for horizontal game list */
+        .game-list {
+          display: flex;
+          flex-wrap: wrap; /* Allows items to wrap to the next line */
+          gap: 1rem; /* Space between items */
+          padding: 0;
+          margin: 0;
+          list-style: none; /* Remove bullet points */
+        }
+
+        .game-list li {
+          background: #f0f0f0;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 0.75rem 1rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-grow: 1; /* Allow items to grow to fill space */
+          max-width: calc(33% - 1rem); /* Roughly 3 items per row on wider screens */
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .game-list li span {
+          font-weight: 500;
+          margin-right: 1rem;
+        }
+
+        .game-list li div {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 768px) {
+          .game-list li {
+            max-width: calc(50% - 0.75rem); /* 2 items per row */
+          }
+        }
+
+        @media (max-width: 480px) {
+          .game-list li {
+            max-width: 100%; /* 1 item per row */
+            flex-direction: column; /* Stack name and buttons vertically */
+            align-items: flex-start;
+          }
+          .game-list li div {
+            margin-top: 0.5rem;
+            width: 100%;
+            justify-content: flex-end;
+          }
+          .game-list li span {
+            margin-bottom: 0.5rem;
+          }
+        }
+      `}</style>
     </div>
   );
-}
-
-// Server-side authentication check for AdminGames
-export async function getServerSideProps(context) {
-  const { req } = context;
-  const { isAuthenticated } = await import('../../lib/auth');
-
-  if (!isAuthenticated(req)) {
-    return {
-      redirect: {
-        destination: '/admin',
-        permanent: false,
-      },
-    };
-  }
-
-  return {
-    props: {
-      isAuthenticatedUser: true,
-    },
-  };
 }
