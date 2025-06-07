@@ -1,106 +1,75 @@
-// pages/admin/index.js
-import { useState, useEffect } from 'react';
+// Admin login page component (e.g., pages/admin/login.js)
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
+// Ensure your firebaseClient config is imported and initialized
 
-export default function AdminLogin() {
+const AdminLoginPage = () => {
   const router = useRouter();
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // No client-side localStorage check needed here on initial load,
-  // as the redirect is handled by getServerSideProps on protected pages.
-  // We keep this useEffect for redirection if already logged in and landing here directly.
-  useEffect(() => {
-    // Note: A more robust check here might involve a quick API call
-    // or a server-side check on page load if this page itself needs
-    // to redirect authenticated users without a refresh.
-    // For now, this is a basic client-side redirect.
-    const checkAuthAndRedirect = async () => {
-      try {
-        const res = await fetch('/api/admin/check-auth'); // You might need to create this API route
-        if (res.ok) {
-          router.replace('/admin/dashboard');
-        }
-      } catch (err) {
-        // Not authenticated, stay on login page
-      }
-    };
-    checkAuthAndRedirect();
-  }, []);
-
-
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setError('');
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    const provider = new firebase.auth.GoogleAuthProvider();
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      const result = await firebase.auth().signInWithPopup(provider);
+      const user = result.user; // This is the Firebase Auth user object
 
-      // Authentication is now handled by the HTTP-only cookie set by the API.
-      // No client-side localStorage manipulation is needed here.
-      router.push('/admin/dashboard');
-    } catch (err) {
-      setError(err.message);
+      // STEP 1: Get the ID token immediately after sign-in
+      const idToken = await user.getIdToken();
+
+      // STEP 2: Send ID token to your new server-side API to set custom claims
+      const response = await fetch('/api/auth/set-admin-claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`, // Send the token for server verification
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // If server says access denied, it means this Gmail is not the super admin
+        await firebase.auth().signOut(); // Log out the user
+        setErrorMessage(data.message || 'Login failed due to authorization.');
+        return;
+      }
+
+      // STEP 3: Force a token refresh so the new custom claims are loaded
+      await user.getIdToken(true); // 'true' forces a refresh
+
+      // STEP 4: Now, check if the user actually has the admin claim locally
+      // (This is redundant if set-admin-claim API confirms success, but good for robust checks)
+      const decodedToken = await user.getIdTokenResult();
+      if (decodedToken.claims.role === 'admin') {
+        router.push('/admin/dashboard'); // Redirect to admin dashboard
+      } else {
+        await firebase.auth().signOut();
+        setErrorMessage('Access Denied: Your account does not have administrator privileges. (Claim not set)');
+      }
+
+    } catch (error) {
+      console.error("Admin Google login failed:", error);
+      setErrorMessage("Login failed: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container mt-lg" style={{ maxWidth: '400px' }}>
-      <div className="card">
-        <h2 className="card-header text-center">🔐 Admin Access</h2>
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            className="input"
-            name="username"
-            placeholder="Admin username"
-            value={form.username}
-            onChange={handleChange}
-            required
-          />
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            className="input"
-            name="password"
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-          />
-          {error && <p className="error-message">{error}</p>}
-          <button className="btn btn-primary mt-md" type="submit">Login</button>
-        </form>
-      </div>
+    <div>
+      <h1>Admin Login</h1>
+      <button onClick={handleGoogleLogin} disabled={loading}>
+        {loading ? 'Logging in...' : 'Sign in with Google (Admin)'}
+      </button>
+      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
     </div>
   );
-}
+};
 
-// Optional: Add a simple API route for check-auth if the client-side useEffect needs it
-// pages/api/admin/check-auth.js
-/*
-import { isAuthenticated } from '../../lib/auth';
-
-export default function handler(req, res) {
-  if (req.method === 'GET') {
-    if (isAuthenticated(req)) {
-      return res.status(200).json({ authenticated: true });
-    } else {
-      return res.status(401).json({ authenticated: false });
-    }
-  }
-  return res.status(405).json({ message: 'Method not allowed' });
-}
-*/
+export default AdminLoginPage;

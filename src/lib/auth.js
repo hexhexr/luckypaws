@@ -1,59 +1,63 @@
 // lib/auth.js
-import { verify } from 'jsonwebtoken';
-import { serialize, parse } from 'cookie';
-// Assuming firebaseAdmin is initialized and accessible if needed for other parts of auth.
-// For authorizeAdmin, we primarily rely on isAuthenticated and env vars.
+import { firebaseAdmin } from './firebaseAdmin'; // Your initialized Admin SDK instance
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key'; // Use a strong secret from environment variables
+/**
+ * Verifies Firebase ID Token from request headers.
+ * @param {object} req - The Next.js API request object.
+ * @returns {object|null} Decoded ID token (user payload with claims) if valid, null otherwise.
+ */
+export async function verifyIdToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
 
-export const ADMIN_AUTH_COOKIE_NAME = 'admin_auth';
-
-// Function to set the auth cookie (for login API)
-export function setAuthCookie(res) {
-  const token = 'authenticated'; // Or a proper JWT token if you implement one
-  res.setHeader('Set-Cookie', serialize(ADMIN_AUTH_COOKIE_NAME, token, {
-    path: '/',
-    maxAge: 60 * 60, // 1 hour
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  }));
-}
-
-// Function to clear the auth cookie (for logout API)
-export function clearAuthCookie(res) {
-  res.setHeader('Set-Cookie', serialize(ADMIN_AUTH_COOKIE_NAME, '', {
-    path: '/',
-    maxAge: -1, // Expire the cookie immediately
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  }));
-}
-
-// Function to check auth on server-side (for getServerSideProps)
-export function isAuthenticated(req) {
-  const cookies = parse(req.headers.cookie || '');
-  const adminAuth = cookies[ADMIN_AUTH_COOKIE_NAME];
-
-  return adminAuth === 'authenticated';
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+    return decodedToken;
+  } catch (error) {
+    console.error("ID Token verification failed:", error.message);
+    return null;
+  }
 }
 
 /**
- * Authorizes admin access for API routes.
- * Checks for the 'admin_auth' cookie and returns the FIREBASE_ADMIN_UID as adminId.
+ * Authorizes admin access for API routes based on verified ID token and user's custom claim.
  * @param {object} req - The Next.js API request object.
- * @returns {object} An object with 'authenticated' (boolean), 'message' (string, if not authenticated),
- * and 'adminId' (string, if authenticated and FIREBASE_ADMIN_UID is set).
+ * @returns {object} An object with 'authenticated' (boolean), 'message' (string), and 'adminId' (string).
  */
 export async function authorizeAdmin(req) {
-  if (isAuthenticated(req)) {
-    const adminUid = process.env.FIREBASE_ADMIN_UID;
-    if (!adminUid) {
-      console.warn("FIREBASE_ADMIN_UID environment variable is not set. Admin ID will be 'UNKNOWN_ADMIN_ID'.");
-      return { authenticated: true, adminId: 'UNKNOWN_ADMIN_ID' }; // Fallback if UID not set
-    }
-    return { authenticated: true, adminId: adminUid };
+  const decodedToken = await verifyIdToken(req);
+
+  if (!decodedToken) {
+    return { authenticated: false, message: 'Unauthorized: No or invalid ID token.' };
   }
-  return { authenticated: false, message: 'Unauthorized: Admin access required.' };
+
+  // Check custom claim for admin role
+  if (decodedToken.role === 'admin') {
+    return { authenticated: true, adminId: decodedToken.uid }; // Return the actual admin's UID
+  } else {
+    return { authenticated: false, message: 'Forbidden: Admin access required.' };
+  }
+}
+
+/**
+ * Authorizes agent access for API routes based on verified ID token and user's custom claim.
+ * @param {object} req - The Next.js API request object.
+ * @returns {object} An object with 'authenticated' (boolean), 'message' (string), and 'agentId' (string).
+ */
+export async function authorizeAgent(req) {
+  const decodedToken = await verifyIdToken(req);
+
+  if (!decodedToken) {
+    return { authenticated: false, message: 'Unauthorized: No or invalid ID token.' };
+  }
+
+  // Check custom claim for agent role
+  if (decodedToken.role === 'agent' || decodedToken.role === 'admin') { // Admins can also act as agents
+    return { authenticated: true, agentId: decodedToken.uid }; // Return the actual agent's UID
+  } else {
+    return { authenticated: false, message: 'Forbidden: Agent access required.' };
+  }
 }
