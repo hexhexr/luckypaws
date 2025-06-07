@@ -12,9 +12,20 @@ export default function AdminGames() {
   const [error, setError] = useState('');
 
   // Authentication check for admin pages
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin'); // Redirect to the admin login page
+useEffect(() => {
+    const sessionCookie = typeof window !== 'undefined' ? document.cookie.split('; ').find(row => row.startsWith('session=')) : null;
+    if (!sessionCookie) {
+      router.replace('/admin');
+      return;
+    }
+    try {
+      const sessionData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]));
+      if (sessionData.role !== 'admin') {
+        router.replace('/admin/dashboard'); // Redirect if not admin, or to agent dashboard
+      }
+    } catch (e) {
+      console.error('Error parsing session cookie:', e);
+      router.replace('/admin');
     }
   }, []);
 

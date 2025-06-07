@@ -16,10 +16,22 @@ export default function AdminDashboard() {
     to: new Date().toISOString().slice(0, 10)
   });
 
-  useEffect(() => {
-    // Check local storage for admin_auth before rendering
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin'); // Redirect to the admin login page
+ useEffect(() => {
+    const sessionCookie = typeof window !== 'undefined' ? document.cookie.split('; ').find(row => row.startsWith('session=')) : null;
+    if (!sessionCookie) {
+      router.replace('/admin'); // Redirect to admin login if no session
+      return;
+    }
+    try {
+      const sessionData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]));
+      // Assuming dashboard is primarily for admin, redirect if not admin
+      // If agents also use this dashboard, you might adjust logic based on sessionData.role
+      if (sessionData.role !== 'admin') {
+        router.replace('/agent/dashboard'); // Redirect agents to their specific dashboard later
+      }
+    } catch (e) {
+      console.error('Error parsing session cookie:', e);
+      router.replace('/admin');
     }
   }, []);
 

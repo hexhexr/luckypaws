@@ -55,9 +55,20 @@ export default function ProfitLoss() {
   // Sorting state
   const [sortOption, setSortOption] = useState('username_asc'); // Default sort by username A-Z
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin/login');
+useEffect(() => {
+    const sessionCookie = typeof window !== 'undefined' ? document.cookie.split('; ').find(row => row.startsWith('session=')) : null;
+    if (!sessionCookie) {
+      router.replace('/admin');
+      return;
+    }
+    try {
+      const sessionData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]));
+      if (sessionData.role !== 'admin') {
+        router.replace('/admin/dashboard'); // Redirect if not admin, or to agent dashboard
+      }
+    } catch (e) {
+      console.error('Error parsing session cookie:', e);
+      router.replace('/admin');
     }
   }, []);
 
