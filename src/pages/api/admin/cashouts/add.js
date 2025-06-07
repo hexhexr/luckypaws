@@ -8,8 +8,8 @@ export default async function handler(req, res) {
 
   const { username, amount, description } = req.body;
 
-  if (!username || typeof amount === 'undefined' || amount === null || isNaN(parseFloat(amount))) {
-    return res.status(400).json({ message: 'Missing or invalid username or amount' });
+  if (!username || !amount) {
+    return res.status(400).json({ message: 'Missing username or amount' });
   }
 
   try {

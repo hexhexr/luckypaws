@@ -1,4 +1,3 @@
-// lib/firebaseAdmin.js
 import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
@@ -12,4 +11,3 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
-export const auth = admin.auth(); // Export the Firebase Admin Auth service
