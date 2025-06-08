@@ -1,4 +1,3 @@
-// src/pages/admin/dashboard.js
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
@@ -8,42 +7,42 @@ import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp,
 import { onAuthStateChanged } from 'firebase/auth'; // Explicitly import onAuthStateChanged for clarity
 import axios from 'axios';
 
-// --- Helper Components (Remain unchanged unless specified) ---
+// --- Helper Components ---
 const StatCard = ({ title, value, icon, color }) => (
-    <div className="card stat-card" style={{ borderColor: color }}>
-        <div>
-            <h4 className="stat-card-title" style={{ color }}>{title}</h4>
-            <h2 className="stat-card-value">{value}</h2>
-        </div>
-        <span className="stat-card-icon" style={{ color }}>{icon}</span>
+  <div className="card stat-card" style={{ borderColor: color }}>
+    <div>
+      <h4 className="stat-card-title" style={{ color }}>{title}</h4>
+      <h2 className="stat-card-value">{value}</h2>
     </div>
+    <span className="stat-card-icon" style={{ color }}>{icon}</span>
+  </div>
 );
 
 const OrderDetailModal = ({ order, onClose }) => {
-    if (!order) return null;
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-4">Order Details (ID: {order.id})</h3>
-                <p><strong>Username:</strong> {order.username}</p>
-                <p><strong>Game:</strong> {order.game}</p>
-                <p><strong>Amount:</strong> ${Number(order.amount).toFixed(2)}</p>
-                <p><strong>BTC:</strong> {Number(order.btc).toFixed(8)}</p>
-                <p><strong>Status:</strong> {order.status}</p>
-                <p><strong>Created:</strong> {new Date(order.created).toLocaleString()}</p>
-                {order.invoice && (
-                    <>
-                        <p className="mt-2"><strong>Lightning Invoice:</strong></p>
-                        <textarea readOnly className="w-full p-2 border rounded-md resize-none" rows="3" value={order.invoice}></textarea>
-                    </>
-                )}
-                <button onClick={onClose} className="btn btn-secondary mt-4">Close</button>
-            </div>
-        </div>
-    );
+  if (!order) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h3 className="text-xl font-bold mb-4">Order Details (ID: {order.id})</h3>
+        <p><strong>Username:</strong> {order.username}</p>
+        <p><strong>Game:</strong> {order.game}</p>
+        <p><strong>Amount:</strong> ${Number(order.amount).toFixed(2)}</p>
+        <p><strong>BTC:</strong> {Number(order.btc).toFixed(8)}</p>
+        <p><strong>Status:</strong> {order.status}</p>
+        <p><strong>Created:</strong> {new Date(order.created).toLocaleString()}</p>
+        {order.invoice && (
+          <>
+            <p className="mt-2"><strong>Lightning Invoice:</strong></p>
+            <textarea readOnly className="w-full p-2 border rounded-md resize-none" rows="3" value={order.invoice}></textarea>
+          </>
+        )}
+        <button onClick={onClose} className="btn btn-secondary mt-4">Close</button>
+      </div>
+    </div>
+  );
 };
 
-export default function AdminDashboard() {
+export default function Dashboard() {
   const router = useRouter();
   const [totalCustomers, setTotalCustomers] = useState(0);
   const [totalAgents, setTotalAgents] = useState(0);
@@ -69,13 +68,6 @@ export default function AdminDashboard() {
         // No user is signed in, redirect to login page
         router.replace('/admin');
       } else {
-        // User is signed in. IMPORTANT: Implement role-based access control here.
-        // Example: Check custom claims set on the user object in Firebase Admin SDK.
-        // const idTokenResult = await user.getIdTokenResult();
-        // if (!idTokenResult.claims.admin) {
-        //   router.replace('/unauthorized'); // Redirect unauthorized users
-        //   return;
-        // }
         setLoading(false); // Authentication successful, stop loading
         fetchDashboardData();
         setupRealtimeListeners();
@@ -100,7 +92,7 @@ export default function AdminDashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Set to start of today
       const depositsSnap = await getDocs(query(
-        collection(db, 'orders'), // Assuming 'orders' contains deposit info with 'paid' status
+        collection(db, 'orders'),
         where('created', '>=', today.toISOString()),
         where('status', '==', 'paid')
       ));
@@ -258,7 +250,7 @@ export default function AdminDashboard() {
   const markCashoutAsSent = async (cashoutId) => {
     if (confirm('Mark this cashout as sent?')) {
         try {
-            await axios.post('/api/admin/cashouts/send', { id: cashoutId }); // Assuming an API route for this
+            await axios.post('/api/admin/cashouts/send', { id: cashoutId });
             alert('Cashout marked as sent!');
         } catch (err) {
             console.error('Error marking cashout as sent:', err);
@@ -270,7 +262,7 @@ export default function AdminDashboard() {
   const markCashoutAsFailed = async (cashoutId) => {
     if (confirm('Mark this cashout as failed?')) {
         try {
-            await axios.post('/api/admin/cashouts/fail', { id: cashoutId }); // Assuming an API route for this
+            await axios.post('/api/admin/cashouts/fail', { id: cashoutId });
             alert('Cashout marked as failed!');
         } catch (err) {
             console.error('Error marking cashout as failed:', err);
@@ -278,7 +270,6 @@ export default function AdminDashboard() {
         }
     }
   };
-
 
   if (loading) {
     return (
@@ -293,8 +284,11 @@ export default function AdminDashboard() {
       <Head>
         <title>Admin Dashboard</title>
       </Head>
-      <header className="mb-6">
+      <header className="mb-6 flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+        <nav>
+          <a href="/admin/profile" className="text-blue-600">Profile</a>
+        </nav>
       </header>
 
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
@@ -351,148 +345,72 @@ export default function AdminDashboard() {
       </section>
 
       {/* Recent Orders */}
-        <section className="bg-white p-6 rounded-lg shadow mb-6">
-            <h2 className="text-lg font-semibold mb-4">Recent Customer Orders</h2>
-            {orders.length === 0 ? (
-                <p>No recent orders found.</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Game</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (USD)</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BTC</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {orders.map((order) => (
-                                <tr key={order.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.username}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.game}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">{formatCurrency(order.amount)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.btc}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-red-100 text-red-800'
-                                        }`}>
-                                            {order.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.created).toLocaleString()}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            className="text-indigo-600 hover:text-indigo-900 mr-2"
-                                            onClick={() => setModalOrder(order)} // Show details in modal
-                                        >
-                                            Details
-                                        </button>
-                                        {order.status !== 'archived' && (
-                                            <button
-                                                className="text-red-600 hover:text-red-900"
-                                                onClick={() => archiveOrder(order.id)}
-                                            >
-                                                Archive
-                                            </button>
-                                        )}
-                                        <button
-                                            className="text-gray-600 hover:text-gray-900 ml-2"
-                                            onClick={() => deleteOrder(order.id)}
-                                        >
-                                            Delete
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </section>
-
-      {/* Add New Agent Section */}
       <section className="bg-white p-6 rounded-lg shadow mb-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center justify-between">
-          <span>Manage Agents</span>
-          <button
-            className="text-blue-600 hover:underline"
-            onClick={() => setShowAddAgent(!showAddAgent)}
-          >
-            {showAddAgent ? 'Hide Add Agent' : 'Add New Agent'}
-          </button>
-        </h2>
-        {showAddAgent && (
-          <div className="mt-4">
-            <div className="mb-3">
-              <label htmlFor="newAgentUsername" className="block text-sm font-medium text-gray-700">Username</label>
-              <input
-                type="text"
-                id="newAgentUsername"
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                value={newAgentUsername}
-                onChange={(e) => setNewAgentUsername(e.target.value)}
-                placeholder="Enter new agent username"
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="newAgentPassword" className="block text-sm font-medium text-gray-700">Password</label>
-              <input
-                type="password"
-                id="newAgentPassword"
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                value={newAgentPassword}
-                onChange={(e) => setNewAgentPassword(e.target.value)}
-                placeholder="Enter new agent password"
-              />
-            </div>
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              onClick={handleAddAgent}
-            >
-              Create Agent
-            </button>
-          </div>
-        )}
-
-        {/* Display existing agents (simple list) */}
-        <h3 className="text-lg font-semibold mt-6 mb-3">Existing Agents ({agents.length})</h3>
-        {agents.length === 0 ? (
-          <p className="text-gray-600">No agents found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                  {/* Add more fields if available in agent data */}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {agents.map(agent => (
-                  <tr key={agent.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{agent.username}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{agent.email || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          <h2 className="text-lg font-semibold mb-4">Recent Customer Orders</h2>
+          {orders.length === 0 ? (
+              <p>No recent orders found.</p>
+          ) : (
+              <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                          <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Game</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (USD)</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BTC</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                          {orders.map((order) => (
+                              <tr key={order.id} className="hover:bg-gray-50">
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.username}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.game}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">{formatCurrency(order.amount)}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.btc}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                          order.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                          'bg-red-100 text-red-800'
+                                      }`}>
+                                          {order.status}
+                                      </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.created).toLocaleString()}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                      <button
+                                          className="text-indigo-600 hover:text-indigo-900 mr-2"
+                                          onClick={() => setModalOrder(order)} // Show details in modal
+                                      >
+                                          Details
+                                      </button>
+                                      {order.status !== 'archived' && (
+                                          <button
+                                              className="text-red-600 hover:text-red-900"
+                                              onClick={() => archiveOrder(order.id)}
+                                          >
+                                              Archive
+                                          </button>
+                                      )}
+                                      <button
+                                          className="text-gray-600 hover:text-gray-900 ml-2"
+                                          onClick={() => deleteOrder(order.id)}
+                                      >
+                                          Delete
+                                      </button>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          )}
       </section>
-
-      {/* Order Detail Modal */}
-      {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
     </div>
   );
 }
