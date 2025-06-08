@@ -1,66 +1,43 @@
+// pages/api/admin/create-agent.js
 import { getFirestore } from "firebase-admin/firestore";
-import { firebaseAdmin } from "../../../lib/firebaseAdmin";
 import bcrypt from 'bcryptjs';
+import { firebaseAdmin } from "../../../lib/firebaseAdmin";
 
 const db = getFirestore(firebaseAdmin);
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method Not Allowed" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const { username, email, password, name } = req.body;
+  const { username, password } = req.body;
 
-  if (!username || !email || !password || !name) {
-    return res.status(400).json({ message: "Username, Email, Password, and Name are required." });
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required.' });
   }
 
   try {
-    // Check for duplicate username
-    const usernameExists = await db.collection("agents")
-      .where("username", "==", username)
-      .limit(1).get();
-    if (!usernameExists.empty) {
-      return res.status(409).json({ message: "Agent with this username already exists." });
+    // Check if the username already exists
+    const query = await db.collection('agents').where('username', '==', username).limit(1).get();
+    if (!query.empty) {
+      return res.status(409).json({ message: 'Username already exists.' });
     }
 
-    // Check for duplicate email
-    const emailExists = await db.collection("agents")
-      .where("email", "==", email)
-      .limit(1).get();
-    if (!emailExists.empty) {
-      return res.status(409).json({ message: "Agent with this email already exists." });
-    }
-
-    // Hash password
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Add agent to 'agents' collection
-    const agentRef = await db.collection("agents").add({
+    // Create the agent document in Firestore
+    const agentData = {
       username,
-      email,
       password: hashedPassword,
-      name,
-      role: 'agent',
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    });
+      createdAt: new Date(),
+    };
 
-    const agentId = agentRef.id;
+    const newAgentRef = await db.collection('agents').add(agentData);
 
-    // Add mirror entry to 'users' collection for frontend access
-    await db.collection("users").doc(agentId).set({
-      username,
-      email,
-      name,
-      role: 'agent',
-      createdAt: new Date().toISOString(),
-    });
-
-    res.status(201).json({ success: true, message: "Agent created successfully!" });
-
+    res.status(201).json({ success: true, message: 'Agent created successfully', agentId: newAgentRef.id });
   } catch (error) {
-    console.error("Error creating agent:", error);
-    res.status(500).json({ message: `Failed to create agent: ${error.message}` });
+    console.error('Error creating agent:', error);
+    res.status(500).json({ message: 'Failed to create agent.', error: error.message });
   }
 }
