@@ -1,8 +1,8 @@
 // pages/agent/login.js
-
 import { useState } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
+import { auth as firebaseClientAuth } from "../../lib/firebaseClient"; // Import client-side Firebase Auth
 
 export default function AgentLogin() {
   const [username, setUsername] = useState("");
@@ -18,12 +18,27 @@ export default function AgentLogin() {
     }
 
     setLoading(true);
+    setError(""); // Clear previous errors
     try {
-      await axios.post("/api/agent/login", { username, password });
-      router.push("/agent");
+      // 1. Authenticate with your backend API
+      const res = await axios.post("/api/agent/login", { username, password });
+
+      if (res.data.success && res.data.token) {
+        // 2. Use the custom token to sign in to Firebase Authentication on the client
+        await firebaseClientAuth.signInWithCustomToken(res.data.token);
+        console.log("Agent successfully signed in with Firebase Auth.");
+        router.push("/agent"); // Redirect to dashboard after successful Firebase Auth sign-in
+      } else {
+        setError(res.data.error || "Login failed.");
+      }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Invalid username or password");
+      // More specific error handling for network issues or API errors
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else {
+        setError("Login failed. Please check your credentials and try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -50,8 +65,8 @@ export default function AgentLogin() {
         />
         <button
           onClick={handleLogin}
+          className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
         >
           {loading ? "Logging in..." : "Login"}
         </button>

@@ -1,37 +1,47 @@
+// pages/api/agent/login.js
 import { getFirestore } from "firebase-admin/firestore";
-import { firebaseAdmin } from "../../../lib/firebaseAdmin";
-import { serialize } from "cookie";
-import bcrypt from 'bcryptjs'; // <--- ADD THIS LINE
+import { auth as adminAuth } from "../../../lib/firebaseAdmin"; // Import admin auth
+import bcrypt from 'bcryptjs';
 
-const db = getFirestore(firebaseAdmin);
+const db = getFirestore(); // Use admin.firestore() after initializing app
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { username, password } = req.body; // 'password' here is the plain text password from the user trying to log in
+  const { username, password } = req.body;
 
-  const query = await db.collection("agents").where("username", "==", username).limit(1).get();
-  if (query.empty) return res.status(401).json({ error: "Not found" });
+  try {
+    const query = await db.collection("agents").where("username", "==", username).limit(1).get();
+    if (query.empty) {
+      console.log(`Login attempt for non-existent user: ${username}`);
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
 
-  const agent = query.docs[0].data();
+    const agentDoc = query.docs[0];
+    const agent = agentDoc.data();
 
-  // --- START OF MODIFIED PASSWORD CHECK ---
-  // Compare the plain text password from the request with the hashed password stored in Firebase
-  const isPasswordValid = await bcrypt.compare(password, agent.password);
+    // Use bcrypt.compare to check hashed password
+    const isPasswordValid = await bcrypt.compare(password, agent.password);
 
-  if (!isPasswordValid) {
-    return res.status(401).json({ error: "Wrong password" });
+    if (!isPasswordValid) {
+      console.log(`Login attempt: Wrong password for user: ${username}`);
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    // --- NEW: Generate Firebase Custom Token ---
+    // The UID for the custom token can be the agent's username or a unique ID from their Firestore document.
+    // Using agentDoc.id (which is the username in your current setup) as the UID is common.
+    const firebaseUid = agentDoc.id;
+    const customToken = await adminAuth.createCustomToken(firebaseUid, { agent: true }); // Add a custom claim
+    console.log(`Custom token generated for agent: ${username}`);
+
+    // --- IMPORTANT: Remove cookie logic, Firebase handles session via token ---
+    // const cookie = serialize("agent_session", username, { ... });
+    // res.setHeader("Set-Cookie", cookie);
+
+    return res.status(200).json({ success: true, token: customToken, username: agent.username }); // Return token and username
+  } catch (error) {
+    console.error("Agent login API error:", error);
+    return res.status(500).json({ error: "Internal server error during login." });
   }
-  // --- END OF MODIFIED PASSWORD CHECK ---
-
-  // Set cookie
-  const cookie = serialize("agent_session", username, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24, // 1 day
-  });
-
-  res.setHeader("Set-Cookie", cookie);
-  res.status(200).json({ success: true });
 }

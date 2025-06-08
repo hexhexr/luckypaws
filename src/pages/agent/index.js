@@ -1,16 +1,16 @@
 // src/pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-import { db, auth } from '../../lib/firebaseClient'; // Corrected import path
-import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp, getDocs, limit } from 'firebase/firestore'; // Added getDocs, limit
+import { db, auth as firebaseClientAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
+import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp, getDocs, limit } from 'firebase/firestore';
 import { useRouter } from 'next/router';
-import axios from 'axios'; // Import axios for API calls
+import axios from 'axios';
 
 export default function AgentPage() {
   const router = useRouter();
 
   // --- ALL STATE HOOKS (useState) MUST BE DECLARED FIRST ---
-  const [user, setUser] = useState(null); // This will hold agent data if logged in
+  const [user, setUser] = useState(null); // This will hold Firebase Auth user object
   const [agentProfile, setAgentProfile] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true); // New state for session loading
 
@@ -51,10 +51,12 @@ export default function AgentPage() {
   }, []);
 
   // Fetches the agent's profile from Firestore
-  const fetchAgentProfile = useCallback(async (username) => {
-    if (!username) return;
+  // NOW USES UID FROM FIREBASE AUTH
+  const fetchAgentProfile = useCallback(async (uid) => {
+    if (!uid) return;
     try {
-      const docRef = doc(db, "agents", username);
+      // Assuming agent document ID in 'agents' collection is the Firebase Auth UID
+      const docRef = doc(db, "agents", uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setAgentProfile({ id: docSnap.id, ...docSnap.data() });
@@ -62,8 +64,10 @@ export default function AgentPage() {
         setFacebookName(docSnap.data().facebookName || ''); // Initialize facebookName
         setGeneratedUsername(docSnap.data().generatedUsername || ''); // Initialize generatedUsername
       } else {
-        console.log("No such agent profile!");
+        console.log("No such agent profile found for UID:", uid);
         setAgentProfile(null);
+        // Optionally create a profile if it doesn't exist yet, using the UID
+        // await setDoc(docRef, { username: uid, createdAt: serverTimestamp() });
       }
     } catch (error) {
       console.error("Error fetching agent profile:", error);
@@ -73,17 +77,17 @@ export default function AgentPage() {
 
   // Generate Page Code
   const handleGeneratePageCode = useCallback(async () => {
-    if (!user?.username) {
+    if (!user?.uid) { // Use user.uid
       showMessage("Please log in to generate a page code.", "error");
       return;
     }
     setIsSavingPageCode(true);
     try {
-      const agentDocRef = doc(db, "agents", user.username);
+      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
       const agentDocSnap = await getDoc(agentDocRef);
 
       if (!agentDocSnap.exists()) {
-        showMessage("Agent profile not found. Please contact support.", "error");
+        showMessage("Agent profile not found. Please contact support or ensure your profile exists.", "error");
         setIsSavingPageCode(false);
         return;
       }
@@ -123,13 +127,13 @@ export default function AgentPage() {
 
   // Save Facebook Name
   const handleSaveFacebookName = useCallback(async () => {
-    if (!user?.username) {
+    if (!user?.uid) { // Use user.uid
       showMessage("Please log in to save Facebook name.", "error");
       return;
     }
     setIsSavingPageCode(true); // Using same loading state for simplicity
     try {
-      const agentDocRef = doc(db, "agents", user.username);
+      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
       await updateDoc(agentDocRef, { facebookName: facebookName });
       showMessage("Facebook name saved successfully!", "success");
     } catch (error) {
@@ -142,13 +146,13 @@ export default function AgentPage() {
 
   // Generate Username
   const handleGenerateUsername = useCallback(async () => {
-    if (!user?.username) {
+    if (!user?.uid) { // Use user.uid
       showMessage("Please log in to generate a username.", "error");
       return;
     }
     setIsSavingPageCode(true); // Using same loading state
     try {
-      const agentDocRef = doc(db, "agents", user.username);
+      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
       const agentDocSnap = await getDoc(agentDocRef);
 
       if (!agentDocSnap.exists()) {
@@ -241,9 +245,9 @@ export default function AgentPage() {
     }
   }, [customerUsername]);
 
-  // Handle Cashout Request
+  // Handle Cashout Request (for CUSTOMERS)
   const handleCashoutRequest = useCallback(async () => {
-    if (!user?.username || !agentProfile?.agentName) {
+    if (!user?.uid || !agentProfile?.username) { // Ensure agent is logged in and has a profile username
       setCashoutMessage({ text: "Agent not logged in or profile missing.", type: "error" });
       return;
     }
@@ -258,10 +262,11 @@ export default function AgentPage() {
 
     setCustomerFinancialsLoading(true); // Using this for cashout submission loading
     try {
-      const res = await axios.post('/api/agent/submit-cashout-request', {
-        agentId: user.username, // Assuming agentId is the username
-        agentName: agentProfile.agentName || user.username, // Use agentName from profile or username
-        customerUsername: customerUsername, // Add customer username to the request
+      // Call the API route for submitting customer cashout requests
+      const res = await axios.post('/api/agent/submit-customer-cashout', { // Updated API endpoint
+        agentUid: user.uid, // Firebase UID of the agent
+        agentUsername: agentProfile.username, // Agent's actual username from profile
+        customerUsername: customerUsername,
         amount: parseFloat(depositAmount),
       });
 
@@ -282,14 +287,15 @@ export default function AgentPage() {
     }
   }, [user, agentProfile, customerUsername, depositAmount, cashoutLimitRemaining]);
 
-  // Placeholder for logout function - make sure this matches your /api/agent/logout.js
+  // Logout function
   const handleLogout = useCallback(async () => {
     try {
-      await axios.post('/api/agent/logout');
+      await firebaseClientAuth.signOut(); // Sign out from Firebase Auth
+      await axios.post('/api/agent/logout'); // Clear the session cookie (if still used for something else)
       router.push('/agent/login');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if logout fails on server, redirect to login page
+      // Even if logout fails, redirect to login page
       router.push('/agent/login');
     }
   }, [router]);
@@ -297,31 +303,30 @@ export default function AgentPage() {
 
   // --- ALL EFFECT HOOKS (useEffect) MUST BE DECLARED AFTER useState and useCallback, BEFORE CONDITIONAL RENDERS ---
 
-  // Session Check & Redirection
+  // Session Check & Redirection using Firebase Auth
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const response = await axios.get('/api/agent/me'); // Call your session check API
-        if (response.status === 200 && response.data.username) {
-          setUser({ username: response.data.username }); // Set the user state
-        } else {
-          router.replace('/agent/login'); // Redirect to login if session is not valid
-        }
-      } catch (error) {
-        console.error("Session check failed:", error);
-        router.replace('/agent/login'); // Redirect to login on error
-      } finally {
-        setLoadingSession(false);
+    const unsubscribe = firebaseClientAuth.onAuthStateChanged(firebaseUser => {
+      if (firebaseUser) {
+        // Firebase user is signed in.
+        setUser(firebaseUser); // Set the Firebase Auth user object
+        console.log("Firebase user logged in:", firebaseUser.uid);
+        // fetchAgentProfile(firebaseUser.uid); // Fetch profile once Firebase user is set
+      } else {
+        // No Firebase user is signed in.
+        setUser(null);
+        console.log("No Firebase user, redirecting to login.");
+        router.replace('/agent/login'); // Redirect to login
       }
-    };
+      setLoadingSession(false);
+    });
 
-    checkSession();
-  }, [router]); // Re-run effect if router changes
+    return () => unsubscribe(); // Clean up auth listener
+  }, [router]);
 
-  // Use this useEffect to fetch agent profile once user is set
+  // Use this useEffect to fetch agent profile once Firebase user is set
   useEffect(() => {
-    if (user?.username && !agentProfile) {
-      fetchAgentProfile(user.username);
+    if (user?.uid && !agentProfile) { // Now using user.uid from Firebase Auth
+      fetchAgentProfile(user.uid);
     }
   }, [user, agentProfile, fetchAgentProfile]);
 
@@ -353,13 +358,14 @@ export default function AgentPage() {
 
   // Fetch total commission for the logged-in agent
   useEffect(() => {
-    if (!user?.username) return;
+    // Only fetch if agentProfile is loaded and has a username (which is the agent's identifier)
+    if (!agentProfile?.username) return;
 
     const fetchCommission = async () => {
       try {
         const q = query(
           collection(db, "orders"),
-          where("agent", "==", user.username), // Assuming agent username is stored in 'agent' field
+          where("agent", "==", agentProfile.username), // Assuming agent username is stored in 'agent' field
           where("status", "==", "paid")
         );
         const snapshot = await getDocs(q);
@@ -374,7 +380,7 @@ export default function AgentPage() {
     };
 
     fetchCommission();
-  }, [user]);
+  }, [agentProfile]);
 
 
   // --- CONDITIONAL RENDERING (return) STATEMENTS ARE PLACED HERE ---
@@ -404,7 +410,8 @@ export default function AgentPage() {
         <h1 className="text-xl font-bold">Agent Dashboard</h1>
         {user && (
           <div className="flex items-center space-x-4">
-            <span className="text-gray-700">Welcome, {user.username}!</span>
+            {/* Display agent's username if available from profile, else Firebase UID */}
+            <span className="text-gray-700">Welcome, {agentProfile?.username || user.uid}!</span>
             <button
               onClick={handleLogout}
               className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
