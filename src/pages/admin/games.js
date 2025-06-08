@@ -1,221 +1,191 @@
 // pages/admin/games.js
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { db, auth as firebaseAuth } from '../../lib/firebaseClient'; // Import auth for client-side Firebase
-import { collection, query, orderBy, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { useRouter } from 'next/router'; // Import useRouter for auth check
+import { db } from '../../lib/firebaseClient'; // Ensure this path is correct
 
 export default function AdminGames() {
-  const router = useRouter();
+  const router = useRouter(); // Initialize useRouter
   const [games, setGames] = useState([]);
   const [newGame, setNewGame] = useState('');
   const [editingGame, setEditingGame] = useState(null); // { id, name } of game being edited
   const [editedGameName, setEditedGameName] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true); // New loading state for auth and data
-  const [addingGame, setAddingGame] = useState(false);
-  const [updatingGame, setUpdatingGame] = useState(false);
-  const [deletingGame, setDeletingGame] = useState(false);
 
-  // Authentication check using onAuthStateChanged
+  // Authentication check for admin pages
   useEffect(() => {
-    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
-      if (!user) {
-        // No user is signed in, redirect to admin login
-        router.replace('/admin');
-      } else {
-        // User is signed in, proceed to load games
-        loadGames();
-      }
-      setLoading(false); // Auth check complete
-    });
-
-    return () => unsubscribe(); // Cleanup the listener on component unmount
-  }, [router]); // Depend on router to ensure redirect logic works
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin'); // Redirect to the admin login page
+    }
+  }, []);
 
   const loadGames = async () => {
-    setError('');
     try {
-      // Ensure db is initialized before trying to use it
-      if (!db) {
-        console.error("Firestore DB not initialized.");
-        setError('⚠️ Database not available. Please check Firebase configuration.');
-        return;
-      }
-      const gamesCollectionRef = collection(db, 'games');
-      const q = query(gamesCollectionRef, orderBy('name'));
-      const snap = await getDocs(q);
+      const snap = await db.collection('games').orderBy('name').get();
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setGames(list);
     } catch (err) {
-      console.error("Error loading games:", err);
-      setError(`⚠️ Failed to load games: ${err.message || 'Unknown error'}`);
+      console.error(err);
+      setError('⚠️ Failed to load games');
     }
   };
+
+  useEffect(() => {
+    loadGames();
+  }, []);
 
   const handleAddGame = async (e) => {
     e.preventDefault();
     setError('');
-    if (!newGame.trim()) {
-      setError('Game name cannot be empty.');
+
+    const trimmed = newGame.trim();
+    if (!trimmed) {
+      setError('Game name is required');
       return;
     }
-    setAddingGame(true);
+
     try {
-      const gamesCollectionRef = collection(db, 'games');
-      await addDoc(gamesCollectionRef, { name: newGame.trim() });
+      await db.collection('games').add({ name: trimmed });
       setNewGame('');
       await loadGames(); // Reload games after adding
     } catch (err) {
-      console.error("Error adding game:", err);
-      setError(`⚠️ Failed to add game: ${err.message || 'Unknown error'}`);
-    } finally {
-      setAddingGame(false);
+      console.error(err);
+      setError('⚠️ Error adding game');
     }
   };
 
-  const handleEditGame = (game) => {
+  const handleEditClick = (game) => {
     setEditingGame(game);
     setEditedGameName(game.name);
+    setError(''); // Clear any previous errors
   };
 
-  const handleSaveEdit = async () => {
+  const handleUpdateGame = async (e) => {
+    e.preventDefault();
     setError('');
-    if (!editedGameName.trim()) {
-      setError('Game name cannot be empty.');
+
+    const trimmed = editedGameName.trim();
+    if (!trimmed) {
+      setError('Game name cannot be empty');
       return;
     }
-    if (!editingGame) return;
+    if (!editingGame) {
+      setError('No game selected for editing.');
+      return;
+    }
 
-    setUpdatingGame(true);
     try {
-      const gameDocRef = doc(db, 'games', editingGame.id);
-      await updateDoc(gameDocRef, { name: editedGameName.trim() });
-      setEditingGame(null);
+      // Call your new API endpoint to update the game name
+      const res = await fetch('/api/admin/games/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingGame.id, name: trimmed }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update game');
+      }
+
+      setEditingGame(null); // Exit editing mode
       setEditedGameName('');
-      await loadGames(); // Reload games after editing
+      await loadGames(); // Reload games after updating
     } catch (err) {
-      console.error("Error updating game:", err);
-      setError(`⚠️ Failed to update game: ${err.message || 'Unknown error'}`);
-    } finally {
-      setUpdatingGame(false);
+      console.error(err);
+      setError(`⚠️ Error updating game: ${err.message}`);
     }
   };
 
-  const handleDeleteGame = async (id) => {
-    setError('');
-    if (confirm('Are you sure you want to delete this game?')) {
-      setDeletingGame(true);
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this game? This action cannot be undone.")) {
       try {
-        const gameDocRef = doc(db, 'games', id);
-        await deleteDoc(gameDocRef);
-        await loadGames(); // Reload games after deleting
+        await db.collection('games').doc(id).delete();
+        setGames(games.filter(g => g.id !== id));
       } catch (err) {
-        console.error("Error deleting game:", err);
-        setError(`⚠️ Failed to delete game: ${err.message || 'Unknown error'}`);
-      } finally {
-        setDeletingGame(false);
+        console.error(err);
+        setError('⚠️ Failed to delete game');
       }
     }
   };
 
-  if (loading) {
-    return (
-      <div className="ml-72 p-4 text-center">
-        <p>Loading admin session and games...</p>
-      </div>
-    );
-  }
+  const logout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout API error:', err);
+    } finally {
+      localStorage.removeItem('admin_auth');
+      router.replace('/admin');
+    }
+  };
+
 
   return (
-    <div className="ml-72 p-4">
-      <h1 className="text-2xl font-bold mb-4">Manage Games</h1>
-
-      <div className="bg-white p-4 rounded shadow mb-6">
-        <h2 className="text-xl font-semibold mb-3">Add New Game</h2>
-        <form onSubmit={handleAddGame} className="flex gap-2">
-          <input
-            type="text"
-            className="p-2 border rounded flex-grow"
-            placeholder="New game name"
-            value={newGame}
-            onChange={(e) => setNewGame(e.target.value)}
-            disabled={addingGame}
-          />
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            disabled={addingGame}
-          >
-            {addingGame ? 'Adding...' : 'Add Game'}
-          </button>
-        </form>
-        {error && <p className="text-red-600 mt-2">{error}</p>}
+    <div className="admin-dashboard"> {/* Using admin-dashboard layout */}
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
       </div>
 
-      <div className="bg-white shadow rounded overflow-auto max-h-[600px]">
-        {games.length === 0 && !loading ? (
-          <p className="p-4 text-center">No games found.</p>
+      <div className="main-content">
+        <h2 className="text-center mt-lg">🎮 Manage Games</h2>
+
+        {editingGame ? (
+          <form onSubmit={handleUpdateGame} className="form-inline mt-md">
+            <input
+              className="input"
+              placeholder="Edit game name"
+              value={editedGameName}
+              onChange={(e) => setEditedGameName(e.target.value)}
+              required
+            />
+            <button className="btn btn-primary ml-sm" type="submit">Update Game</button>
+            <button className="btn btn-secondary ml-sm" type="button" onClick={() => setEditingGame(null)}>Cancel</button>
+          </form>
         ) : (
-          <ul className="game-list p-4 flex flex-wrap gap-4">
-            {games.map((game) => (
-              <li key={game.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-3 text-lg font-medium shadow-sm">
-                {editingGame?.id === game.id ? (
-                  <>
-                    <input
-                      type="text"
-                      className="p-1 border rounded flex-grow mr-2"
-                      value={editedGameName}
-                      onChange={(e) => setEditedGameName(e.target.value)}
-                      disabled={updatingGame}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSaveEdit}
-                        className="text-green-600 hover:text-green-800"
-                        disabled={updatingGame}
-                      >
-                        {updatingGame ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        onClick={() => { setEditingGame(null); setError(''); }}
-                        className="text-gray-600 hover:text-gray-800"
-                        disabled={updatingGame}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span>{game.name}</span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditGame(game)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGame(game.id)}
-                        className="text-red-600 hover:text-red-800"
-                        disabled={deletingGame}
-                      >
-                        {deletingGame ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+          <form onSubmit={handleAddGame} className="form-inline mt-md">
+            <input
+              className="input"
+              placeholder="Enter new game name"
+              value={newGame}
+              onChange={(e) => setNewGame(e.target.value)}
+              required
+            />
+            <button className="btn btn-primary ml-sm" type="submit">Add Game</button>
+          </form>
         )}
-      </div>
 
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+
+        <div className="card mt-lg">
+          <h3 className="mb-sm">Available Games</h3>
+          {games.length === 0 ? (
+            <p>No games added yet.</p>
+          ) : (
+            // Updated game list styling
+            <ul className="game-list">
+              {games.map(game => (
+                <li key={game.id}>
+                  <span>{game.name}</span>
+                  <div>
+                    <button className="btn btn-sm btn-primary" onClick={() => handleEditClick(game)}>Edit</button>
+                    <button className="btn btn-sm btn-danger ml-sm" onClick={() => handleDelete(game.id)}>Delete</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
       <style jsx>{`
+        /* Styles for horizontal game list */
         .game-list {
           display: flex;
-          flex-wrap: wrap;
-          gap: 1rem;
+          flex-wrap: wrap; /* Allows items to wrap to the next line */
+          gap: 1rem; /* Space between items */
           padding: 0;
           margin: 0;
           list-style: none; /* Remove bullet points */
@@ -245,7 +215,7 @@ export default function AdminGames() {
         }
 
         /* Responsive adjustments for smaller screens */
-        @media (max-width: 768px) { /* md: equivalent */
+        @media (max-width: 768px) {
           .game-list li {
             max-width: calc(50% - 0.75rem); /* 2 items per row */
           }
@@ -254,6 +224,16 @@ export default function AdminGames() {
         @media (max-width: 480px) {
           .game-list li {
             max-width: 100%; /* 1 item per row */
+            flex-direction: column; /* Stack name and buttons vertically */
+            align-items: flex-start;
+          }
+          .game-list li div {
+            margin-top: 0.5rem;
+            width: 100%;
+            justify-content: flex-end;
+          }
+          .game-list li span {
+            margin-bottom: 0.5rem;
           }
         }
       `}</style>

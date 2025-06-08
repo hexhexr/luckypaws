@@ -1,340 +1,252 @@
-import { useEffect, useState, useCallback } from 'react';
+// pages/admin/dashboard.js
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head';
-import { db } from '../../lib/firebaseClient';
-import { auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, limit } from "firebase/firestore";
-import { onAuthStateChanged } from 'firebase/auth'; // Explicitly import onAuthStateChanged for clarity
-import axios from 'axios';
 
-// --- Helper Components ---
-const StatCard = ({ title, value, icon, color }) => (
-  <div className="card stat-card" style={{ borderColor: color }}>
-    <div>
-      <h4 className="stat-card-title" style={{ color }}>{title}</h4>
-      <h2 className="stat-card-value">{value}</h2>
-    </div>
-    <span className="stat-card-icon" style={{ color }}>{icon}</span>
-  </div>
-);
-
-const OrderDetailModal = ({ order, onClose }) => {
-  if (!order) return null;
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <h3 className="text-xl font-bold mb-4">Order Details (ID: {order.id})</h3>
-        <p><strong>Username:</strong> {order.username}</p>
-        <p><strong>Game:</strong> {order.game}</p>
-        <p><strong>Amount:</strong> ${Number(order.amount).toFixed(2)}</p>
-        <p><strong>BTC:</strong> {Number(order.btc).toFixed(8)}</p>
-        <p><strong>Status:</strong> {order.status}</p>
-        <p><strong>Created:</strong> {new Date(order.created).toLocaleString()}</p>
-        {order.invoice && (
-          <>
-            <p className="mt-2"><strong>Lightning Invoice:</strong></p>
-            <textarea readOnly className="w-full p-2 border rounded-md resize-none" rows="3" value={order.invoice}></textarea>
-          </>
-        )}
-        <button onClick={onClose} className="btn btn-secondary mt-4">Close</button>
-      </div>
-    </div>
-  );
-};
-
-export default function Dashboard() {
+export default function AdminDashboard() {
   const router = useRouter();
-  const [totalCustomers, setTotalCustomers] = useState(0);
-  const [totalAgents, setTotalAgents] = useState(0);
-  const [totalDepositsToday, setTotalDepositsToday] = useState(0);
-  const [pendingCashouts, setPendingCashouts] = useState([]);
-  const [newAgentUsername, setNewAgentUsername] = useState('');
-  const [newAgentPassword, setNewAgentPassword] = useState('');
-  const [showAddAgent, setShowAddAgent] = useState(false);
-  const [customers, setCustomers] = useState([]); // State for customers (for real-time listener)
-  const [agents, setAgents] = useState([]); // State for agents (for real-time listener)
-  const [orders, setOrders] = useState([]); // State for orders (for real-time listener)
-  const [totalDepositAllTime, setTotalDepositAllTime] = useState(0);
-  const [totalCashoutAllTime, setTotalCashoutAllTime] = useState(0);
-  const [overallProfit, setOverallProfit] = useState(0);
-  const [modalOrder, setModalOrder] = useState(null);
-  const [loading, setLoading] = useState(true); // Loading state for initial auth/data fetch
-  const [error, setError] = useState(''); // For displaying errors
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // New state for status filter
+  const [refreshing, setRefreshing] = useState(false);
+  const [rangeSummary, setRangeSummary] = useState({ count: 0, usd: 0, btc: 0 });
+  const [range, setRange] = useState({
+    from: new Date().toISOString().slice(0, 10),
+    to: new Date().toISOString().slice(0, 10)
+  });
 
-  // Authentication and Authorization Check
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-      if (!user) {
-        // No user is signed in, redirect to login page
-        router.replace('/admin');
-      } else {
-        setLoading(false); // Authentication successful, stop loading
-        fetchDashboardData();
-        setupRealtimeListeners();
-      }
-    });
-
-    return () => unsubscribe(); // Clean up auth listener on component unmount
-  }, [router]);
-
-  // Initial Data Fetch (one-time on load after authentication)
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      // Fetch total customers
-      const customersSnap = await getDocs(collection(db, 'customers'));
-      setTotalCustomers(customersSnap.size);
-
-      // Fetch total agents
-      const agentsSnap = await getDocs(collection(db, 'agents'));
-      setTotalAgents(agentsSnap.size);
-
-      // Fetch total deposits today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of today
-      const depositsSnap = await getDocs(query(
-        collection(db, 'orders'),
-        where('created', '>=', today.toISOString()),
-        where('status', '==', 'paid')
-      ));
-      const totalToday = depositsSnap.docs.reduce((sum, doc) => sum + (Number(doc.data().amount) || 0), 0);
-      setTotalDepositsToday(totalToday);
-
-      // Fetch overall stats (total deposit, cashout, profit)
-      const allOrdersSnap = await getDocs(query(collection(db, 'orders'), where('status', 'in', ['paid', 'pending'])));
-      let currentTotalDepositAllTime = 0;
-      allOrdersSnap.forEach(doc => {
-          if (doc.data().status === 'paid') {
-              currentTotalDepositAllTime += Number(doc.data().amount || 0);
-          }
-      });
-      setTotalDepositAllTime(currentTotalDepositAllTime);
-
-      const allCashoutsSnap = await getDocs(collection(db, 'cashouts'));
-      let currentTotalCashoutAllTime = 0;
-      allCashoutsSnap.forEach(doc => {
-          currentTotalCashoutAllTime += Number(doc.data().amount || 0);
-      });
-      setTotalCashoutAllTime(currentTotalCashoutAllTime);
-      setOverallProfit(currentTotalDepositAllTime - currentTotalCashoutAllTime);
-
-    } catch (err) {
-      console.error("Failed to fetch dashboard data:", err);
-      setError('Failed to load dashboard initial data.');
+    // Check local storage for admin_auth before rendering
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin'); // Redirect to the admin login page
     }
   }, []);
 
-  // Real-time listeners for continuous updates
-  const setupRealtimeListeners = useCallback(() => {
-    // Listener for Customers for live count
-    const unsubscribeCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      setTotalCustomers(snapshot.size); // Update total count directly
-      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); // Also keep full list if needed for other parts
-    }, (err) => console.error("Customer listener error:", err));
-
-    // Listener for Agents for live count
-    const unsubscribeAgents = onSnapshot(collection(db, 'agents'), (snapshot) => {
-      setTotalAgents(snapshot.size); // Update total count directly
-      setAgents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); // Also keep full list if needed
-    }, (err) => console.error("Agent listener error:", err));
-
-    // Listener for Orders to update deposits and overall profit/loss
-    const unsubscribeOrders = onSnapshot(query(collection(db, 'orders'), orderBy('created', 'desc')), (snapshot) => {
-      const updatedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setOrders(updatedOrders); // Update the list of orders
-
-      // Recalculate totals based on latest orders
-      let currentTotalDeposit = 0;
-      updatedOrders.forEach(order => {
-          if (order.status === 'paid') {
-              currentTotalDeposit += Number(order.amount || 0);
-          }
-      });
-      setTotalDepositAllTime(currentTotalDeposit);
-      setOverallProfit(currentTotalDeposit - totalCashoutAllTime); // Recalculate profit
-
-      // Update deposits today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayDeposits = updatedOrders.filter(order =>
-          order.status === 'paid' && new Date(order.created) >= today
-      ).reduce((sum, order) => sum + Number(order.amount || 0), 0);
-      setTotalDepositsToday(todayDeposits);
-
-    }, (err) => console.error("Orders listener error:", err));
-
-    // Listener for Cashouts to update pending cashouts and overall profit/loss
-    const unsubscribeCashouts = onSnapshot(query(collection(db, 'cashouts'), orderBy('requestedAt', 'desc')), (snapshot) => {
-        const allCashouts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        let currentTotalCashout = 0;
-        let currentPendingCashouts = [];
-        allCashouts.forEach(cashout => {
-            currentTotalCashout += Number(cashout.amount || 0);
-            if (cashout.status === 'pending') {
-                currentPendingCashouts.push(cashout);
-            }
-        });
-        setTotalCashoutAllTime(currentTotalCashout);
-        setPendingCashouts(currentPendingCashouts);
-        setOverallProfit(totalDepositAllTime - currentTotalCashout); // Recalculate profit
-    }, (err) => console.error("Cashouts listener error:", err));
-
-    // Return a cleanup function
-    return () => {
-      unsubscribeCustomers();
-      unsubscribeAgents();
-      unsubscribeOrders();
-      unsubscribeCashouts();
-    };
-  }, [totalDepositAllTime, totalCashoutAllTime]); // Dependencies to recalculate profit correctly
-
-  // Helper function for currency formatting
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  // Agent Management Handlers
-  const handleAddAgent = async () => {
-    if (!newAgentUsername || !newAgentPassword) {
-      alert('Username and password are required!');
-      return;
-    }
+  const logout = async () => {
     try {
-      const response = await axios.post('/api/admin/create-agent', {
-        username: newAgentUsername,
-        password: newAgentPassword,
-        email: `${newAgentUsername}@example.com`, // Placeholder or derive as needed
-        name: `Agent ${newAgentUsername}` // Placeholder or derive as needed
-      });
-      if (response.data.success) {
-        alert('Agent added successfully!');
-        setNewAgentUsername('');
-        setNewAgentPassword('');
-      } else {
-        alert(response.data.message || 'Failed to add agent.');
-      }
+      // Call API to clear the server-side cookie
+      await fetch('/api/admin/logout', { method: 'POST' });
     } catch (err) {
-      console.error('Error adding agent:', err.response?.data || err);
-      alert('Failed to add agent. Check console for details.');
+      console.error('Logout API error:', err);
+      // Even if API fails, clear local storage and redirect for client-side logout
+    } finally {
+      localStorage.removeItem('admin_auth'); // Clear local storage auth token
+      router.replace('/admin'); // Redirect to the admin login page
     }
   };
 
-  const deleteOrder = async (orderId) => {
-    if (confirm('Are you sure you want to delete this order? This action is irreversible.')) {
+  const loadOrders = async () => {
+    try {
+      setRefreshing(true);
+      const res = await fetch('/api/orders'); // Fetch all orders
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load orders');
+
+      const sorted = data.sort((a, b) => new Date(b.created) - new Date(a.created));
+      setOrders(sorted);
+      updateRangeSummary(sorted);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrders();
+    const interval = setInterval(() => loadOrders(), 4000); // Refresh every 4 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const updateRangeSummary = (list) => {
+    const fromDate = new Date(range.from);
+    const toDate = new Date(range.to);
+    toDate.setHours(23, 59, 59, 999);
+
+    const filtered = list.filter(o => {
+      if (o.status !== 'paid') return false;
+      const created = new Date(o.created);
+      return created >= fromDate && created <= toDate;
+    });
+
+    const count = filtered.length;
+    const usd = filtered.reduce((sum, o) => sum + parseFloat(o.amount || 0), 0);
+    const btc = filtered.reduce((sum, o) => sum + parseFloat(o.btc || 0), 0);
+
+    setRangeSummary({
+      count,
+      usd: usd.toFixed(2),
+      btc: btc.toFixed(8),
+    });
+  };
+
+  useEffect(() => {
+    updateRangeSummary(orders);
+  }, [range, orders]); // Added orders to dependency array for live update on order change
+
+  const markAsRead = async (id) => {
+    await fetch(`/api/orders/update`, { // Calls the update API endpoint
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, update: { read: true, readAt: new Date().toISOString() } }),
+    });
+    setOrders(orders.map(o => o.orderId === id ? { ...o, read: true, readAt: new Date().toISOString() } : o));
+  };
+
+  // Remove markAsPaid function as it's no longer needed for manual payment
+  // const markAsPaid = async (id) => {
+  //   await fetch(`/api/orders/update`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ id, update: { status: 'paid', paidManually: true } }),
+  //   });
+  //   setOrders(orders.map(o => o.orderId === id ? { ...o, status: 'paid', paidManually: true } : o));
+  // };
+
+  // New action: Mark as Cancelled
+  const markAsCancelled = async (id) => {
+    if (window.confirm("Are you sure you want to mark this order as 'cancelled'? This action cannot be undone.")) {
       try {
-        await deleteDoc(doc(db, 'orders', orderId));
-        console.log(`Order ${orderId} deleted successfully.`);
-        // UI will update via real-time listener
+        await fetch(`/api/orders/update`, { // Calls the update API endpoint
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, update: { status: 'cancelled', cancelledManually: true } }),
+        });
+        setOrders(orders.map(o => o.orderId === id ? { ...o, status: 'cancelled', cancelledManually: true } : o));
       } catch (err) {
-        console.error('Error deleting order:', err);
-        alert('Failed to delete order. Ensure Firebase Security Rules allow this operation.');
+        console.error('Failed to mark as cancelled:', err);
+        setError('Failed to mark order as cancelled.');
       }
     }
   };
 
-  const archiveOrder = async (orderId) => {
-    if (confirm('Are you sure you want to archive this order? It will no longer appear in active lists.')) {
-      try {
-        await axios.post('/api/archive', { id: orderId }); // Using your existing API route for archiving
-        console.log(`Order ${orderId} archived successfully via API.`);
-        // UI will update via real-time listener
-      } catch (err) {
-        console.error('Error archiving order:', err);
-        alert('Failed to archive order.');
-      }
-    }
+
+  const formatAge = (timestamp) => {
+    const diff = Math.floor((Date.now() - new Date(timestamp)) / 60000);
+    return diff < 1 ? 'Just now' : `${diff} min${diff > 1 ? 's' : ''} ago`;
   };
 
-  const markCashoutAsSent = async (cashoutId) => {
-    if (confirm('Mark this cashout as sent?')) {
-        try {
-            await axios.post('/api/admin/cashouts/send', { id: cashoutId });
-            alert('Cashout marked as sent!');
-        } catch (err) {
-            console.error('Error marking cashout as sent:', err);
-            alert('Failed to mark cashout as sent.');
-        }
-    }
-  };
+  const filteredOrders = orders.filter(order => {
+    // Filter by search term (username or order ID)
+    const matchesSearch = order.username.toLowerCase().includes(search.toLowerCase()) ||
+                          order.orderId.toLowerCase().includes(search.toLowerCase());
 
-  const markCashoutAsFailed = async (cashoutId) => {
-    if (confirm('Mark this cashout as failed?')) {
-        try {
-            await axios.post('/api/admin/cashouts/fail', { id: cashoutId });
-            alert('Cashout marked as failed!');
-        } catch (err) {
-            console.error('Error marking cashout as failed:', err);
-            alert('Failed to mark cashout as failed.');
-        }
-    }
-  };
+    // Filter by status
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-gray-700 text-lg">Loading dashboard and verifying authentication...</p>
-      </div>
-    );
-  }
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="ml-72 p-4">
-      <Head>
-        <title>Admin Dashboard</title>
-      </Head>
-      <header className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-        <nav>
-          <a href="/admin/profile" className="text-blue-600">Profile</a>
-        </nav>
-      </header>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
+      </div>
+      <div className="main-content">
+        <h2 className="text-center mt-lg">🧾 All Orders {refreshing && <span style={{ fontSize: '0.9rem', color: '#999' }}>(refreshing...)</span>}</h2>
 
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
-
-      {/* Stats Overview */}
-      <section className="stat-cards-grid grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatCard title="Total Customers" value={totalCustomers} icon="👥" color="#00C853" />
-        <StatCard title="Total Agents" value={totalAgents} icon="👨‍💼" color="#1DE9B6" />
-        <StatCard title="Deposits Today" value={formatCurrency(totalDepositsToday)} icon="💰" color="#008F3A" />
-      </section>
-
-      {/* Overall Financial Summary */}
-      <section className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-lg font-semibold mb-4">Overall Financial Summary</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total Deposits (All Time)" value={formatCurrency(totalDepositAllTime)} icon="💸" color="#00C853" />
-              <StatCard title="Total Cashouts (All Time)" value={formatCurrency(totalCashoutAllTime)} icon="💳" color="#FF5252" />
-              <StatCard title="Overall Profit" value={formatCurrency(overallProfit)} icon="📈" color={overallProfit >= 0 ? '#00C853' : '#FF5252'} />
+        <div className="card mt-md" style={{ background: '#f9f9f9', border: '1px solid #ddd', padding: '1rem', borderRadius: '12px' }}>
+          <h3>📍 Summary (Date Range)</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div>
+              From: <input type="date" value={range.from} onChange={e => setRange(prev => ({ ...prev, from: e.target.value }))} />
+            </div>
+            <div>
+              To: <input type="date" value={range.to} onChange={e => setRange(prev => ({ ...prev, to: e.target.value }))} />
+            </div>
           </div>
-      </section>
+          <div>
+            <strong>{rangeSummary.count}</strong> orders | <strong>${rangeSummary.usd}</strong> USD | <strong>{rangeSummary.btc}</strong> BTC
+          </div>
+        </div>
 
-      {/* Pending Cashouts */}
-      <section className="bg-white p-6 rounded-lg shadow mb-6">
-        <h2 className="text-lg font-semibold mb-4">Pending Customer Cashouts</h2>
-        {pendingCashouts.length === 0 ? (
-          <p className="text-gray-600">No pending cashouts at the moment.</p>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '1rem' }}>
+          <input
+            className="input"
+            style={{ flexGrow: 1, margin: 0 }} // Adjust styling for input
+            placeholder="Search by username or order ID"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select
+            className="select"
+            style={{ width: 'unset', margin: 0 }} // Adjust styling for select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="expired">Expired</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+
+        {loading ? (
+          <p className="text-center mt-md">Loading orders...</p>
+        ) : error ? (
+          <div className="alert alert-danger mt-md">{error}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="card mt-md">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Username</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested At</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th>Username</th>
+                  <th>Game</th>
+                  <th>Amount</th>
+                  <th>BTC</th>
+                  <th>Status</th>
+                  <th>Manual</th>
+                  <th>Read</th>
+                  <th>Time</th>
+                  <th>Age</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {pendingCashouts.map((cashout) => (
-                  <tr key={cashout.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cashout.customerUsername}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatCurrency(cashout.amount)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(cashout.requestedAt?.seconds * 1000 || cashout.requestedAt).toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-green-600 hover:text-green-900 mr-2" onClick={() => markCashoutAsSent(cashout.id)}>Approve</button>
-                      <button className="text-red-600 hover:text-red-900" onClick={() => markCashoutAsFailed(cashout.id)}>Reject</button>
+              <tbody>
+                {filteredOrders.map((order, i) => (
+                  <tr key={i}>
+                    <td>
+                      <a href={`/admin/customer/${order.username}`} style={{ color: '#0984e3', fontWeight: 500 }}>
+                        {order.username}
+                      </a>
+                    </td>
+                    <td>{order.game}</td>
+                    <td>${order.amount}</td>
+                    <td>{order.btc || '0.00000000'}</td>
+                    <td style={{
+                      color: order.status === 'paid'
+                        ? order.paidManually ? '#2962ff' : 'green' // Blue for manually paid
+                        : order.status === 'expired'
+                        ? '#ff9800' // Orange for expired
+                        : order.status === 'cancelled'
+                        ? '#7f8c8d' // Grey for cancelled
+                        : '#d63031' // Red for pending (default)
+                    }}>
+                      {order.status}
+                    </td>
+                    <td>{order.paidManually ? 'Yes (Paid)' : (order.cancelledManually ? 'Yes (Cancelled)' : 'No')}</td> {/* Updated */}
+                    <td>{order.read ? `✔️ ${new Date(order.readAt).toLocaleTimeString()}` : '—'}</td>
+                    <td>{new Date(order.created).toLocaleString()}</td>
+                    <td>{formatAge(order.created)}</td>
+                    <td>
+                      {order.status === 'pending' && (
+                        <>
+                          {/* Removed Mark Paid button */}
+                          <button className="btn btn-danger btn-sm mt-sm" onClick={() => markAsCancelled(order.orderId)}>Cancel</button>
+                        </>
+                      )}
+                      {order.status === 'paid' && !order.read && (
+                        <button className="btn btn-primary btn-sm" onClick={() => markAsRead(order.orderId)}>Mark Read</button>
+                      )}
+                      {/* You can add more actions here for other statuses if needed */}
                     </td>
                   </tr>
                 ))}
@@ -342,75 +254,7 @@ export default function Dashboard() {
             </table>
           </div>
         )}
-      </section>
-
-      {/* Recent Orders */}
-      <section className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-lg font-semibold mb-4">Recent Customer Orders</h2>
-          {orders.length === 0 ? (
-              <p>No recent orders found.</p>
-          ) : (
-              <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                          <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Game</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (USD)</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BTC</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                          </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                          {orders.map((order) => (
-                              <tr key={order.id} className="hover:bg-gray-50">
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.username}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.game}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">{formatCurrency(order.amount)}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{order.btc}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                          order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                          'bg-red-100 text-red-800'
-                                      }`}>
-                                          {order.status}
-                                      </span>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.created).toLocaleString()}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                      <button
-                                          className="text-indigo-600 hover:text-indigo-900 mr-2"
-                                          onClick={() => setModalOrder(order)} // Show details in modal
-                                      >
-                                          Details
-                                      </button>
-                                      {order.status !== 'archived' && (
-                                          <button
-                                              className="text-red-600 hover:text-red-900"
-                                              onClick={() => archiveOrder(order.id)}
-                                          >
-                                              Archive
-                                          </button>
-                                      )}
-                                      <button
-                                          className="text-gray-600 hover:text-gray-900 ml-2"
-                                          onClick={() => deleteOrder(order.id)}
-                                      >
-                                          Delete
-                                      </button>
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          )}
-      </section>
+      </div>
     </div>
   );
 }

@@ -1,55 +1,33 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState, useCallback } from 'react';
-import { db, auth as firebaseAuth } from '../../../lib/firebaseClient'; // Import auth
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../../lib/firebaseClient'; // ✅ Ensure correct path
 
 export default function CustomerProfile() {
   const router = useRouter();
   const { username } = router.query;
 
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true); // Combined loading for auth and data
-  const [authLoading, setAuthLoading] = useState(true); // Separate loading for auth
-  const [dataLoading, setDataLoading] = useState(false); // Loading for data fetching
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ usd: 0, btc: 0 });
 
-  // Authentication check using onAuthStateChanged
+  // 🔐 Auth check
   useEffect(() => {
-    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
-      if (!user) {
-        // No user is signed in, redirect to admin login
-        router.replace('/admin/login');
-      } else {
-        // User is signed in
-        setAuthLoading(false); // Auth check complete
-      }
-    });
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+      router.replace('/admin/login');
+    }
+  }, []);
 
-    return () => unsubscribe(); // Cleanup the listener
-  }, [router]);
-
-  // Load only paid orders for this user from Firebase
+  // ✅ Load only paid orders for this user from Firebase
   const loadUserData = useCallback(async () => {
-    if (!username || authLoading) return; // Only load if username is available and auth is done
+    if (!username) return;
 
-    setDataLoading(true);
-    setError('');
+    setLoading(true);
     try {
-      // Ensure db is initialized before trying to use it
-      if (!db) {
-        console.error("Firestore DB not initialized.");
-        setError('⚠️ Database not available. Please check Firebase configuration.');
-        return;
-      }
-      const ordersCollectionRef = collection(db, 'orders');
-      const q = query(
-        ordersCollectionRef,
-        where('username', '==', username),
-        where('status', '==', 'paid'),
-        orderBy('created', 'desc') // Order by creation date for consistency
-      );
-      const snap = await getDocs(q);
+      const snap = await db
+        .collection('orders')
+        .where('username', '==', username)
+        .where('status', '==', 'paid')
+        .get();
 
       const userOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -59,75 +37,52 @@ export default function CustomerProfile() {
       setOrders(userOrders);
       setTotals({ usd, btc });
     } catch (err) {
-      console.error("Error loading user data:", err);
-      setError(`⚠️ Failed to load customer data: ${err.message || 'Unknown error'}`);
+      console.error('Error loading user orders:', err);
     } finally {
-      setDataLoading(false);
+      setLoading(false);
     }
-  }, [username, authLoading]); // Add authLoading as a dependency
+  }, [username]);
 
   useEffect(() => {
-    setLoading(authLoading || dataLoading); // Overall loading state
-  }, [authLoading, dataLoading]);
+    loadUserData();
+  }, [loadUserData]);
 
-  // Trigger data load when username or auth status changes
-  useEffect(() => {
-    if (username && !authLoading) {
-      loadUserData();
+  const logout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      localStorage.removeItem('admin_auth');
+      router.replace('/admin');
     }
-  }, [username, authLoading, loadUserData]);
-
-  if (loading) {
-    return (
-      <div className="ml-72 p-4 text-center">
-        <p>Loading customer profile...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="ml-72 p-4">
-        <p className="text-red-600">{error}</p>
-        <button className="btn btn-secondary mt-md" onClick={() => router.back()}>
-          Back
-        </button>
-      </div>
-    );
-  }
-
-  if (!username) {
-    // This case should ideally be handled by router.replace if username is not present
-    // but acts as a fallback.
-    return (
-      <div className="ml-72 p-4">
-        <p className="text-red-600">No username provided.</p>
-        <button className="btn btn-secondary mt-md" onClick={() => router.back()}>
-          Back
-        </button>
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="ml-72 p-4">
-      <div className="card">
-        <h1 className="card-header text-2xl font-bold">Customer: {username}</h1>
-        <div className="card-body">
-          <div className="flex justify-around items-center mb-6 p-4 bg-gray-100 rounded-lg shadow-sm">
-            <div className="text-center">
-              <p className="text-lg font-semibold text-green-600">Total Deposits (USD)</p>
-              <p className="text-2xl font-bold">${totals.usd.toFixed(2)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-semibold text-blue-600">Total Deposits (BTC)</p>
-              <p className="text-2xl font-bold">{totals.btc.toFixed(8)}</p>
-            </div>
+    <div className="admin-dashboard">
+      <div className="sidebar">
+        <h1>Lucky Paw Admin</h1>
+        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
+        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
+        <a className="nav-btn" href="/admin/games">🎮 Games</a>
+        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
+      </div>
+
+      <div className="main-content">
+        <h2 className="section-title">Customer Profile: {username}</h2>
+
+        <div className="card customer-profile-card mt-md">
+          <div className="totals-summary text-center">
+            <p>Total Deposits: <strong className="text-success">${totals.usd.toFixed(2)}</strong></p>
+            <p>Total BTC: <strong>{totals.btc.toFixed(8)} BTC</strong></p>
           </div>
 
-          <h2 className="text-xl font-semibold mb-3">Paid Orders</h2>
-          {orders.length === 0 ? (
-            <p className="text-gray-600">No paid orders found for this user.</p>
+          <h3 className="card-subtitle mt-md">Transaction History</h3>
+
+          {loading ? (
+            <p className="text-center mt-md">Loading orders...</p>
+          ) : orders.length === 0 ? (
+            <p className="text-center mt-md">No orders found for this user.</p>
           ) : (
             <div className="table-responsive mt-md">
               <table className="table">

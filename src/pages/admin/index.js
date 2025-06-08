@@ -1,7 +1,5 @@
-// pages/admin/index.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -9,17 +7,10 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Rely solely on Firebase Auth state for redirection
-    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
-      if (user) {
-        // User is signed in, redirect to dashboard
-        router.replace('/admin/dashboard');
-      }
-      // If no user, stay on login page
-    });
-
-    return () => unsubscribe(); // Clean up auth listener
-  }, [router]);
+    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') === '1') {
+      router.replace('/admin/dashboard');
+    }
+  }, []);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -28,29 +19,19 @@ export default function AdminLogin() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    setError(''); // Clear previous errors
-
+    setError('');
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-
       const data = await res.json();
-
-      if (res.ok && data.token) {
-        // Sign in to Firebase Authentication with the custom token received from your API
-        await firebaseAuth.signInWithCustomToken(data.token);
-        console.log('Admin successfully logged in via custom token. The onAuthStateChanged listener will handle the redirect.');
-        // The onAuthStateChanged listener in this component will now trigger the redirect.
-      } else {
-        setError(data.error || 'Login failed. Please check your credentials.');
-      }
+      if (!res.ok) throw new Error(data.message || 'Login failed');
+      localStorage.setItem('admin_auth', '1');
+      router.push('/admin/dashboard');
     } catch (err) {
-      console.error('Admin login error:', err);
-      // More user-friendly error messages based on network or API issues
-      setError(err.message || 'An unexpected error occurred during login.');
+      setError(err.message);
     }
   };
 
@@ -78,9 +59,7 @@ export default function AdminLogin() {
             onChange={handleChange}
             required
           />
-          <button className="btn btn-primary mt-md" type="submit" disabled={!form.username || !form.password}>
-            Login
-          </button>
+          <button className="btn btn-primary mt-md" type="submit">Login</button>
         </form>
         {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
