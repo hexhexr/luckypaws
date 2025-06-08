@@ -1,5 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
-import { firebaseAdmin } from "../../../lib/firebaseAdmin"; // Ensure correct path to firebaseAdmin
+import { firebaseAdmin } from "../../../lib/firebaseAdmin";
 import bcrypt from 'bcryptjs';
 
 const db = getFirestore(firebaseAdmin);
@@ -9,37 +9,52 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  const { username, email, password, name } = req.body; // You can add more fields as needed
+  const { username, email, password, name } = req.body;
 
-  // Basic validation
   if (!username || !email || !password || !name) {
     return res.status(400).json({ message: "Username, Email, Password, and Name are required." });
   }
 
   try {
-    // Check if agent with username or email already exists
-    const usernameExists = await db.collection("agents").where("username", "==", username).limit(1).get();
+    // Check for duplicate username
+    const usernameExists = await db.collection("agents")
+      .where("username", "==", username)
+      .limit(1).get();
     if (!usernameExists.empty) {
       return res.status(409).json({ message: "Agent with this username already exists." });
     }
 
-    const emailExists = await db.collection("agents").where("email", "==", email).limit(1).get();
+    // Check for duplicate email
+    const emailExists = await db.collection("agents")
+      .where("email", "==", email)
+      .limit(1).get();
     if (!emailExists.empty) {
       return res.status(409).json({ message: "Agent with this email already exists." });
     }
 
-    // Hash the plain text password
-    const hashedPassword = await bcrypt.hash(password, 10); // 10 is the salt rounds (cost factor)
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Add the new agent to the 'agents' collection
-    await db.collection("agents").add({
-      username: username,
-      email: email,
-      password: hashedPassword, // Store the hashed password
-      name: name,
-      role: 'agent', // Assign a role, useful for permissions
+    // Add agent to 'agents' collection
+    const agentRef = await db.collection("agents").add({
+      username,
+      email,
+      password: hashedPassword,
+      name,
+      role: 'agent',
       createdAt: new Date().toISOString(),
-      status: 'active' // Initial status
+      status: 'active'
+    });
+
+    const agentId = agentRef.id;
+
+    // Add mirror entry to 'users' collection for frontend access
+    await db.collection("users").doc(agentId).set({
+      username,
+      email,
+      name,
+      role: 'agent',
+      createdAt: new Date().toISOString(),
     });
 
     res.status(201).json({ success: true, message: "Agent created successfully!" });
