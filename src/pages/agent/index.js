@@ -2,18 +2,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { db, auth } from '../../lib/firebaseClient'; // Corrected import path
-import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp, getDocs, limit } from 'firebase/firestore'; // Added getDocs, limit
 import { useRouter } from 'next/router';
 import axios from 'axios'; // Import axios for API calls
 
 export default function AgentPage() {
   const router = useRouter();
+
+  // --- ALL STATE HOOKS (useState) MUST BE DECLARED FIRST ---
   const [user, setUser] = useState(null); // This will hold agent data if logged in
   const [agentProfile, setAgentProfile] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true); // New state for session loading
 
   const [pageCode, setPageCode] = useState('');
-  const [lockPageCode, setLockCodePage] = useState(false);
+  const [lockPageCode, setLockCodePage] = useState(false); // Unused, can be removed if not needed
   const [isSavingPageCode, setIsSavingPageCode] = useState(false);
   const [facebookName, setFacebookName] = useState('');
   const [generatedUsername, setGeneratedUsername] = useState('');
@@ -27,58 +29,26 @@ export default function AgentPage() {
 
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
   const [totalCommission, setTotalCommission] = useState(0);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // Unused, can be removed
   const [searchResults, setSearchResults] = useState(null);
   const [searchMessage, setSearchMessage] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [customerDeposits, setCustomerDeposits] = useState([]);
   const [customerCashouts, setCustomerCashouts] = useState([]);
-  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false); // Unused, can be removed
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositMessage, setDepositMessage] = useState({ text: '', type: '' });
+  const [depositMessage, setDepositMessage] = useState({ text: '', type: '' }); // Unused, can be removed
 
-  // --- Session Check & Redirection ---
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const response = await axios.get('/api/agent/me'); // Call your session check API
-        if (response.status === 200 && response.data.username) {
-          setUser({ username: response.data.username }); // Set the user state
-          // Optionally fetch full agent profile here if needed
-          // const agentProfileSnapshot = await getDoc(doc(db, "agents", response.data.username));
-          // if (agentProfileSnapshot.exists()) {
-          //   setAgentProfile(agentProfileSnapshot.data());
-          // }
-        } else {
-          router.replace('/agent/login'); // Redirect to login if session is not valid
-        }
-      } catch (error) {
-        console.error("Session check failed:", error);
-        router.replace('/agent/login'); // Redirect to login on error
-      } finally {
-        setLoadingSession(false);
-      }
-    };
+  // --- ALL CALLBACK HOOKS (useCallback) MUST BE DECLARED AFTER useState, BEFORE CONDITIONAL RENDERS ---
 
-    checkSession();
-  }, [router]); // Re-run effect if router changes
-
-  // Display loading state while checking session
-  if (loadingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p>Loading agent session...</p>
-      </div>
-    );
-  }
-
-  // If user is null after session check, it means they are not logged in and have been redirected.
-  // This return statement ensures nothing else tries to render prematurely.
-  if (!user) {
-    return null;
-  }
-
-  // --- Rest of your existing AgentPage logic (only runs if user is logged in) ---
+  // Helper for showing messages
+  const showMessage = useCallback((text, type) => {
+    setMessage({ text, type });
+    const timer = setTimeout(() => {
+      setMessage({ text: '', type: '' });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetches the agent's profile from Firestore
   const fetchAgentProfile = useCallback(async (username) => {
@@ -88,6 +58,9 @@ export default function AgentPage() {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setAgentProfile({ id: docSnap.id, ...docSnap.data() });
+        setPageCode(docSnap.data().pageCode || ''); // Initialize pageCode from profile
+        setFacebookName(docSnap.data().facebookName || ''); // Initialize facebookName
+        setGeneratedUsername(docSnap.data().generatedUsername || ''); // Initialize generatedUsername
       } else {
         console.log("No such agent profile!");
         setAgentProfile(null);
@@ -96,23 +69,6 @@ export default function AgentPage() {
       console.error("Error fetching agent profile:", error);
       setAgentProfile(null);
     }
-  }, []);
-
-  // Use this useEffect to fetch agent profile once user is set
-  useEffect(() => {
-    if (user?.username && !agentProfile) {
-      fetchAgentProfile(user.username);
-    }
-  }, [user, agentProfile, fetchAgentProfile]);
-
-
-  // Helper for showing messages
-  const showMessage = useCallback((text, type) => {
-    setMessage({ text, type });
-    const timer = setTimeout(() => {
-      setMessage({ text: '', type: '' });
-    }, 5000);
-    return () => clearTimeout(timer);
   }, []);
 
   // Generate Page Code
@@ -136,7 +92,6 @@ export default function AgentPage() {
       let newPageCode = agentData.pageCode;
 
       if (!newPageCode) {
-        // Generate a new unique 6-digit code
         const generateUniqueCode = async () => {
           let code;
           let isUnique = false;
@@ -206,7 +161,6 @@ export default function AgentPage() {
       let newUsername = agentData.generatedUsername; // Assuming 'generatedUsername' field
 
       if (!newUsername) {
-        // Generate a new unique username (e.g., agent_xxxxxx)
         const generateUniqueAgentUsername = async () => {
           let uName;
           let isUnique = false;
@@ -328,28 +282,74 @@ export default function AgentPage() {
     }
   }, [user, agentProfile, customerUsername, depositAmount, cashoutLimitRemaining]);
 
+  // Placeholder for logout function - make sure this matches your /api/agent/logout.js
+  const handleLogout = useCallback(async () => {
+    try {
+      await axios.post('/api/agent/logout');
+      router.push('/agent/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if logout fails on server, redirect to login page
+      router.push('/agent/login');
+    }
+  }, [router]);
+
+
+  // --- ALL EFFECT HOOKS (useEffect) MUST BE DECLARED AFTER useState and useCallback, BEFORE CONDITIONAL RENDERS ---
+
+  // Session Check & Redirection
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await axios.get('/api/agent/me'); // Call your session check API
+        if (response.status === 200 && response.data.username) {
+          setUser({ username: response.data.username }); // Set the user state
+        } else {
+          router.replace('/agent/login'); // Redirect to login if session is not valid
+        }
+      } catch (error) {
+        console.error("Session check failed:", error);
+        router.replace('/agent/login'); // Redirect to login on error
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [router]); // Re-run effect if router changes
+
+  // Use this useEffect to fetch agent profile once user is set
+  useEffect(() => {
+    if (user?.username && !agentProfile) {
+      fetchAgentProfile(user.username);
+    }
+  }, [user, agentProfile, fetchAgentProfile]);
+
   // Fetch last 10 ALL deposits for the dashboard view
   useEffect(() => {
-    const q = query(
-      collection(db, "orders"), // Assuming 'orders' collection contains deposits
-      where('status', '==', 'paid'), // Only show paid deposits
-      orderBy("createdAt", "desc"),
-      limit(10)
-    );
+    // Only fetch if session is loaded and user is present
+    if (!loadingSession && user) {
+      const q = query(
+        collection(db, "orders"), // Assuming 'orders' collection contains deposits
+        where('status', '==', 'paid'), // Only show paid deposits
+        orderBy("createdAt", "desc"),
+        limit(10)
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const deposits = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()?.toISOString(), // Convert Timestamp to ISO string
-      }));
-      setLast10AllDeposits(deposits);
-    }, (error) => {
-      console.error("Error fetching last 10 deposits:", error);
-    });
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const deposits = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()?.toISOString(), // Convert Timestamp to ISO string
+        }));
+        setLast10AllDeposits(deposits);
+      }, (error) => {
+        console.error("Error fetching last 10 deposits:", error);
+      });
 
-    return () => unsubscribe();
-  }, []);
+      return () => unsubscribe();
+    }
+  }, [loadingSession, user]); // Depend on loadingSession and user
 
   // Fetch total commission for the logged-in agent
   useEffect(() => {
@@ -377,18 +377,23 @@ export default function AgentPage() {
   }, [user]);
 
 
-  // Placeholder for logout function - make sure this matches your /api/agent/logout.js
-  const handleLogout = async () => {
-    try {
-      await axios.post('/api/agent/logout');
-      router.push('/agent/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Even if logout fails on server, redirect to login page
-      router.push('/agent/login');
-    }
-  };
+  // --- CONDITIONAL RENDERING (return) STATEMENTS ARE PLACED HERE ---
+  // Display loading state while checking session
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <p>Loading agent session...</p>
+      </div>
+    );
+  }
 
+  // If user is null after session check, it means they are not logged in and have been redirected.
+  // This return statement ensures nothing else tries to render prematurely.
+  if (!user) {
+    return null; // Or a very minimal "Redirecting..." message
+  }
+
+  // --- ACTUAL RENDERED JSX (only when session is valid and user is set) ---
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <Head>
