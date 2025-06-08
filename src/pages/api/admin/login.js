@@ -6,13 +6,13 @@ export default function handler(req, res) {
   }
 
   const { username, password } = req.body;
-  const { ADMIN_USER = 'admin', ADMIN_PASS = '123456' } = process.env;
+  const { ADMIN_USERNAME = 'admin', ADMIN_PASSWORD = '123456' } = process.env;
 
   if (!username || !password) {
     return res.status(400).json({ message: 'Missing credentials' });
   }
 
-  const isValid = username === ADMIN_USER && password === ADMIN_PASS;
+  const isValid = username === ADMIN_USERNAME && password === ADMIN_PASSWORD;
 
   if (!isValid) {
     return res.status(401).json({ message: 'Invalid credentials' });
