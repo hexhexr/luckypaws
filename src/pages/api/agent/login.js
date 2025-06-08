@@ -1,30 +1,40 @@
+// src/pages/api/agent/login.js
 import { getFirestore } from "firebase-admin/firestore";
-import { verifyPassword } from "../../../lib/password"; // optional bcrypt if hashed
-
 import { firebaseAdmin } from "../../../lib/firebaseAdmin";
+import { serialize } from "cookie";
+import bcrypt from 'bcryptjs'; // <--- Add this import
 
 const db = getFirestore(firebaseAdmin);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { username, password } = req.body;
+  const { username, password } = req.body; // 'password' here is the plain text password from the user
 
-  const snapshot = await db.collection("agents").where("username", "==", username).limit(1).get();
+  const query = await db.collection("agents").where("username", "==", username).limit(1).get();
+  if (query.empty) return res.status(401).json({ error: "Not found" });
 
-  if (snapshot.empty) {
-    return res.status(401).json({ error: "Agent not found" });
+  const agent = query.docs[0].data();
+
+  // <--- CHANGE THIS PART
+  // if (agent.password !== password) { // Old, insecure comparison
+  //   return res.status(401).json({ error: "Wrong password" });
+  // }
+  const isPasswordValid = await bcrypt.compare(password, agent.password); // Compare plain text with hashed password
+
+  if (!isPasswordValid) {
+    return res.status(401).json({ error: "Wrong password" });
   }
+  // END CHANGE
 
-  const agent = snapshot.docs[0].data();
+  // Set cookie
+  const cookie = serialize("agent_session", username, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24, // 1 day
+  });
 
-  // Use bcrypt compare if you hash passwords, or direct check:
-  const isValid = agent.password === password;
-  // const isValid = await verifyPassword(password, agent.hashedPassword);
-
-  if (!isValid) {
-    return res.status(401).json({ error: "Invalid password" });
-  }
-
-  res.status(200).json({ session: "ok", username: agent.username });
+  res.setHeader("Set-Cookie", cookie);
+  res.status(200).json({ success: true });
 }

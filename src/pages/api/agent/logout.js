@@ -1,6 +1,12 @@
-// pages/api/agent/logout.js
+import { serialize } from "cookie";
 
 export default function handler(req, res) {
-  res.setHeader("Set-Cookie", `agent_auth=; Path=/; Max-Age=0`);
-  res.status(200).end();
+  const cookie = serialize("agent_session", "", {
+    path: "/",
+    httpOnly: true,
+    maxAge: 0,
+  });
+
+  res.setHeader("Set-Cookie", cookie);
+  res.status(200).json({ message: "Logged out" });
 }

@@ -1,7 +1,7 @@
 // src/pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-import { db, auth } from '../../lib/firebaseClient'; // Corrected import path
+import { db, auth } from '../../lib/firebaseClient';
 import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 
@@ -25,9 +25,9 @@ export default function AgentPage() {
 
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
 
-  const [agentWorkHours, setAgentWorkHours] = useState([]); // Agent's own work hours
-  const [agentLeaves, setAgentLeaves] = useState([]); // Agent's own leave requests
-  const [cashoutRequestAmount, setCashoutRequestAmount] = useState(''); // For agent's own cashout request
+  const [agentWorkHours, setAgentWorkHours] = useState([]);
+  const [agentLeaves, setAgentLeaves] = useState([]);
+  const [cashoutRequestAmount, setCashoutRequestAmount] = useState('');
   const [cashoutRequestMessage, setCashoutRequestMessage] = useState({ text: '', type: '' });
 
 
@@ -39,9 +39,25 @@ export default function AgentPage() {
   // --- Authentication Protection & Agent Profile Fetch ---
 useEffect(() => {
   const session = localStorage.getItem("agent_session");
-  if (!session) router.push("/agent/login");
-}, []);
+  if (!session) {
+    router.push("/agent/login");
+    return; // Stop execution if not logged in
+  }
 
+  // Define an async function inside useEffect
+  const checkAuthAndFetchProfile = async () => {
+    // Here you would typically verify the session with your backend,
+    // as localStorage can be easily tampered with.
+    // For now, let's assume if session exists, we proceed to check Firebase auth.
+    // However, the original code had a missing `auth.onAuthStateChanged` block
+    // which is crucial for Firebase authentication. I'll add that back.
+
+    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        console.warn('No Firebase user authenticated. Redirecting to login.');
+        router.replace('/agent/login?error=no_firebase_user');
+        return;
+      }
 
       setUser(currentUser);
 
@@ -65,7 +81,11 @@ useEffect(() => {
     });
 
     return () => unsubscribeAuth();
-  }, [router]);
+  };
+
+  checkAuthAndFetchProfile(); // Call the async function
+}, [router]);
+
 
   // --- Page Code Locking Logic ---
   useEffect(() => {
@@ -348,12 +368,12 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 font-inter">
       {/* Tailwind CSS CDN script - IMPORTANT: Ensure this is loaded in your _document.js or layout if not already */}
-      <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+      <script src="https://cdn.tailwindcss.com"></script>
       <Head>
         <title>Agent Dashboard</title>
         <meta name="description" content="Agent dashboard for managing customers and orders" />
         <link rel="icon" href="/favicon.ico" />
-        <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap)" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
       </Head>
 
       <header className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-6">
@@ -614,10 +634,3 @@ useEffect(() => {
     </div>
   );
 }
-
- 
-
-
-
-
-
