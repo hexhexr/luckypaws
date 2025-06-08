@@ -1,6 +1,6 @@
 // pages/api/admin/agents/[id].js
 import { getFirestore } from 'firebase-admin/firestore';
-import { firebaseAdmin } from '../../../lib/firebaseAdmin';  // Corrected path for firebaseAdmin import
+import { firebaseAdmin } from '../../lib/firebaseAdmin';  // Corrected path for firebaseAdmin import
 
 const db = getFirestore(firebaseAdmin);
 
