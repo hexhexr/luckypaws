@@ -1,26 +1,22 @@
 // src/pages/agent/index.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
-import { db, auth as firebaseClientAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
-import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp, getDocs, limit } from 'firebase/firestore';
+import { db, auth } from '../../lib/firebaseClient'; // Corrected import path
+import { doc, onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 
 export default function AgentPage() {
   const router = useRouter();
-
-  // --- ALL STATE HOOKS (useState) MUST BE DECLARED FIRST ---
-  const [user, setUser] = useState(null); // This will hold Firebase Auth user object
+  const [user, setUser] = useState(null);
   const [agentProfile, setAgentProfile] = useState(null);
-  const [loadingSession, setLoadingSession] = useState(true); // New state for session loading
 
   const [pageCode, setPageCode] = useState('');
-  const [lockPageCode, setLockCodePage] = useState(false); // Unused, can be removed if not needed
+  const [lockPageCode, setLockCodePage] = useState(false);
   const [isSavingPageCode, setIsSavingPageCode] = useState(false);
   const [facebookName, setFacebookName] = useState('');
   const [generatedUsername, setGeneratedUsername] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
-  const [isLoading, setIsLoading] = useState(false); // For general loading states
+  const [isLoading, setIsLoading] = useState(false);
 
   const [customerUsername, setCustomerUsername] = useState('');
   const [cashoutLimitRemaining, setCashoutLimitRemaining] = useState(null);
@@ -28,533 +24,573 @@ export default function AgentPage() {
   const [cashoutMessage, setCashoutMessage] = useState({ text: '', type: '' });
 
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
-  const [totalCommission, setTotalCommission] = useState(0);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // Unused, can be removed
-  const [searchResults, setSearchResults] = useState(null);
-  const [searchMessage, setSearchMessage] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [customerDeposits, setCustomerDeposits] = useState([]);
-  const [customerCashouts, setCustomerCashouts] = useState([]);
-  const [showDepositModal, setShowDepositModal] = useState(false); // Unused, can be removed
-  const [depositAmount, setDepositAmount] = useState('');
-  const [depositMessage, setDepositMessage] = useState({ text: '', type: '' }); // Unused, can be removed
 
-  // --- ALL CALLBACK HOOKS (useCallback) MUST BE DECLARED AFTER useState, BEFORE CONDITIONAL RENDERS ---
+  const [agentWorkHours, setAgentWorkHours] = useState([]); // Agent's own work hours
+  const [agentLeaves, setAgentLeaves] = useState([]); // Agent's own leave requests
+  const [cashoutRequestAmount, setCashoutRequestAmount] = useState(''); // For agent's own cashout request
+  const [cashoutRequestMessage, setCashoutRequestMessage] = useState({ text: '', type: '' });
 
-  // Helper for showing messages
-  const showMessage = useCallback((text, type) => {
-    setMessage({ text, type });
-    const timer = setTimeout(() => {
-      setMessage({ text: '', type: '' });
-    }, 5000);
-    return () => clearTimeout(timer);
+
+  // --- Firebase Document Reference for Agent Settings ---
+  const agentSettingsRef = useMemo(() => {
+    return doc(db, 'agentSettings', 'pageCodeConfig');
   }, []);
 
-  // Fetches the agent's profile from Firestore
-  // NOW USES UID FROM FIREBASE AUTH
-  const fetchAgentProfile = useCallback(async (uid) => {
-    if (!uid) return;
-    try {
-      // Assuming agent document ID in 'agents' collection is the Firebase Auth UID
-      const docRef = doc(db, "agents", uid);
-      const docSnap = await getDoc(docRef);
+  // --- Authentication Protection & Agent Profile Fetch ---
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        console.log('No user logged in, redirecting to /agent/login');
+        router.replace('/agent/login');
+        return;
+      }
+
+      setUser(currentUser);
+
+      try {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists() && userDocSnap.data().role === 'agent') {
+          setAgentProfile(userDocSnap.data());
+          console.log('Agent user authenticated:', currentUser.email);
+        } else {
+          console.warn('Authenticated user is not an agent. Signing out.');
+          await auth.signOut();
+          router.replace('/agent/login?error=unauthorized');
+        }
+      } catch (error) {
+        console.error('Error fetching agent profile:', error);
+        await auth.signOut();
+        router.replace('/agent/login?error=profile_fetch_failed');
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, [router]);
+
+  // --- Page Code Locking Logic ---
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = onSnapshot(agentSettingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setAgentProfile({ id: docSnap.id, ...docSnap.data() });
-        setPageCode(docSnap.data().pageCode || ''); // Initialize pageCode from profile
-        setFacebookName(docSnap.data().facebookName || ''); // Initialize facebookName
-        setGeneratedUsername(docSnap.data().generatedUsername || ''); // Initialize generatedUsername
+        const data = docSnap.data();
+        setPageCode(data.pageCode || '');
+        setLockCodePage(data.locked || false);
+        setMessage({ text: 'Page code settings loaded.', type: 'success' });
       } else {
-        console.log("No such agent profile found for UID:", uid);
-        setAgentProfile(null);
-        // Optionally create a profile if it doesn't exist yet, using the UID
-        // await setDoc(docRef, { username: uid, createdAt: serverTimestamp() });
+        setMessage({ text: 'No page code settings found. Create one.', type: 'error' });
+        setPageCode('');
+        setLockCodePage(false);
       }
-    } catch (error) {
-      console.error("Error fetching agent profile:", error);
-      setAgentProfile(null);
-    }
-  }, []);
+    }, (error) => {
+      console.error('Error listening to page code settings:', error);
+      setMessage({ text: 'Error fetching page code settings: ' + error.message, type: 'error' });
+    });
 
-  // Generate Page Code
-  const handleGeneratePageCode = useCallback(async () => {
-    if (!user?.uid) { // Use user.uid
-      showMessage("Please log in to generate a page code.", "error");
-      return;
-    }
+    return () => unsubscribe();
+  }, [user, agentSettingsRef]);
+
+  const savePageCodeSettingsToFirebase = useCallback(async () => {
     setIsSavingPageCode(true);
+    setMessage({ text: '', type: '' });
     try {
-      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
-      const agentDocSnap = await getDoc(agentDocRef);
-
-      if (!agentDocSnap.exists()) {
-        showMessage("Agent profile not found. Please contact support or ensure your profile exists.", "error");
-        setIsSavingPageCode(false);
-        return;
-      }
-
-      const agentData = agentDocSnap.data();
-      let newPageCode = agentData.pageCode;
-
-      if (!newPageCode) {
-        const generateUniqueCode = async () => {
-          let code;
-          let isUnique = false;
-          while (!isUnique) {
-            code = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit number
-            const q = query(collection(db, "agents"), where("pageCode", "==", code));
-            const querySnapshot = await getDocs(q);
-            if (querySnapshot.empty) {
-              isUnique = true;
-            }
-          }
-          return code;
-        };
-        newPageCode = await generateUniqueCode();
-        await updateDoc(agentDocRef, { pageCode: newPageCode });
-        showMessage("New unique page code generated and saved!", "success");
-      } else {
-        showMessage("Existing page code retrieved.", "info");
-      }
-      setPageCode(newPageCode);
+      await updateDoc(agentSettingsRef, {
+        pageCode: pageCode,
+        locked: lockPageCode,
+        lastUpdated: new Date().toISOString(),
+      });
+      setMessage({ text: 'Page code settings saved successfully!', type: 'success' });
     } catch (error) {
-      console.error("Error generating/fetching page code:", error);
-      showMessage("Failed to generate or fetch page code.", "error");
+      console.error('Error saving page code settings:', error);
+      setMessage({ text: 'Failed to save page code settings. ' + error.message, type: 'error' });
     } finally {
       setIsSavingPageCode(false);
     }
-  }, [user, showMessage]);
+  }, [pageCode, lockPageCode, agentSettingsRef]);
 
+  // --- Username Generation Logic ---
+  const handleGenerateUsername = async (e) => {
+    e.preventDefault();
+    setGeneratedUsername('');
+    setMessage({ text: '', type: '' });
+    setIsLoading(true);
 
-  // Save Facebook Name
-  const handleSaveFacebookName = useCallback(async () => {
-    if (!user?.uid) { // Use user.uid
-      showMessage("Please log in to save Facebook name.", "error");
+    if (!facebookName.trim() || !pageCode.trim()) {
+      setMessage({ text: 'Please enter Facebook Name and Page Code.', type: 'error' });
+      setIsLoading(false);
       return;
     }
-    setIsSavingPageCode(true); // Using same loading state for simplicity
-    try {
-      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
-      await updateDoc(agentDocRef, { facebookName: facebookName });
-      showMessage("Facebook name saved successfully!", "success");
-    } catch (error) {
-      console.error("Error saving Facebook name:", error);
-      showMessage("Failed to save Facebook name.", "error");
-    } finally {
-      setIsSavingPageCode(false);
-    }
-  }, [user, facebookName, showMessage]);
-
-  // Generate Username
-  const handleGenerateUsername = useCallback(async () => {
-    if (!user?.uid) { // Use user.uid
-      showMessage("Please log in to generate a username.", "error");
-      return;
-    }
-    setIsSavingPageCode(true); // Using same loading state
-    try {
-      const agentDocRef = doc(db, "agents", user.uid); // Use user.uid
-      const agentDocSnap = await getDoc(agentDocRef);
-
-      if (!agentDocSnap.exists()) {
-        showMessage("Agent profile not found. Please contact support.", "error");
-        setIsSavingPageCode(false);
-        return;
-      }
-
-      const agentData = agentDocSnap.data();
-      let newUsername = agentData.generatedUsername; // Assuming 'generatedUsername' field
-
-      if (!newUsername) {
-        const generateUniqueAgentUsername = async () => {
-          let uName;
-          let isUnique = false;
-          while (!isUnique) {
-            uName = `agent_${Math.random().toString(36).substring(2, 8)}`; // Random string
-            const q = query(collection(db, "agents"), where("generatedUsername", "==", uName));
-            const querySnapshot = await getDocs(q);
-            if (querySnapshot.empty) {
-              isUnique = true;
-            }
-          }
-          return uName;
-        };
-        newUsername = await generateUniqueAgentUsername();
-        await updateDoc(agentDocRef, { generatedUsername: newUsername });
-        showMessage("New unique agent username generated and saved!", "success");
-      } else {
-        showMessage("Existing agent username retrieved.", "info");
-      }
-      setGeneratedUsername(newUsername);
-    } catch (error) {
-      console.error("Error generating/fetching username:", error);
-      showMessage("Failed to generate or fetch username.", "error");
-    } finally {
-      setIsSavingPageCode(false);
-    }
-  }, [user, showMessage]);
-
-  // Fetch customer financials (Deposits & Cashouts)
-  const fetchCustomerFinancials = useCallback(async () => {
-    if (!customerUsername) {
-      setSearchMessage("Please enter a customer username.");
-      setSearchResults(null);
-      return;
-    }
-    setIsSearching(true);
-    setSearchMessage('');
-    setSearchResults(null);
-    setCustomerDeposits([]);
-    setCustomerCashouts([]);
 
     try {
-      // Fetch customer's deposits
-      const depositsQuery = query(
-        collection(db, 'orders'), // Assuming customer deposits are 'orders'
-        where('username', '==', customerUsername),
-        where('status', '==', 'paid'), // Only paid orders count as deposits
-        orderBy('created', 'desc')
-      );
-      const depositsSnapshot = await getDocs(depositsQuery);
-      const deposits = depositsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCustomerDeposits(deposits);
-
-      // Fetch customer's cashouts
-      const cashoutsQuery = query(
-        collection(db, 'cashouts'), // Assuming 'cashouts' collection for customer withdrawals
-        where('customerUsername', '==', customerUsername),
-        orderBy('requestedAt', 'desc') // Assuming a 'requestedAt' field
-      );
-      const cashoutsSnapshot = await getDocs(cashoutsQuery);
-      const cashouts = cashoutsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCustomerCashouts(cashouts);
-
-      // Calculate total deposits and cashouts for the limit
-      const totalDeposited = deposits.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
-      const totalCashedOut = cashouts.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
-
-      const remaining = totalDeposited - totalCashedOut;
-      setCashoutLimitRemaining(remaining);
-      setSearchResults({ customerUsername }); // Indicate successful search for the customer
-      setSearchMessage(`Financials for ${customerUsername} loaded.`);
-
-    } catch (error) {
-      console.error("Error fetching customer financials:", error);
-      setSearchMessage("Failed to fetch customer financials. Please try again.");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [customerUsername]);
-
-  // Handle Cashout Request (for CUSTOMERS)
-  const handleCashoutRequest = useCallback(async () => {
-    if (!user?.uid || !agentProfile?.username) { // Ensure agent is logged in and has a profile username
-      setCashoutMessage({ text: "Agent not logged in or profile missing.", type: "error" });
-      return;
-    }
-    if (!customerUsername || isNaN(parseFloat(depositAmount)) || parseFloat(depositAmount) <= 0) {
-      setCashoutMessage({ text: "Please enter a valid customer username and positive amount.", type: "error" });
-      return;
-    }
-    if (cashoutLimitRemaining !== null && parseFloat(depositAmount) > cashoutLimitRemaining) {
-      setCashoutMessage({ text: "Cashout amount exceeds customer's remaining limit.", type: "error" });
-      return;
-    }
-
-    setCustomerFinancialsLoading(true); // Using this for cashout submission loading
-    try {
-      // Call the API route for submitting customer cashout requests
-      const res = await axios.post('/api/agent/submit-customer-cashout', { // Updated API endpoint
-        agentUid: user.uid, // Firebase UID of the agent
-        agentUsername: agentProfile.username, // Agent's actual username from profile
-        customerUsername: customerUsername,
-        amount: parseFloat(depositAmount),
+      const response = await fetch('/api/generate-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facebookName, pageCode }),
       });
 
-      if (res.data.success) {
-        setCashoutMessage({ text: res.data.message, type: "success" });
-        setDepositAmount(''); // Clear amount
-        setCustomerUsername(''); // Clear customer username
-        setCashoutLimitRemaining(null); // Reset limit
-        setSearchResults(null); // Clear search results
+      const data = await response.json();
+
+      if (response.ok) {
+        setGeneratedUsername(data.username);
+        setMessage({ text: data.message, type: 'success' });
       } else {
-        setCashoutMessage({ text: res.data.message || "Failed to submit cashout request.", type: "error" });
+        setMessage({ text: data.message || 'Failed to generate username.', type: 'error' });
       }
     } catch (error) {
-      console.error("Error submitting cashout request:", error);
-      setCashoutMessage({ text: error.response?.data?.message || "Error submitting cashout request.", type: "error" });
+      console.error('Error generating username:', error);
+      setMessage({ text: 'An unexpected error occurred while generating username.', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- Customer Cashout Limit Logic ---
+  const fetchCustomerCashoutLimit = async (e) => {
+    e.preventDefault();
+    setCashoutLimitRemaining(null);
+    setCashoutMessage({ text: '', type: '' });
+    setCustomerFinancialsLoading(true);
+
+    if (!customerUsername.trim()) {
+      setCashoutMessage({ text: 'Please enter a customer username.', type: 'error' });
+      setCustomerFinancialsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer-cashout-limit?username=${encodeURIComponent(customerUsername.trim())}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setCashoutLimitRemaining(data.remainingLimit);
+        setCashoutMessage({
+          text: `Limit for ${data.username}: $${data.remainingLimit.toFixed(2)} (Total cashed out: $${data.totalCashoutsToday.toFixed(2)})`,
+          type: 'success'
+        });
+      } else {
+        setCashoutMessage({ text: data.message || 'Failed to fetch cashout limit.', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error fetching cashout limit:', error);
+      setCashoutMessage({ text: 'An unexpected error occurred while fetching cashout limit.', type: 'error' });
     } finally {
       setCustomerFinancialsLoading(false);
     }
-  }, [user, agentProfile, customerUsername, depositAmount, cashoutLimitRemaining]);
+  };
 
-  // Logout function
-  const handleLogout = useCallback(async () => {
-    try {
-      await firebaseClientAuth.signOut(); // Sign out from Firebase Auth
-      await axios.post('/api/agent/logout'); // Clear the session cookie (if still used for something else)
-      router.push('/agent/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Even if logout fails, redirect to login page
-      router.push('/agent/login');
-    }
-  }, [router]);
-
-
-  // --- ALL EFFECT HOOKS (useEffect) MUST BE DECLARED AFTER useState and useCallback, BEFORE CONDITIONAL RENDERS ---
-
-  // Session Check & Redirection using Firebase Auth
+  // --- Live Deposit Checker (Last 10 Deposits) ---
   useEffect(() => {
-    const unsubscribe = firebaseClientAuth.onAuthStateChanged(firebaseUser => {
-      if (firebaseUser) {
-        // Firebase user is signed in.
-        setUser(firebaseUser); // Set the Firebase Auth user object
-        console.log("Firebase user logged in:", firebaseUser.uid);
-        // fetchAgentProfile(firebaseUser.uid); // Fetch profile once Firebase user is set
-      } else {
-        // No Firebase user is signed in.
-        setUser(null);
-        console.log("No Firebase user, redirecting to login.");
-        router.replace('/agent/login'); // Redirect to login
-      }
-      setLoadingSession(false);
+    if (!user) return;
+
+    const depositsQuery = query(
+      collection(db, 'orders'),
+      where('status', '==', 'paid'),
+      orderBy('createdAt', 'desc'),
+    );
+
+    const unsubscribe = onSnapshot(depositsQuery, (snapshot) => {
+      const deposits = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        deposits.push({
+          id: doc.id,
+          username: data.username,
+          amount: parseFloat(data.amount || 0),
+          createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : null,
+        });
+      });
+      setLast10AllDeposits(deposits.slice(0, 10));
+      setMessage({ text: 'Live deposits updated.', type: 'success' });
+    }, (error) => {
+      console.error('Error fetching live deposits:', error);
+      setMessage({ text: 'Error fetching live deposits: ' + error.message, type: 'error' });
     });
 
-    return () => unsubscribe(); // Clean up auth listener
-  }, [router]);
+    return () => unsubscribe();
+  }, [user]);
 
-  // Use this useEffect to fetch agent profile once Firebase user is set
+  // --- Agent's Own Work Hours Fetching ---
   useEffect(() => {
-    if (user?.uid && !agentProfile) { // Now using user.uid from Firebase Auth
-      fetchAgentProfile(user.uid);
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'workHours'),
+      where('agentId', '==', user.uid),
+      orderBy('loginTime', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const hours = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        loginTime: doc.data().loginTime ? (doc.data().loginTime.toDate ? doc.data().loginTime.toDate().toISOString() : doc.data().loginTime) : null,
+        logoutTime: doc.data().logoutTime ? (doc.data().logoutTime.toDate ? doc.data().logoutTime.toDate().toISOString() : doc.data().logoutTime) : null,
+      }));
+      setAgentWorkHours(hours);
+    }, (error) => {
+      console.error("Error fetching agent's work hours:", error);
+      setMessage({ text: "Error fetching your work hours: " + error.message, type: 'error' });
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // --- Agent's Own Leave Requests Fetching ---
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'leaves'),
+      where('agentId', '==', user.uid),
+      orderBy('requestedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const leaves = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        requestedAt: doc.data().requestedAt ? (doc.data().requestedAt.toDate ? doc.data().requestedAt.toDate().toISOString() : doc.data().requestedAt) : null,
+      }));
+      setAgentLeaves(leaves);
+    }, (error) => {
+      console.error("Error fetching agent's leave requests:", error);
+      setMessage({ text: "Error fetching your leave requests: " + error.message, type: 'error' });
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // --- Calculate Total Hours for current agent ---
+  const calculateOwnTotalHours = useCallback(() => {
+    let totalDurationMs = 0;
+    agentWorkHours.forEach(entry => {
+        if (entry.loginTime && entry.logoutTime) {
+            const login = new Date(entry.loginTime);
+            const logout = new Date(entry.logoutTime);
+            totalDurationMs += (logout.getTime() - login.getTime());
+        }
+    });
+    const totalHours = totalDurationMs / (1000 * 60 * 60);
+    return totalHours.toFixed(2);
+  }, [agentWorkHours]);
+
+  // --- Submit Agent Cashout Request ---
+  const handleSubmitCashoutRequest = async (e) => {
+    e.preventDefault();
+    setCashoutRequestMessage({ text: '', type: '' });
+
+    const amount = parseFloat(cashoutRequestAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setCashoutRequestMessage({ text: 'Please enter a valid positive amount for cashout.', type: 'error' });
+      return;
     }
-  }, [user, agentProfile, fetchAgentProfile]);
 
-  // Fetch last 10 ALL deposits for the dashboard view
-  useEffect(() => {
-    // Only fetch if session is loaded and user is present
-    if (!loadingSession && user) {
-      const q = query(
-        collection(db, "orders"), // Assuming 'orders' collection contains deposits
-        where('status', '==', 'paid'), // Only show paid deposits
-        orderBy("createdAt", "desc"),
-        limit(10)
-      );
+    if (!user || !agentProfile) {
+        setCashoutRequestMessage({ text: 'Agent not authenticated. Please log in.', type: 'error' });
+        return;
+    }
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const deposits = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()?.toISOString(), // Convert Timestamp to ISO string
-        }));
-        setLast10AllDeposits(deposits);
-      }, (error) => {
-        console.error("Error fetching last 10 deposits:", error);
+    try {
+      // Call the new API route to submit agent's cashout request
+      const response = await fetch('/api/agent/submit-cashout-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: user.uid,
+          agentName: agentProfile.name || agentProfile.email,
+          amount: amount,
+        }),
       });
 
-      return () => unsubscribe();
-    }
-  }, [loadingSession, user]); // Depend on loadingSession and user
+      const data = await response.json();
 
-  // Fetch total commission for the logged-in agent
-  useEffect(() => {
-    // Only fetch if agentProfile is loaded and has a username (which is the agent's identifier)
-    if (!agentProfile?.username) return;
-
-    const fetchCommission = async () => {
-      try {
-        const q = query(
-          collection(db, "orders"),
-          where("agent", "==", agentProfile.username), // Assuming agent username is stored in 'agent' field
-          where("status", "==", "paid")
-        );
-        const snapshot = await getDocs(q);
-        let total = 0;
-        snapshot.forEach(doc => {
-          total += parseFloat(doc.data().commission || 0); // Assuming a 'commission' field
-        });
-        setTotalCommission(total);
-      } catch (error) {
-        console.error("Error fetching total commission:", error);
+      if (response.ok) {
+        setCashoutRequestMessage({ text: data.message, type: 'success' });
+        setCashoutRequestAmount('');
+      } else {
+        setCashoutRequestMessage({ text: data.message || 'Failed to submit cashout request.', type: 'error' });
       }
-    };
+    } catch (error) {
+      console.error('Error submitting cashout request:', error);
+      setCashoutRequestMessage({ text: 'An unexpected error occurred while submitting cashout request.', type: 'error' });
+    }
+  };
 
-    fetchCommission();
-  }, [agentProfile]);
 
+  // --- Logout Functionality ---
+  const handleLogout = async () => {
+    if (user) {
+      try {
+        await fetch('/api/agent/record-logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: user.uid }),
+        });
+        await auth.signOut();
+        console.log('User signed out.');
+        router.replace('/agent/login');
+      } catch (error) {
+        console.error('Error during logout:', error);
+        setMessage({ text: 'Failed to log out: ' + error.message, type: 'error' });
+      }
+    }
+  };
 
-  // --- CONDITIONAL RENDERING (return) STATEMENTS ARE PLACED HERE ---
-  // Display loading state while checking session
-  if (loadingSession) {
+  if (!user || !agentProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p>Loading agent session...</p>
+      <div className="min-h-screen flex items-center justify-center text-lg bg-gray-100">
+        <Head><title>Loading Agent Page...</title></Head>
+        <p>Loading agent dashboard...</p>
       </div>
     );
   }
 
-  // If user is null after session check, it means they are not logged in and have been redirected.
-  // This return statement ensures nothing else tries to render prematurely.
-  if (!user) {
-    return null; // Or a very minimal "Redirecting..." message
-  }
-
-  // --- ACTUAL RENDERED JSX (only when session is valid and user is set) ---
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 font-inter">
+      {/* Tailwind CSS CDN script - IMPORTANT: Ensure this is loaded in your _document.js or layout if not already */}
+      <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
       <Head>
         <title>Agent Dashboard</title>
+        <meta name="description" content="Agent dashboard for managing customers and orders" />
+        <link rel="icon" href="/favicon.ico" />
+        <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap)" rel="stylesheet" />
       </Head>
 
-      <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Agent Dashboard</h1>
-        {user && (
-          <div className="flex items-center space-x-4">
-            {/* Display agent's username if available from profile, else Firebase UID */}
-            <span className="text-gray-700">Welcome, {agentProfile?.username || user.uid}!</span>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Logout
-            </button>
-          </div>
-        )}
+      <header className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-6">
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-4 sm:mb-0">Agent Dashboard</h1>
+        <nav className="flex flex-wrap gap-2 sm:gap-4">
+          <button
+            onClick={() => router.push('/agent')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => router.push('/admin')}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors shadow-sm"
+          >
+            Admin Login
+          </button>
+          {/* Add more menu items here if needed */}
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors shadow-sm"
+          >
+            Logout
+          </button>
+        </nav>
       </header>
 
-      <main className="flex-1 p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Messages */}
+      <main className="max-w-7xl mx-auto">
         {message.text && (
-          <div className={`col-span-full alert alert-${message.type}`}>
+          <p className={`mb-4 p-3 rounded-md ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
             {message.text}
-          </div>
+          </p>
         )}
 
-        {/* Agent Profile & Codes */}
-        <section className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Your Agent Profile</h2>
-          {agentProfile ? (
+        {/* Agent's Own Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
+                <h3 className="text-xl font-semibold mb-3 text-green-700">Your Work Summary</h3>
+                <p className="text-gray-700 text-lg">Total Hours Today: <span className="font-bold text-gray-900">{calculateOwnTotalHours()} hrs</span></p>
+                <div className="mt-4 text-gray-600 text-sm">
+                    <h4 className="font-semibold mb-2">Recent Login/Logout:</h4>
+                    {agentWorkHours.length > 0 ? (
+                        <ul className="list-disc list-inside space-y-1">
+                            {agentWorkHours.slice(0, 3).map((log, index) => (
+                                <li key={index}>
+                                    Login: {log.loginTime ? new Date(log.loginTime).toLocaleString() : 'N/A'} - 
+                                    Logout: {log.logoutTime ? new Date(log.logoutTime).toLocaleString() : 'Active'}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : <p>No recent work activity.</p>}
+                </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-purple-500">
+                <h3 className="text-xl font-semibold mb-3 text-purple-700">Your Leave Status</h3>
+                {agentLeaves.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {agentLeaves.slice(0, 5).map((leave) => (
+                                    <tr key={leave.id}>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">{leave.reason}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">{leave.days}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                leave.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                                leave.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {leave.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : <p className="text-gray-600">No leave requests submitted yet.</p>}
+            </div>
+        </div>
+
+
+        {/* Submit Cashout Request Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Submit Your Cashout Request</h2>
+            <form onSubmit={handleSubmitCashoutRequest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                    type="number"
+                    placeholder="Amount to Cashout"
+                    value={cashoutRequestAmount}
+                    onChange={(e) => setCashoutRequestAmount(e.target.value)}
+                    className="p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    min="0.01"
+                    step="0.01"
+                    required
+                />
+                <button
+                    type="submit"
+                    className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors shadow-md font-semibold"
+                >
+                    Submit Cashout Request
+                </button>
+            </form>
+            {cashoutRequestMessage.text && (
+                <p className={`mt-4 p-3 rounded-md ${cashoutRequestMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {cashoutRequestMessage.text}
+                </p>
+            )}
+        </div>
+
+
+        {/* Page Code Locking Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Page Code Management</h2>
+          <form className="space-y-4">
             <div>
-              <p><strong>Agent Username:</strong> {agentProfile.username}</p>
-              <p><strong>Page Code:</strong> {pageCode || 'Not generated'}</p>
-              <p><strong>Facebook Name:</strong> {facebookName || 'Not set'}</p>
-              <p><strong>Generated Username:</strong> {generatedUsername || 'Not generated'}</p>
-            </div>
-          ) : (
-            <p>Loading profile...</p>
-          )}
-
-          <div className="mt-4 space-y-3">
-            <button
-              onClick={handleGeneratePageCode}
-              className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-              disabled={isSavingPageCode}
-            >
-              {isSavingPageCode ? 'Generating...' : (pageCode ? 'Refresh Page Code' : 'Generate Page Code')}
-            </button>
-            {pageCode && <p className="text-sm text-gray-600">Your page code: <span className="font-bold">{pageCode}</span></p>}
-
-            <input
-              type="text"
-              placeholder="Your Facebook Name"
-              className="w-full p-2 border rounded"
-              value={facebookName}
-              onChange={(e) => setFacebookName(e.target.value)}
-            />
-            <button
-              onClick={handleSaveFacebookName}
-              className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-              disabled={isSavingPageCode}
-            >
-              {isSavingPageCode ? 'Saving...' : 'Save Facebook Name'}
-            </button>
-
-            <button
-              onClick={handleGenerateUsername}
-              className="w-full bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
-              disabled={isSavingPageCode}
-            >
-              {isSavingPageCode ? 'Generating...' : (generatedUsername ? 'Refresh Username' : 'Generate Username')}
-            </button>
-            {generatedUsername && <p className="text-sm text-gray-600">Your unique username: <span className="font-bold">{generatedUsername}</span></p>}
-          </div>
-        </section>
-
-        {/* Customer Financials Search */}
-        <section className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Customer Financials</h2>
-          <div className="mb-4">
-            <input
-              type="text"
-              placeholder="Customer Username"
-              className="w-full p-2 border rounded mb-2"
-              value={customerUsername}
-              onChange={(e) => setCustomerUsername(e.target.value)}
-            />
-            <button
-              onClick={fetchCustomerFinancials}
-              className="w-full bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
-              disabled={isSearching}
-            >
-              {isSearching ? 'Searching...' : 'Search Customer'}
-            </button>
-            {searchMessage && <p className="text-sm mt-2">{searchMessage}</p>}
-          </div>
-
-          {searchResults && (
-            <div className="border-t pt-4 mt-4">
-              <h3 className="text-md font-semibold mb-2">Details for {searchResults.customerUsername}</h3>
-              {cashoutLimitRemaining !== null && (
-                <p><strong>Cashout Limit Remaining:</strong> ${cashoutLimitRemaining.toFixed(2)}</p>
-              )}
-
-              <h4 className="font-semibold mt-4">Deposits:</h4>
-              {customerDeposits.length > 0 ? (
-                <ul className="list-disc pl-5">
-                  {customerDeposits.map(d => (
-                    <li key={d.id}>${d.amount?.toFixed(2)} on {d.created ? new Date(d.created).toLocaleString() : 'N/A'}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No deposits found.</p>
-              )}
-
-              <h4 className="font-semibold mt-4">Cashouts:</h4>
-              {customerCashouts.length > 0 ? (
-                <ul className="list-disc pl-5">
-                  {customerCashouts.map(c => (
-                    <li key={c.id}>${c.amount?.toFixed(2)} on {c.requestedAt ? new Date(c.requestedAt?.toDate()).toLocaleString() : 'N/A'} (Status: {c.status})</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No cashouts found.</p>
-              )}
-
-              <h4 className="font-semibold mt-4">Submit Cashout Request</h4>
+              <label htmlFor="pageCode" className="block text-sm font-medium text-gray-700 mb-1">Current Page Code:</label>
               <input
-                type="number"
-                placeholder="Amount"
-                className="w-full p-2 border rounded mb-2"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
+                type="text"
+                id="pageCode"
+                value={pageCode}
+                onChange={(e) => setPageCode(e.target.value)}
+                placeholder="Enter page code"
+                className="p-3 border border-gray-300 rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                disabled={lockPageCode || isSavingPageCode}
               />
-              <button
-                onClick={handleCashoutRequest}
-                className="w-full bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                disabled={customerFinancialsLoading}
-              >
-                {customerFinancialsLoading ? 'Submitting...' : 'Request Cashout'}
-              </button>
-              {cashoutMessage.text && <p className={`text-sm mt-2 text-${cashoutMessage.type === 'success' ? 'green' : 'red'}-600`}>{cashoutMessage.text}</p>}
             </div>
-          )}
-        </section>
+            {lockPageCode && (
+              <p className="text-blue-600 text-sm">
+                This page code is locked by an admin. You cannot change it.
+              </p>
+            )}
+            {!lockPageCode && (
+              <button
+                type="button"
+                onClick={savePageCodeSettingsToFirebase}
+                className={`px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md font-semibold ${isSavingPageCode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isSavingPageCode}
+              >
+                {isSavingPageCode ? 'Saving...' : 'Save Page Code'}
+              </button>
+            )}
+            <p className="text-sm text-gray-500 mt-2">
+              *Page code can be locked by an admin from Firebase.
+            </p>
+          </form>
+        </div>
 
-        {/* Last 10 All Deposits */}
-        <section className="bg-white p-6 rounded-lg shadow lg:col-span-1">
-          <h2 className="text-lg font-semibold mb-4">Last 10 All Customer Deposits (Paid)</h2>
-          {last10AllDeposits.length > 0 ? (
-            <div className="overflow-x-auto overflow-y-auto rounded-lg shadow-sm border border-gray-200" style={{ maxHeight: '250px' }}>
+        {/* Username Generation Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Generate Customer Username</h2>
+          <form onSubmit={handleGenerateUsername} className="space-y-4">
+            <div>
+              <label htmlFor="facebookName" className="block text-sm font-medium text-gray-700 mb-1">Customer Facebook Name:</label>
+              <input
+                type="text"
+                id="facebookName"
+                value={facebookName}
+                onChange={(e) => setFacebookName(e.target.value)}
+                placeholder="e.g., John Doe"
+                required
+                className="p-3 border border-gray-300 rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                disabled={isLoading}
+              />
+            </div>
+            <p className="text-sm text-gray-600">
+              Page Code will be automatically used from the "Page Code Management" section above.
+            </p>
+            <button
+              type="submit"
+              className={`px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md font-semibold ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Generating...' : 'Generate Username'}
+            </button>
+          </form>
+          {generatedUsername && (
+            <p className="mt-4 p-3 rounded-md bg-green-100 text-green-700">
+              Generated Username: <strong className="text-green-900">{generatedUsername}</strong>
+            </p>
+          )}
+        </div>
+
+        {/* Customer Cashout Limit Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Check Customer Cashout Limit</h2>
+          <form onSubmit={fetchCustomerCashoutLimit} className="space-y-4">
+            <div>
+              <label htmlFor="customerUsername" className="block text-sm font-medium text-gray-700 mb-1">Customer Username:</label>
+              <input
+                type="text"
+                id="customerUsername"
+                value={customerUsername}
+                onChange={(e) => setCustomerUsername(e.target.value)}
+                placeholder="Enter customer username"
+                required
+                className="p-3 border border-gray-300 rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                disabled={customerFinancialsLoading}
+              />
+            </div>
+            <button
+              type="submit"
+              className={`px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md font-semibold ${customerFinancialsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={customerFinancialsLoading}
+            >
+              {customerFinancialsLoading ? 'Checking...' : 'Check Cashout Limit'}
+            </button>
+          </form>
+          {cashoutLimitRemaining !== null && (
+            <p className="mt-4 p-3 rounded-md bg-blue-100 text-blue-700">
+              Remaining Limit: <strong className="text-blue-900">${cashoutLimitRemaining.toFixed(2)}</strong>
+            </p>
+          )}
+          {cashoutMessage.text && (
+            <p className={`mt-4 p-3 rounded-md ${cashoutMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {cashoutMessage.text}
+            </p>
+          )}
+        </div>
+
+        {/* Live Deposit Checker Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Live Deposit Checker (Last 10 Paid Orders)</h2>
+          {last10AllDeposits.length === 0 ? (
+            <p className="text-gray-600">No recent paid deposits found. {message.type === 'error' && message.text.includes('live deposits') ? `(${message.text})` : ''}</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg shadow-sm border border-gray-200" style={{ maxHeight: '250px' }}>
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -574,20 +610,16 @@ export default function AgentPage() {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <p>No recent paid deposits found.</p>
           )}
-        </section>
-
-        {/* Total Commission */}
-        <section className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Your Total Commission</h2>
-          <p className="text-3xl font-bold text-green-600">${totalCommission.toFixed(2)}</p>
-          <p className="text-sm text-gray-500 mt-2">Calculated from your paid orders.</p>
-        </section>
-
-        {/* Additional sections as needed */}
+        </div>
       </main>
     </div>
   );
 }
+
+ 
+
+
+
+
+

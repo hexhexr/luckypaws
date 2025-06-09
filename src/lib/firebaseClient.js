@@ -45,5 +45,5 @@ try {
   // This catch block will help pinpoint if firebase.auth() itself is throwing an error.
 }
 
-export const db = dbInstance;
-export const auth = authInstance; // Export the Auth instance
+// Export both dbInstance and authInstance (renamed for clarity)
+export { dbInstance as db, authInstance as auth };

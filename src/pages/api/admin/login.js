@@ -1,62 +1,52 @@
 // src/pages/api/admin/login.js
-import { getFirestore } from "firebase-admin/firestore";
-import { firebaseAdmin } from "../../../lib/firebaseAdmin";
-import { serialize } from "cookie";
-import bcrypt from 'bcrypt';
-import { auth as adminAuth } from 'firebase-admin/auth';
+// This API route handles custom username/password validation for admin login
+// and generates a Firebase Custom Token upon success.
 
-const db = getFirestore(firebaseAdmin);
+import { auth as adminAuth } from '../../../lib/firebaseAdmin'; // Corrected import path
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).end(); // This line explicitly checks for POST
+  // Ensure only POST requests are allowed for login attempts.
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ error: "Username and password are required." });
-  }
+  // Load environment variables directly within the handler
+  const VALID_ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+  const VALID_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-  try {
-    const query = await db.collection("admins").where("username", "==", username).limit(1).get();
+  // Perform the custom validation against environment variables
+  if (username === VALID_ADMIN_USERNAME && password === VALID_ADMIN_PASSWORD) {
+    try {
+      // Get the Firebase UID for your "master" admin account from environment variables.
+      const adminFirebaseUid = process.env.FIREBASE_ADMIN_UID;
+      
+      if (!adminFirebaseUid) {
+          console.error("FIREBASE_ADMIN_UID environment variable is not set!");
+          return res.status(500).json({ success: false, message: "Server configuration error: Admin UID missing." });
+      }
 
-    if (query.empty) {
-      console.log(`Admin login failed: Username '${username}' not found.`);
-      return res.status(401).json({ error: "Invalid username or password." });
+      // --- ADD THIS CONSOLE.LOG ---
+      console.log('Attempting to create custom token for UID:', adminFirebaseUid);
+      // --- END ADDITION ---
+
+      // Generate a Firebase Custom Token for the specific admin UID
+      const customToken = await adminAuth.createCustomToken(adminFirebaseUid, { admin: true });
+      
+      console.log('Admin login: Credentials MATCHED. Custom token generated.');
+      
+      // Return the custom token to the client
+      return res.status(200).json({ success: true, message: 'Admin login successful.', token: customToken });
+
+    } catch (error) {
+      console.error('Error generating Firebase custom token:', error);
+      // Log the full error object for more details
+      console.error('Full error details:', error); 
+      return res.status(500).json({ success: false, message: 'Failed to generate authentication token.' });
     }
-
-    const adminUser = query.docs[0].data();
-
-    const passwordMatch = await bcrypt.compare(password, adminUser.password);
-
-    if (!passwordMatch) {
-      console.log(`Admin login failed for '${username}': Password mismatch.`);
-      return res.status(401).json({ error: "Invalid username or password." });
-    }
-
-    // Passwords match, create a custom token for Firebase client-side auth
-    const customToken = await adminAuth.createCustomToken(adminUser.uid);
-
-    // Create a session cookie
-    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
-    const sessionCookie = await adminAuth.createSessionCookie(customToken, { expiresIn });
-
-    res.setHeader(
-      "Set-Cookie",
-      serialize("admin_session", sessionCookie, {
-        path: "/",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: expiresIn / 1000,
-      })
-    );
-
-    console.log(`Admin '${username}' logged in successfully.`);
-    return res.status(200).json({ success: true, message: 'Logged in successfully', token: customToken });
-  } catch (error) {
-    console.error('Admin login error:', error);
-    return res.status(500).json({ error: "Internal Server Error." });
+  } else {
+    console.log('Admin login: Credentials MISMATCH.');
+    return res.status(401).json({ success: false, message: 'Invalid username or password.' });
   }
 }
