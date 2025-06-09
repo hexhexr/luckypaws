@@ -1,73 +1,63 @@
-// pages/api/admin/login.js
-import { auth as adminAuth } from '../../../lib/firebaseAdmin'; // Firebase Admin Auth
-import { db } from '../../../lib/firebaseAdmin'; // For Firestore if you store admin users there
-import { serialize } from 'cookie';
-import bcrypt from 'bcrypt'; // Assuming you hash passwords for local admins
+// src/pages/api/admin/login.js
+import { getFirestore } from "firebase-admin/firestore";
+import { firebaseAdmin } from "../../../lib/firebaseAdmin";
+import { serialize } from "cookie";
+import bcrypt from 'bcrypt';
+import { auth as adminAuth } from 'firebase-admin/auth'; // Import admin auth
+
+const db = getFirestore(firebaseAdmin);
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).end();
   }
 
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required.' });
+    return res.status(400).json({ error: "Username and password are required." });
   }
 
   try {
-    // --- Step 1: Verify admin credentials (e.g., against Firestore or environment variables) ---
-    // For simplicity, let's assume you have an 'admins' collection in Firestore
-    // or verify against hardcoded values for a very small admin setup.
-    // **IMPORTANT:** For a real application, you should create actual Firebase Auth users for admins
-    // and potentially use Custom Claims to mark them as admins.
-    // If you use a custom admin system with username/password:
-    const adminQuery = await db.collection('admins').where('username', '==', username).limit(1).get();
+    const query = await db.collection("admins").where("username", "==", username).limit(1).get(); // Assuming 'admins' collection
 
-    if (adminQuery.empty) {
-      return res.status(401).json({ message: 'Invalid username or password.' });
+    if (query.empty) {
+      console.log(`Admin login failed: Username '${username}' not found.`);
+      return res.status(401).json({ error: "Invalid username or password." });
     }
 
-    const adminUserDoc = adminQuery.docs[0];
-    const adminData = adminUserDoc.data();
+    const adminUser = query.docs[0].data();
 
-    // Verify password (assuming bcrypt for hashed passwords)
-    const passwordMatch = await bcrypt.compare(password, adminData.password);
+    const passwordMatch = await bcrypt.compare(password, adminUser.password);
+
     if (!passwordMatch) {
-      return res.status(401).json({ message: 'Invalid username or password.' });
+      console.log(`Admin login failed for '${username}': Password mismatch.`);
+      return res.status(401).json({ error: "Invalid username or password." });
     }
 
-    // --- Step 2: Create a Firebase Custom Token (Optional but Recommended) ---
-    // If you plan to use Firebase Auth client-side for admin (e.g., for user.getIdTokenResult().claims)
-    // you would create a custom token here and send it to the client to sign in.
-    // const customToken = await adminAuth.createCustomToken(adminUserDoc.id, { admin: true });
-    // await adminAuth.setCustomUserClaims(adminUserDoc.id, { admin: true }); // Ensure claim is set
+    // Passwords match, create a custom token for Firebase client-side auth
+    const customToken = await adminAuth.createCustomToken(adminUser.uid); // Assuming adminUser has a 'uid' field
 
-    // --- Step 3: Create a Firebase Session Cookie ---
-    // For server-side protection, create a session cookie.
-    // You can set the expiry time based on your security requirements.
-    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
+    // Create a session cookie
+    // Set a long-lived cookie for the admin session
+    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days, adjust as needed
+    const sessionCookie = await adminAuth.createSessionCookie(customToken, { expiresIn });
 
-    // IMPORTANT: In a real app, you might first sign in with Firebase Auth on the client
-    // and then get the ID token to create a session cookie.
-    // For a backend-only admin system (which this seems to be implying),
-    // you'd typically have a unique admin UID or rely purely on server-side checks for the cookie.
-    // For simplicity here, we'll create a session cookie using the Firestore admin user's UID.
-    const sessionCookie = await adminAuth.createSessionCookie(adminUserDoc.id, { expiresIn });
+    res.setHeader(
+      "Set-Cookie",
+      serialize("admin_session", sessionCookie, { // <-- This is the key change: use 'admin_session'
+        path: "/",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+        sameSite: "lax",
+        maxAge: expiresIn / 1000, // maxAge is in seconds
+      })
+    );
 
-    // Set the session cookie as an HTTP-only cookie
-    res.setHeader('Set-Cookie', serialize('admin_session', sessionCookie, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Use secure in production
-      maxAge: expiresIn / 1000, // Max age in seconds
-      path: '/',
-      sameSite: 'Lax', // Or 'Strict' for more security
-    }));
-
-    return res.status(200).json({ success: true, message: 'Logged in successfully!' });
-
+    console.log(`Admin '${username}' logged in successfully.`);
+    return res.status(200).json({ success: true, message: 'Logged in successfully', token: customToken }); // Respond with custom token for client-side Firebase login
   } catch (error) {
-    console.error('Admin login API error:', error);
-    return res.status(500).json({ message: 'Internal server error during login.' });
+    console.error("Admin login error:", error);
+    res.status(500).json({ error: "Internal server error during login." });
   }
 }
