@@ -1,8 +1,8 @@
-// pages/api/admin/archive.js
-import { db } from '../../../lib/firebaseAdmin.js';
-import { withAdminAuth } from '../../../lib/withAdminAuth'; // Import the middleware
+// pages/api/admin/orders/archive.js
+import { db } from '../../../lib/firebaseAdmin'; // Ensure correct path
+import withAdminAuth from '../../../lib/withAdminAuth'; // Import the withAdminAuth middleware
 
-async function archiveHandler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -16,9 +16,9 @@ async function archiveHandler(req, res) {
     const orderRef = db.collection('orders').doc(id);
     await orderRef.update({
       status: 'archived',
-      archivedAt: new Date().toISOString(),
+      archivedAt: new Date().toISOString(), // Use ISO string for consistency
     });
-    console.log(`Order ${id} archived successfully by admin ${req.adminUser.uid}`);
+    console.log(`Order ${id} archived successfully by admin.`);
     res.status(200).json({ success: true, message: 'Order archived successfully.' });
   } catch (err) {
     console.error('Failed to archive order:', err);
@@ -26,4 +26,5 @@ async function archiveHandler(req, res) {
   }
 }
 
-export default withAdminAuth(archiveHandler); // Wrap the handler
+// Export the handler wrapped with the authentication middleware
+export default withAdminAuth(handler);

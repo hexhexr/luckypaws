@@ -1,8 +1,8 @@
-// pages/api/admin/update.js
-import { db } from '../../../lib/firebaseAdmin';
-import { withAdminAuth } from '../../../lib/withAdminAuth'; // Import the middleware
+// pages/api/admin/orders/update.js
+import { db } from '../../../lib/firebaseAdmin'; // Ensure correct path
+import withAdminAuth from '../../../lib/withAdminAuth'; // Import the withAdminAuth middleware
 
-async function updateHandler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
   const { id, update } = req.body;
@@ -13,7 +13,6 @@ async function updateHandler(req, res) {
 
   try {
     await db.collection('orders').doc(id).update(update);
-    console.log(`Order ${id} updated successfully by admin ${req.adminUser.uid}`);
     res.status(200).json({ message: 'Order updated successfully' });
   } catch (err) {
     console.error('Order update error:', err);
@@ -21,4 +20,5 @@ async function updateHandler(req, res) {
   }
 }
 
-export default withAdminAuth(updateHandler); // Wrap the handler
+// Export the handler wrapped with the authentication middleware
+export default withAdminAuth(handler);

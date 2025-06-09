@@ -1,3 +1,4 @@
+// lib/withAdminAuth.js
 import { firebaseAdmin } from './firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
 import { serialize } from 'cookie'; // Make sure 'cookie' package is installed (npm install cookie)
@@ -33,7 +34,7 @@ export default function withAdminAuth(handler) {
         maxAge: -1, // Expire the cookie immediately
       }));
 
-      return res.status(401).json({ message: 'Unauthorized: Admin session invalid or expired.' });
+      return res.status(401).json({ message: 'Unauthorized: Invalid or expired session.' });
     }
   };
 }

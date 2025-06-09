@@ -1,46 +1,73 @@
 // pages/api/admin/login.js
-import { firebaseAdmin } from '../../../lib/firebaseAdmin'; // Ensure this path is correct for your Firebase Admin SDK setup
-import { getAuth } from 'firebase-admin/auth'; // Import Firebase Admin Auth
-
-const adminAuth = getAuth(firebaseAdmin);
+import { auth as adminAuth } from '../../../lib/firebaseAdmin'; // Firebase Admin Auth
+import { db } from '../../../lib/firebaseAdmin'; // For Firestore if you store admin users there
+import { serialize } from 'cookie';
+import bcrypt from 'bcrypt'; // Assuming you hash passwords for local admins
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { username, password } = req.body;
 
-  // Retrieve admin credentials from environment variables
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-  const FIREBASE_ADMIN_UID = process.env.FIREBASE_ADMIN_UID; // The UID of your Firebase user designated as admin
-
-  if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !FIREBASE_ADMIN_UID) {
-    console.error('Admin login API: Missing one or more required environment variables (ADMIN_USERNAME, ADMIN_PASSWORD, FIREBASE_ADMIN_UID).');
-    return res.status(500).json({ error: 'Server configuration error. Please contact support.' });
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required.' });
   }
 
-  // Simple hardcoded check against environment variables for the admin account
-  // For production, consider hashing ADMIN_PASSWORD and comparing it securely,
-  // or using a more robust identity provider.
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    try {
-      // Create a custom token for the pre-defined admin UID
-      // This token will allow the client-side Firebase Auth to sign in
-      const customToken = await adminAuth.createCustomToken(FIREBASE_ADMIN_UID);
-      console.log(`Custom token generated for admin UID: ${FIREBASE_ADMIN_UID}`);
+  try {
+    // --- Step 1: Verify admin credentials (e.g., against Firestore or environment variables) ---
+    // For simplicity, let's assume you have an 'admins' collection in Firestore
+    // or verify against hardcoded values for a very small admin setup.
+    // **IMPORTANT:** For a real application, you should create actual Firebase Auth users for admins
+    // and potentially use Custom Claims to mark them as admins.
+    // If you use a custom admin system with username/password:
+    const adminQuery = await db.collection('admins').where('username', '==', username).limit(1).get();
 
-      // Return the custom token to the client
-      return res.status(200).json({ success: true, token: customToken });
-
-    } catch (error) {
-      console.error('Error creating custom token for admin:', error);
-      return res.status(500).json({ error: 'Failed to generate authentication token.' });
+    if (adminQuery.empty) {
+      return res.status(401).json({ message: 'Invalid username or password.' });
     }
-  } else {
-    // If credentials do not match
-    console.log(`Admin login attempt failed for username: ${username}`);
-    return res.status(401).json({ error: 'Invalid admin credentials.' });
+
+    const adminUserDoc = adminQuery.docs[0];
+    const adminData = adminUserDoc.data();
+
+    // Verify password (assuming bcrypt for hashed passwords)
+    const passwordMatch = await bcrypt.compare(password, adminData.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ message: 'Invalid username or password.' });
+    }
+
+    // --- Step 2: Create a Firebase Custom Token (Optional but Recommended) ---
+    // If you plan to use Firebase Auth client-side for admin (e.g., for user.getIdTokenResult().claims)
+    // you would create a custom token here and send it to the client to sign in.
+    // const customToken = await adminAuth.createCustomToken(adminUserDoc.id, { admin: true });
+    // await adminAuth.setCustomUserClaims(adminUserDoc.id, { admin: true }); // Ensure claim is set
+
+    // --- Step 3: Create a Firebase Session Cookie ---
+    // For server-side protection, create a session cookie.
+    // You can set the expiry time based on your security requirements.
+    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
+
+    // IMPORTANT: In a real app, you might first sign in with Firebase Auth on the client
+    // and then get the ID token to create a session cookie.
+    // For a backend-only admin system (which this seems to be implying),
+    // you'd typically have a unique admin UID or rely purely on server-side checks for the cookie.
+    // For simplicity here, we'll create a session cookie using the Firestore admin user's UID.
+    const sessionCookie = await adminAuth.createSessionCookie(adminUserDoc.id, { expiresIn });
+
+    // Set the session cookie as an HTTP-only cookie
+    res.setHeader('Set-Cookie', serialize('admin_session', sessionCookie, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Use secure in production
+      maxAge: expiresIn / 1000, // Max age in seconds
+      path: '/',
+      sameSite: 'Lax', // Or 'Strict' for more security
+    }));
+
+    return res.status(200).json({ success: true, message: 'Logged in successfully!' });
+
+  } catch (error) {
+    console.error('Admin login API error:', error);
+    return res.status(500).json({ message: 'Internal server error during login.' });
   }
 }
