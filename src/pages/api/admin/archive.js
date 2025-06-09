@@ -1,6 +1,6 @@
-// pages/api/admin/orders/archive.js
-import { db } from '../../../lib/firebaseAdmin'; // Ensure correct path
-import withAdminAuth from '../../../lib/withAdminAuth'; // Import the withAdminAuth middleware
+// src/pages/api/admin/orders/archive.js
+import { db } from '../../../lib/firebaseAdmin'; // Corrected path
+import withAdminAuth from '../../../lib/withAdminAuth'; // Add this import
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -16,7 +16,7 @@ async function handler(req, res) {
     const orderRef = db.collection('orders').doc(id);
     await orderRef.update({
       status: 'archived',
-      archivedAt: new Date().toISOString(), // Use ISO string for consistency
+      archivedAt: new Date().toISOString(),
     });
     console.log(`Order ${id} archived successfully by admin.`);
     res.status(200).json({ success: true, message: 'Order archived successfully.' });

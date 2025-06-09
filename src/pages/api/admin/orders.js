@@ -1,6 +1,6 @@
-// pages/api/admin/orders.js
-import { db } from '../../lib/firebaseAdmin'; // Ensure correct path to your firebaseAdmin.js
-import withAdminAuth from '../../lib/withAdminAuth'; // Import the withAdminAuth middleware
+// src/pages/api/admin/orders.js
+import { db } from '../../../lib/firebaseAdmin'; // Corrected path
+import withAdminAuth from '../../../lib/withAdminAuth'; // Corrected path
 
 async function handler(req, res) {
   const { id, limit = 100 } = req.query;
