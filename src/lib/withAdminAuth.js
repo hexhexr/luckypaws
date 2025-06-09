@@ -1,57 +1,39 @@
-// lib/withAdminAuth.js
+import { firebaseAdmin } from './firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { firebaseAdmin } from './firebaseAdmin'; // Your Firebase Admin SDK initialization
+import { serialize } from 'cookie'; // Make sure 'cookie' package is installed (npm install cookie)
 
-const adminAuth = getAuth(firebaseAdmin);
-const db = getFirestore(firebaseAdmin);
+const auth = getAuth(firebaseAdmin);
 
-export const withAdminAuth = (handler) => {
+export default function withAdminAuth(handler) {
   return async (req, res) => {
-    // Check for Authorization header
-    const idToken = req.headers.authorization?.split('Bearer ')[1];
-
-    if (!idToken) {
-      console.warn('Authentication failed: No ID token provided.');
-      return res.status(401).json({ message: 'Unauthorized: No authentication token.' });
-    }
-
     try {
-      // Verify the ID token using Firebase Admin SDK
-      const decodedToken = await adminAuth.verifyIdToken(idToken);
-      const uid = decodedToken.uid;
+      // Get the session cookie from the request
+      const sessionCookie = req.cookies.admin_session || '';
 
-      // Check for 'admin' role in Firestore user document
-      const userDoc = await db.collection('users').doc(uid).get();
+      // Verify the session cookie
+      // The checkRevoked param is important to ensure the cookie hasn't been revoked
+      const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
 
-      if (!userDoc.exists) {
-        console.warn(`Authentication failed: User document for UID ${uid} not found.`);
-        return res.status(403).json({ message: 'Forbidden: User profile not found.' });
-      }
+      // If successful, attach the decoded claims (admin user info) to the request
+      // You might not need to attach it directly to req if your handler doesn't use it,
+      // but it's good practice for context.
+      req.adminUser = decodedClaims; 
 
-      const userData = userDoc.data();
-
-      if (userData.role !== 'admin') {
-        console.warn(`Authorization failed: User ${uid} is not an admin. Role: ${userData.role}`);
-        return res.status(403).json({ message: 'Forbidden: Not an admin.' });
-      }
-
-      // Attach user information to the request for the handler to use
-      req.adminUser = decodedToken;
-      req.adminUserData = userData;
-
-      // Proceed to the original API route handler
+      // Proceed to the actual API route handler
       return handler(req, res);
-
     } catch (error) {
-      console.error('Firebase ID token verification failed:', error.message);
-      if (error.code === 'auth/id-token-expired') {
-        return res.status(401).json({ message: 'Unauthorized: Authentication token expired. Please log in again.' });
-      }
-      if (error.code === 'auth/argument-error' || error.code === 'auth/invalid-id-token') {
-        return res.status(401).json({ message: 'Unauthorized: Invalid authentication token.' });
-      }
-      return res.status(401).json({ message: 'Unauthorized: Authentication failed.' });
+      // If session cookie is invalid, expired, or not present
+      console.error('Admin authentication failed:', error.message);
+
+      // Clear the session cookie if it's invalid/expired to prevent re-attempts
+      res.setHeader('Set-Cookie', serialize('admin_session', '', {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: -1, // Expire the cookie immediately
+      }));
+
+      return res.status(401).json({ message: 'Unauthorized: Admin session invalid or expired.' });
     }
   };
-};
+}
