@@ -1,8 +1,7 @@
-// pages/api/admin/orders.js
-import { db } from '../../lib/firebaseAdmin.js';
-import { withAdminAuth } from '../../lib/withAdminAuth'; // Import the middleware
+import { db } from '../../../lib/firebaseAdmin'; // Corrected path
+import withAdminAuth from '../../../lib/withAdminAuth'; // Corrected path
 
-async function ordersHandler(req, res) {
+async function handler(req, res) {
   const { id, limit = 100 } = req.query;
 
   try {
@@ -14,6 +13,8 @@ async function ordersHandler(req, res) {
       return res.status(200).json({ id: doc.id, ...doc.data() });
     }
 
+    // The query now explicitly excludes statuses that should not appear on the main dashboard.
+    // This is the initial data load before the real-time listener takes over.
     const query = db.collection('orders')
                   .where('status', 'in', ['pending', 'paid'])
                   .orderBy('created', 'desc')
@@ -29,4 +30,4 @@ async function ordersHandler(req, res) {
   }
 }
 
-export default withAdminAuth(ordersHandler); // Wrap the handler
+export default withAdminAuth(handler); // Ensure the handler is protected
