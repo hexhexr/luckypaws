@@ -2,21 +2,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { auth as firebaseAuth } from '../../lib/firebaseClient'; // Import client-side Firebase Auth
-import { onAuthStateChanged } from 'firebase/auth'; // Explicitly import onAuthStateChanged for clarity
-import axios from 'axios'; // For making API requests
+import axios from 'axios'; // Import axios
 
 export default function AdminLogin() {
   const router = useRouter();
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // Add loading state
 
   useEffect(() => {
     // Rely solely on Firebase Auth state for redirection
-    // This listener will trigger when the session cookie is verified by Firebase Auth
-    const unsubscribe = onAuthStateChanged(firebaseAuth, user => {
+    const unsubscribe = firebaseAuth.onAuthStateChanged(user => {
       if (user) {
-        // User is signed in (or session cookie is valid and logged in client-side)
+        // User is signed in, redirect to dashboard
         router.replace('/admin/dashboard');
       }
       // If no user, stay on login page
@@ -33,30 +30,26 @@ export default function AdminLogin() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError(''); // Clear previous errors
-    setLoading(true); // Set loading true
 
     try {
-      // Call your backend API route for admin login
-      const res = await axios.post('/api/admin/login', form);
+      // Use axios.post to ensure the request is a POST method
+      const res = await axios.post('/api/admin/login', form, {
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-      // If the API call is successful and a session cookie is set
-      if (res.status === 200) {
-        // Important: After the session cookie is set by the API,
-        // Firebase Auth's onAuthStateChanged listener *might* not immediately pick it up client-side
-        // for a full user object unless you explicitly sign in with a custom token.
-        // For simplicity, we can force a client-side reload or redirect after success.
-        // Or, if using custom tokens, sign in here.
-        // Example if using custom tokens (after backend provides it in `res.data.token`):
-        // await firebaseAuth.signInWithCustomToken(res.data.token);
-        router.replace('/admin/dashboard'); // Redirect to dashboard
+      // axios automatically parses JSON, so data is directly available
+      const data = res.data;
+
+      if (res.status === 200 && data.success) { // Check status and success flag
+        console.log('Login successful, redirecting...');
+        // The onAuthStateChanged listener in this component will now trigger the redirect.
       } else {
-        setError(res.data.message || 'Login failed. Please check your credentials.');
+        setError(data.error || 'Login failed. Please check your credentials.');
       }
     } catch (err) {
       console.error('Admin login error:', err);
-      setError(err.response?.data?.message || 'An unexpected error occurred during login.');
-    } finally {
-      setLoading(false); // Set loading false
+      // More user-friendly error messages based on network or API issues
+      setError(err.response?.data?.error || err.message || 'An unexpected error occurred during login.');
     }
   };
 
@@ -84,12 +77,8 @@ export default function AdminLogin() {
             onChange={handleChange}
             required
           />
-          <button
-            className="btn btn-primary mt-md"
-            type="submit"
-            disabled={!form.username || !form.password || loading} // Disable button while loading
-          >
-            {loading ? 'Logging in...' : 'Login'}
+          <button className="btn btn-primary mt-md" type="submit" disabled={!form.username || !form.password}>
+            Login
           </button>
         </form>
         {error && <div className="alert alert-danger mt-md">{error}</div>}
