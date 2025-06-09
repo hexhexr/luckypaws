@@ -1,0 +1,348 @@
+[11:57:40.602] Running build in Washington, D.C., USA (East) – iad1
+[11:57:40.610] Build machine configuration: 2 cores, 8 GB
+[11:57:40.660] Cloning github.com/hexhexr/luckypaws (Branch: main, Commit: c635916)
+[11:57:40.673] Skipping build cache, deployment was triggered without cache.
+[11:57:41.107] Cloning completed: 446.000ms
+[11:57:41.526] Running "vercel build"
+[11:57:41.980] Vercel CLI 42.2.0
+[11:57:42.338] Installing dependencies...
+[11:57:47.121] npm warn deprecated lightning-invoice@0.2.1: WARNING: This project has been renamed to lightnode-invoice. Install using lightnode-invoice instead.
+[11:57:47.183] npm warn deprecated crypto@1.0.1: This package is no longer supported. It's now a built-in Node module. If you've depended on crypto, you should switch to the one that's built-in.
+[11:57:47.325] npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+[11:58:00.445] 
+[11:58:00.446] added 370 packages in 18s
+[11:58:00.446] 
+[11:58:00.446] 42 packages are looking for funding
+[11:58:00.447]   run `npm fund` for details
+[11:58:00.500] Detected Next.js version: 15.3.3
+[11:58:00.505] Running "npm run build"
+[11:58:00.631] 
+[11:58:00.632] > luckypaw@1.0.0 build
+[11:58:00.632] > next build
+[11:58:00.632] 
+[11:58:01.270] Attention: Next.js now collects completely anonymous telemetry regarding usage.
+[11:58:01.270] This information is used to shape Next.js' roadmap and prioritize features.
+[11:58:01.271] You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+[11:58:01.271] https://nextjs.org/telemetry
+[11:58:01.271] 
+[11:58:01.332]    ▲ Next.js 15.3.3
+[11:58:01.332] 
+[11:58:01.380]    Linting and checking validity of types ...
+[11:58:01.531]    Creating an optimized production build ...
+[11:58:05.955]  ⚠ Compiled with warnings in 3.0s
+[11:58:05.956] 
+[11:58:05.956] ./src/lib/firebaseAdmin.js
+[11:58:05.956] Attempted import error: 'firebaseAdmin' is not exported from './firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.956] 
+[11:58:05.956] Import trace for requested module:
+[11:58:05.956] ./src/lib/firebaseAdmin.js
+[11:58:05.956] ./src/pages/api/orders.js
+[11:58:05.957] 
+[11:58:05.957] ./src/lib/withAdminAuth.js
+[11:58:05.957] Attempted import error: 'firebaseAdmin' is not exported from './firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.957] 
+[11:58:05.957] Import trace for requested module:
+[11:58:05.957] ./src/lib/withAdminAuth.js
+[11:58:05.957] ./src/pages/api/admin/archive.js
+[11:58:05.957] 
+[11:58:05.957] ./src/pages/api/admin/agents/[id].js
+[11:58:05.957] Attempted import error: 'firebaseAdmin' is not exported from '../../../../lib/firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.957] 
+[11:58:05.958] Import trace for requested module:
+[11:58:05.958] ./src/pages/api/admin/agents/[id].js
+[11:58:05.958] 
+[11:58:05.958] ./src/pages/api/admin/agents/index.js
+[11:58:05.958] Attempted import error: 'firebaseAdmin' is not exported from '../../../../lib/firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.958] 
+[11:58:05.958] Import trace for requested module:
+[11:58:05.958] ./src/pages/api/admin/agents/index.js
+[11:58:05.958] 
+[11:58:05.958] ./src/pages/api/admin/archive.js
+[11:58:05.958] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.958] 
+[11:58:05.958] Import trace for requested module:
+[11:58:05.959] ./src/pages/api/admin/archive.js
+[11:58:05.959] 
+[11:58:05.959] ./src/pages/api/admin/cashouts.js
+[11:58:05.959] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.959] 
+[11:58:05.959] Import trace for requested module:
+[11:58:05.959] ./src/pages/api/admin/cashouts.js
+[11:58:05.959] 
+[11:58:05.959] ./src/pages/api/admin/cashouts/add.js
+[11:58:05.959] Attempted import error: 'db' is not exported from '../../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.959] 
+[11:58:05.959] Import trace for requested module:
+[11:58:05.959] ./src/pages/api/admin/cashouts/add.js
+[11:58:05.959] 
+[11:58:05.960] ./src/pages/api/admin/cashouts/history.js
+[11:58:05.960] Attempted import error: 'db' is not exported from '../../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.960] 
+[11:58:05.960] Import trace for requested module:
+[11:58:05.960] ./src/pages/api/admin/cashouts/history.js
+[11:58:05.960] 
+[11:58:05.960] ./src/pages/api/admin/cashouts/send.js
+[11:58:05.960] Attempted import error: 'db' is not exported from '../../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.960] 
+[11:58:05.960] Import trace for requested module:
+[11:58:05.960] ./src/pages/api/admin/cashouts/send.js
+[11:58:05.960] 
+[11:58:05.960] ./src/pages/api/admin/cashouts/send.js
+[11:58:05.961] Attempted import error: 'db' is not exported from '../../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.961] 
+[11:58:05.961] Import trace for requested module:
+[11:58:05.961] ./src/pages/api/admin/cashouts/send.js
+[11:58:05.961] 
+[11:58:05.961] ./src/pages/api/admin/create-agent.js
+[11:58:05.961] Attempted import error: 'firebaseAdmin' is not exported from '../../../lib/firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.961] 
+[11:58:05.961] Import trace for requested module:
+[11:58:05.961] ./src/pages/api/admin/create-agent.js
+[11:58:05.961] 
+[11:58:05.961] ./src/pages/api/admin/games/update.js
+[11:58:05.961] Attempted import error: 'db' is not exported from '../../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.961] 
+[11:58:05.961] Import trace for requested module:
+[11:58:05.961] ./src/pages/api/admin/games/update.js
+[11:58:05.961] 
+[11:58:05.961] ./src/pages/api/admin/login.js
+[11:58:05.962] Attempted import error: 'firebaseAdmin' is not exported from '../../../lib/firebaseAdmin' (imported as 'firebaseAdmin').
+[11:58:05.962] 
+[11:58:05.962] Import trace for requested module:
+[11:58:05.962] ./src/pages/api/admin/login.js
+[11:58:05.962] 
+[11:58:05.962] ./src/pages/api/admin/orders.js
+[11:58:05.962] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.962] 
+[11:58:05.963] Import trace for requested module:
+[11:58:05.963] ./src/pages/api/admin/orders.js
+[11:58:05.963] 
+[11:58:05.963] ./src/pages/api/admin/orders.js
+[11:58:05.963] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.965] 
+[11:58:05.971] Import trace for requested module:
+[11:58:05.971] ./src/pages/api/admin/orders.js
+[11:58:05.972] 
+[11:58:05.972] ./src/pages/api/admin/orders.js
+[11:58:05.972] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.972] 
+[11:58:05.972] Import trace for requested module:
+[11:58:05.972] ./src/pages/api/admin/orders.js
+[11:58:05.972] 
+[11:58:05.972] ./src/pages/api/admin/update.js
+[11:58:05.972] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.972] 
+[11:58:05.973] Import trace for requested module:
+[11:58:05.973] ./src/pages/api/admin/update.js
+[11:58:05.973] 
+[11:58:05.973] ./src/pages/api/agent/login.js
+[11:58:05.973] Attempted import error: 'auth' is not exported from '../../../lib/firebaseAdmin' (imported as 'adminAuth').
+[11:58:05.973] 
+[11:58:05.973] Import trace for requested module:
+[11:58:05.973] ./src/pages/api/agent/login.js
+[11:58:05.973] 
+[11:58:05.974] ./src/pages/api/agent/submit-cashout-request.js
+[11:58:05.978] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.978] 
+[11:58:05.978] Import trace for requested module:
+[11:58:05.978] ./src/pages/api/agent/submit-cashout-request.js
+[11:58:05.978] 
+[11:58:05.978] ./src/pages/api/agent/submit-customer-cashout.js
+[11:58:05.978] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.978] 
+[11:58:05.978] Import trace for requested module:
+[11:58:05.978] ./src/pages/api/agent/submit-customer-cashout.js
+[11:58:05.978] 
+[11:58:05.978] ./src/pages/api/check-status.js
+[11:58:05.978] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.978] 
+[11:58:05.978] Import trace for requested module:
+[11:58:05.978] ./src/pages/api/check-status.js
+[11:58:05.978] 
+[11:58:05.978] ./src/pages/api/check-status.js
+[11:58:05.978] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.979] 
+[11:58:05.979] Import trace for requested module:
+[11:58:05.979] ./src/pages/api/check-status.js
+[11:58:05.979] 
+[11:58:05.979] ./src/pages/api/check-status.js
+[11:58:05.979] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/check-status.js
+[11:58:05.985] 
+[11:58:05.985] ./src/pages/api/check-status.js
+[11:58:05.985] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/check-status.js
+[11:58:05.985] 
+[11:58:05.985] ./src/pages/api/check-status.js
+[11:58:05.985] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/check-status.js
+[11:58:05.985] 
+[11:58:05.985] ./src/pages/api/create-payment.js
+[11:58:05.985] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/create-payment.js
+[11:58:05.985] 
+[11:58:05.985] ./src/pages/api/customer-cashout-limit.js
+[11:58:05.985] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/customer-cashout-limit.js
+[11:58:05.985] 
+[11:58:05.985] ./src/pages/api/customer-deposits.js
+[11:58:05.985] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.985] 
+[11:58:05.985] Import trace for requested module:
+[11:58:05.985] ./src/pages/api/customer-deposits.js
+[11:58:05.985] 
+[11:58:05.986] ./src/pages/api/generate-username.js
+[11:58:05.986] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.986] 
+[11:58:05.986] Import trace for requested module:
+[11:58:05.986] ./src/pages/api/generate-username.js
+[11:58:05.986] 
+[11:58:05.986] ./src/pages/api/generate-username.js
+[11:58:05.986] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:05.986] 
+[11:58:05.986] Import trace for requested module:
+[11:58:05.986] ./src/pages/api/generate-username.js
+[11:58:05.986] 
+[11:58:05.986] ./src/pages/api/orders.js
+[11:58:05.986] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin.js' (imported as 'db').
+[11:58:05.986] 
+[11:58:05.986] Import trace for requested module:
+[11:58:05.986] ./src/pages/api/orders.js
+[11:58:05.986] 
+[11:58:05.986] ./src/pages/api/orders.js
+[11:58:05.986] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin.js' (imported as 'db').
+[11:58:05.986] 
+[11:58:05.986] Import trace for requested module:
+[11:58:05.986] ./src/pages/api/orders.js
+[11:58:05.986] 
+[11:58:05.994] ./src/pages/api/orders/archive.js
+[11:58:05.994] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin.js' (imported as 'db').
+[11:58:05.994] 
+[11:58:05.994] Import trace for requested module:
+[11:58:05.994] ./src/pages/api/orders/archive.js
+[11:58:05.994] 
+[11:58:05.994] ./src/pages/api/orders/archive.js
+[11:58:05.994] Attempted import error: 'withAdminAuth' is not exported from '../../../lib/withAdminAuth' (imported as 'withAdminAuth').
+[11:58:06.002] 
+[11:58:06.002] Import trace for requested module:
+[11:58:06.002] ./src/pages/api/orders/archive.js
+[11:58:06.002] 
+[11:58:06.002] ./src/pages/api/orders/update.js
+[11:58:06.002] Attempted import error: 'db' is not exported from '../../../lib/firebaseAdmin' (imported as 'db').
+[11:58:06.002] 
+[11:58:06.002] Import trace for requested module:
+[11:58:06.002] ./src/pages/api/orders/update.js
+[11:58:06.002] 
+[11:58:06.002] ./src/pages/api/orders/update.js
+[11:58:06.002] Attempted import error: 'withAdminAuth' is not exported from '../../../lib/withAdminAuth' (imported as 'withAdminAuth').
+[11:58:06.002] 
+[11:58:06.002] Import trace for requested module:
+[11:58:06.002] ./src/pages/api/orders/update.js
+[11:58:06.003] 
+[11:58:06.003] ./src/pages/api/speed-webhook.js
+[11:58:06.003] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:06.003] 
+[11:58:06.003] Import trace for requested module:
+[11:58:06.003] ./src/pages/api/speed-webhook.js
+[11:58:06.003] 
+[11:58:06.003] ./src/pages/api/speed-webhook.js
+[11:58:06.003] Attempted import error: 'db' is not exported from '../../lib/firebaseAdmin' (imported as 'db').
+[11:58:06.003] 
+[11:58:06.003] Import trace for requested module:
+[11:58:06.003] ./src/pages/api/speed-webhook.js
+[11:58:06.003] 
+[11:58:13.563]  ✓ Compiled successfully in 8.0s
+[11:58:13.564]    Collecting page data ...
+[11:58:14.113] Firebase app initialized successfully.
+[11:58:14.115] Firebase Firestore instance obtained.
+[11:58:14.117] Firebase Auth instance obtained.
+[11:58:15.460]    Generating static pages (0/21) ...
+[11:58:16.393] Firebase app initialized successfully.
+[11:58:16.393] Firebase Firestore instance obtained.
+[11:58:16.393] Firebase Auth instance obtained.
+[11:58:16.607]    Generating static pages (5/21) 
+[11:58:16.669]    Generating static pages (10/21) 
+[11:58:16.669]    Generating static pages (15/21) 
+[11:58:16.670]  ✓ Generating static pages (21/21)
+[11:58:20.470]    Finalizing page optimization ...
+[11:58:20.472]    Collecting build traces ...
+[11:58:31.194] 
+[11:58:31.199] Route (pages)                                Size  First Load JS
+[11:58:31.199] ┌ ○ /                                       14 kB         257 kB
+[11:58:31.200] ├   /_app                                     0 B        79.8 kB
+[11:58:31.200] ├ ○ /404                                    190 B          80 kB
+[11:58:31.200] ├ ○ /admin                                1.35 kB         255 kB
+[11:58:31.200] ├ ○ /admin/agent-management (557 ms)      2.27 kB         256 kB
+[11:58:31.200] ├ ○ /admin/AgentList                        552 B        80.4 kB
+[11:58:31.200] ├ ○ /admin/AgentManagement                  828 B        80.7 kB
+[11:58:31.201] ├ ○ /admin/agents (556 ms)                   2 kB         256 kB
+[11:58:31.201] ├ ○ /admin/cashouts (556 ms)              2.02 kB         256 kB
+[11:58:31.201] ├ ○ /admin/customer/[username] (547 ms)   1.96 kB         243 kB
+[11:58:31.201] ├ ○ /admin/customers (556 ms)              1.3 kB         102 kB
+[11:58:31.201] ├ ○ /admin/dashboard (553 ms)             24.6 kB         279 kB
+[11:58:31.201] ├ ○ /admin/deposits                       1.35 kB         102 kB
+[11:58:31.201] ├ ○ /admin/games                          4.95 kB         246 kB
+[11:58:31.202] ├ ○ /admin/profit-loss                    6.37 kB         247 kB
+[11:58:31.202] ├ ○ /agent                                4.18 kB         258 kB
+[11:58:31.202] ├ ○ /agent/login                          1.29 kB         255 kB
+[11:58:31.202] ├ ƒ /api/admin/agents                         0 B        79.8 kB
+[11:58:31.202] ├ ƒ /api/admin/agents/[id]                    0 B        79.8 kB
+[11:58:31.202] ├ ƒ /api/admin/archive                        0 B        79.8 kB
+[11:58:31.202] ├ ƒ /api/admin/cashouts                       0 B        79.8 kB
+[11:58:31.202] ├ ƒ /api/admin/cashouts/add                   0 B        79.8 kB
+[11:58:31.202] ├ ƒ /api/admin/cashouts/history               0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/cashouts/quote                 0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/cashouts/send                  0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/create-agent                   0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/games/update                   0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/login                          0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/logout                         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/orders                         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/admin/update                         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/agent/login                          0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/agent/logout                         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/agent/me                             0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/agent/submit-cashout-request         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/agent/submit-customer-cashout        0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/check-status                         0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/create-payment                       0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/customer-cashout-limit               0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/customer-deposits                    0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/decode                               0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/generate-username                    0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/orders                               0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/orders/archive                       0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/orders/update                        0 B        79.8 kB
+[11:58:31.203] ├ ƒ /api/speed-webhook                        0 B        79.8 kB
+[11:58:31.203] ├ ○ /cashout                               179 kB         266 kB
+[11:58:31.203] ├ ○ /games                                 2.1 kB        84.3 kB
+[11:58:31.203] ├ ○ /generator                            1.58 kB        81.4 kB
+[11:58:31.203] └ ○ /receipt                                911 B        80.7 kB
+[11:58:31.203] + First Load JS shared by all             83.7 kB
+[11:58:31.204]   ├ chunks/framework-f75312fc4004b783.js  44.8 kB
+[11:58:31.204]   ├ chunks/main-bf3766bae80a7656.js       33.9 kB
+[11:58:31.204]   └ other shared chunks (total)           5.06 kB
+[11:58:31.204] 
+[11:58:31.204] ○  (Static)   prerendered as static content
+[11:58:31.204] ƒ  (Dynamic)  server-rendered on demand
+[11:58:31.204] 
+[11:58:31.410] Traced Next.js server files in: 134.806ms
+[11:58:32.029] Created all serverless functions in: 624.718ms
+[11:58:32.034] Collected static files (public/, static/, .next/static): 3.36ms
+[11:58:32.099] Build Completed in /vercel/output [50s]
+[11:58:32.245] Deploying outputs...
+[11:58:39.130] 
+[11:58:39.266] Deployment completed
+[11:58:54.683] Uploading build cache [179.86 MB]...
+[11:58:56.904] Build cache uploaded: 2.225s
+[11:58:59.116] Exiting build container

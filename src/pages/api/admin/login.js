@@ -3,13 +3,13 @@ import { getFirestore } from "firebase-admin/firestore";
 import { firebaseAdmin } from "../../../lib/firebaseAdmin";
 import { serialize } from "cookie";
 import bcrypt from 'bcrypt';
-import { auth as adminAuth } from 'firebase-admin/auth'; // Import admin auth
+import { auth as adminAuth } from 'firebase-admin/auth';
 
 const db = getFirestore(firebaseAdmin);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).end();
+    return res.status(405).end(); // This line explicitly checks for POST
   }
 
   const { username, password } = req.body;
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const query = await db.collection("admins").where("username", "==", username).limit(1).get(); // Assuming 'admins' collection
+    const query = await db.collection("admins").where("username", "==", username).limit(1).get();
 
     if (query.empty) {
       console.log(`Admin login failed: Username '${username}' not found.`);
@@ -36,28 +36,27 @@ export default async function handler(req, res) {
     }
 
     // Passwords match, create a custom token for Firebase client-side auth
-    const customToken = await adminAuth.createCustomToken(adminUser.uid); // Assuming adminUser has a 'uid' field
+    const customToken = await adminAuth.createCustomToken(adminUser.uid);
 
     // Create a session cookie
-    // Set a long-lived cookie for the admin session
-    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days, adjust as needed
+    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await adminAuth.createSessionCookie(customToken, { expiresIn });
 
     res.setHeader(
       "Set-Cookie",
-      serialize("admin_session", sessionCookie, { // <-- This is the key change: use 'admin_session'
+      serialize("admin_session", sessionCookie, {
         path: "/",
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: expiresIn / 1000, // maxAge is in seconds
+        maxAge: expiresIn / 1000,
       })
     );
 
     console.log(`Admin '${username}' logged in successfully.`);
-    return res.status(200).json({ success: true, message: 'Logged in successfully', token: customToken }); // Respond with custom token for client-side Firebase login
+    return res.status(200).json({ success: true, message: 'Logged in successfully', token: customToken });
   } catch (error) {
-    console.error("Admin login error:", error);
-    res.status(500).json({ error: "Internal server error during login." });
+    console.error('Admin login error:', error);
+    return res.status(500).json({ error: "Internal Server Error." });
   }
 }
