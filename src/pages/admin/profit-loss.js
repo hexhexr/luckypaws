@@ -21,11 +21,11 @@ const LoadingSkeleton = () => (
         box-shadow: var(--shadow-sm);
       }
       .skeleton-line {
-        height: 1em; /* Smaller height for lines */
+        height: 1em;
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
         background-size: 200% 100%;
         animation: loading 1.5s infinite;
-        margin-bottom: var(--spacing-sm); /* Smaller margin */
+        margin-bottom: var(--spacing-sm);
         border-radius: 4px;
       }
       @keyframes loading {
@@ -50,10 +50,10 @@ export default function ProfitLoss() {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10); // You can adjust this number
+  const [itemsPerPage] = useState(10);
 
   // Sorting state
-  const [sortOption, setSortOption] = useState('username_asc'); // Default sort by username A-Z
+  const [sortOption, setSortOption] = useState('username_asc');
 
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
@@ -67,8 +67,7 @@ export default function ProfitLoss() {
     try {
       const combined = await fetchProfitLossData();
       setAllData(combined);
-    }
-    catch (err) {
+    } catch (err) {
       setError('⚠️ Failed to load data');
       console.error(err);
     } finally {
@@ -170,15 +169,15 @@ export default function ProfitLoss() {
     // Apply sorting
     users.sort((a, b) => {
       if (sortOption === 'net_desc') {
-        return b.net - a.net; // Highest profit first
+        return b.net - a.net;
       } else if (sortOption === 'net_asc') {
-        return a.net - b.net; // Highest loss first (or least profit)
+        return a.net - b.net;
       } else if (sortOption === 'username_asc') {
-        return a.username.localeCompare(b.username); // A-Z
+        return a.username.localeCompare(b.username);
       } else if (sortOption === 'username_desc') {
-        return b.username.localeCompare(a.username); // Z-A
+        return b.username.localeCompare(a.username);
       }
-      return 0; // No sort
+      return 0;
     });
 
     return users;
@@ -210,7 +209,7 @@ export default function ProfitLoss() {
   // Function to export data to CSV
   const exportToCSV = useCallback(() => {
     const headers = ["Username", "FB Username", "Deposits (USD)", "Cashouts (USD)", "Net P/L (USD)", "Profit Margin (%)"];
-    const rows = filteredAndSortedUsersForTable.map(user => [ // Use the sorted/filtered data
+    const rows = filteredAndSortedUsersForTable.map(user => [
       user.username,
       user.fbUsername,
       user.totalDeposit.toFixed(2),
@@ -233,7 +232,6 @@ export default function ProfitLoss() {
       document.body.removeChild(link);
     }
   }, [filteredAndSortedUsersForTable]);
-
 
   const logout = async () => {
     try {
@@ -259,7 +257,6 @@ export default function ProfitLoss() {
       <div className="main-content">
         <h2 className="section-title">📊 Profit & Loss Overview</h2>
 
-        {/* Overall Summary Card - Compacted */}
         <div className="card summary-card compact-card">
           <h3 className="card-subtitle">Overall Summary</h3>
           <div className="summary-grid">
@@ -293,7 +290,6 @@ export default function ProfitLoss() {
           </div>
         </div>
 
-        {/* Add New Cashout Card - Compacted */}
         <div className="card add-cashout-card compact-card mt-md">
           <h3 className="card-subtitle">💰 Add New Cashout</h3>
           <form onSubmit={handleAddCashout} className="cashout-form-compact">
@@ -301,8 +297,7 @@ export default function ProfitLoss() {
               className="input"
               placeholder="Username"
               value={newCashout.username}
-              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))}
-              required
+              onChange={e => setNewCashout(prev => ({ ...prev, username: e.target.value }))} required
             />
             <input
               className="input"
@@ -310,18 +305,15 @@ export default function ProfitLoss() {
               step="0.01"
               placeholder="Amount (USD)"
               value={newCashout.amount}
-              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))}
-              required
+              onChange={e => setNewCashout(prev => ({ ...prev, amount: e.target.value }))} required
             />
             <button className="btn btn-primary btn-add-cashout" type="submit">Add Cashout</button>
           </form>
           {error && <div className="alert alert-danger mt-sm">{error}</div>}
         </div>
 
-        {/* User Profit & Loss Details Table */}
         <div className="card user-profit-loss-table-card mt-md">
           <h3 className="card-subtitle">User Profit & Loss Details (All Time)</h3>
-
           <div className="sort-controls">
             <label htmlFor="sort-by">Sort by:</label>
             <select id="sort-by" className="select" value={sortOption} onChange={handleSortChange}>
@@ -375,7 +367,6 @@ export default function ProfitLoss() {
             </div>
           )}
 
-          {/* Pagination Controls */}
           {filteredAndSortedUsersForTable.length > itemsPerPage && (
             <div className="pagination-controls mt-lg text-center">
               <button
