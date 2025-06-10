@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                         <tr>
                             <td colSpan="6" className="text-center">No recent orders found.</td>
                         </tr>
-                    ) : (
+                    ) : ( // Re-added this opening parenthesis
                     recentOrders.map((order) => (
                         <tr key={order.id} className={order.read ? 'order-read' : 'order-unread'}>
                         <td>{order.id.substring(0, 8)}...</td>
@@ -256,8 +256,8 @@ export default function AdminDashboard() {
                             </div>
                         </td>
                         </tr>
-                    )) // Corrected: Removed extra `)` here.
-                    }
+                    ))
+                    )} {/* Re-added this closing parenthesis */}
                     </tbody>
                 </table>
                 </div>
