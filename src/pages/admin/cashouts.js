@@ -314,7 +314,14 @@ export default function AdminCashouts() {
                   {cashoutHistory.map((cashout) => (
                     <tr key={cashout.id}>
                       <td>{cashout.username}</td>
-                      <td>{cashout.destination.length > 30 ? `${cashout.destination.substring(0, 30)}...` : cashout.destination}</td>
+                      {/* IMPORTANT FIX: Add null/undefined check for cashout.destination */}
+                      <td>
+                        {cashout.destination
+                          ? (cashout.destination.length > 30
+                            ? `${cashout.destination.substring(0, 30)}...`
+                            : cashout.destination)
+                          : 'N/A'}
+                      </td>
                       <td>{cashout.amountUSD ? `$${parseFloat(cashout.amountUSD).toFixed(2)}` : 'N/A'}</td>
                       <td>{cashout.amountBTC ? parseFloat(cashout.amountBTC).toFixed(8) : 'N/A'}</td>
                       <td style={{
