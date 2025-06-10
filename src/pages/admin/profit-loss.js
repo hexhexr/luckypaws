@@ -277,8 +277,9 @@ export default function AdminProfitLoss() { // Corrected component name here
               </button>
             </div>
           )}
-        </section>
-      </div>
+          {/* Removed the extra </section> tag here */}
+        </div>
+      </main>
     </div>
   );
 }
