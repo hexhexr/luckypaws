@@ -168,8 +168,8 @@ export default function AdminDashboard() {
         // Remove from recent orders display or update status
         setRecentOrders(prev => prev.filter(order => order.id !== orderId)); // Or update status to 'archived'
     } catch (err) {
-        console.error('Error archiving order:', err);
-        setError('Failed to archive order.');
+      console.error('Error archiving order:', err);
+      setError('Failed to archive order.');
     }
   };
 
@@ -229,7 +229,7 @@ export default function AdminDashboard() {
                         <tr>
                             <td colSpan="6" className="text-center">No recent orders found.</td>
                         </tr>
-                    ) : ( // Re-added this opening parenthesis for correct JSX grouping
+                    ) : (
                     recentOrders.map((order) => (
                         <tr key={order.id} className={order.read ? 'order-read' : 'order-unread'}>
                         <td>{order.id.substring(0, 8)}...</td>
@@ -254,12 +254,12 @@ export default function AdminDashboard() {
                         </td>
                         </tr>
                     ))
-                    )} {/* Re-added this closing parenthesis for correct JSX grouping */}
+                    )}
                     </tbody>
                 </table>
                 </div>
             )}
-            </div>
+            {/* Removed the extra </div> here */}
         </section>
 
         {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
