@@ -355,7 +355,7 @@ export default function ProfitLoss() {
               </button>
             </div>
           )}
-        </div>
+        </section> {/* THIS IS THE CORRECTED LINE */}
       </div>
     </div>
   );
