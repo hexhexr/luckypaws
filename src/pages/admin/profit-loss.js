@@ -1,6 +1,16 @@
+// pages/admin/profit-loss.js
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { fetchProfitLossData, addCashout } from '../../services/profitLossService';
+import Head from 'next/head'; // Import Head for page title
+
+// Import Firebase client-side SDK elements
+import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
+import { collection, query, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore'; // Import necessary Firestore functions
+import { onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
+
+// Assuming fetchProfitLossData is meant for client-side use given firebaseClient import.
+// You might need to adjust fetchProfitLossData if it's currently expecting global db.
+import { fetchProfitLossData } from '../../services/profitLossService'; // Assuming this uses client-side Firebase
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -12,210 +22,243 @@ const LoadingSkeleton = () => (
     <div className="skeleton-line" style={{ width: '80%' }}></div>
     <div className="skeleton-line" style={{ width: '90%' }}></div>
     <div className="skeleton-line" style={{ width: '70%' }}></div>
-    <div className="skeleton-line" style={{ width: '85%' }}></div>
-    <style jsx>{`
-      .loading-skeleton {
-        padding: var(--spacing-md);
-        border-radius: var(--radius-sm);
-        background-color: var(--card-bg);
-        box-shadow: var(--shadow-sm);
-      }
-      .skeleton-line {
-        height: 1em;
-        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-        background-size: 200% 100%;
-        animation: loading 1.5s infinite;
-        margin-bottom: var(--spacing-sm);
-      }
-      @keyframes loading {
-        0% { background-position: -100% 0; }
-        100% { background-position: 100% 0; }
-      }
-    `}</style>
   </div>
 );
 
-export default function ProfitLoss() {
+export default function AdminProfitLoss() { // Corrected component name here
   const router = useRouter();
-  const [data, setData] = useState([]);
+
+  // --- AUTHENTICATION STATES ---
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // --- DATA STATES ---
+  const [usersData, setUsersData] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
+
+  // --- SEARCH AND FILTER STATES ---
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('net'); // Default sort by net profit
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
+  const [minNet, setMinNet] = useState('');
+  const [maxNet, setMaxNet] = useState('');
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+
+  // --- PAGINATION STATES ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // Number of items per page
 
-  // Authentication Check - This is from your original file.
+  // Authentication Check
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin');
-    }
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+      if (!user) {
+        router.replace('/admin'); // Redirect to /admin (login) if no user
+        return;
+      }
+      try {
+        const idTokenResult = await user.getIdTokenResult(true);
+        if (idTokenResult.claims.admin) {
+          setIsAdmin(true);
+        } else {
+          router.replace('/admin'); // Redirect if not admin
+        }
+      } catch (e) {
+        console.error("Error checking admin claims:", e);
+        router.replace('/admin');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, [router]);
 
-  const loadProfitLossData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const fetchedData = await fetchProfitLossData();
-      setData(fetchedData);
-    } catch (err) {
-      console.error('Failed to load profit/loss data:', err);
-      setError(err.message || 'Failed to load data.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Use another useEffect to load data after initial auth check
+  // Fetch data when admin status is confirmed
   useEffect(() => {
-    // Only load if not already loading, no error, and data is empty
-    if (!loading && !error && data.length === 0) {
-      loadProfitLossData();
+    if (isAdmin) {
+      const fetchData = async () => {
+        setLoadingData(true);
+        setError('');
+        try {
+          // fetchProfitLossData should interact with Firestore client-side
+          const data = await fetchProfitLossData();
+          setUsersData(data);
+        } catch (err) {
+          console.error("Error fetching profit/loss data:", err);
+          setError('Failed to load profit/loss data. Please try again.');
+        } finally {
+          setLoadingData(false);
+        }
+      };
+      fetchData();
     }
-  }, [loading, error, data, loadProfitLossData]);
+  }, [isAdmin]); // Refetch when admin status changes
 
-
-  // Process data for display
-  const usersData = useMemo(() => {
-    const usersMap = {};
-
-    data.forEach(item => {
-      if (!usersMap[item.username]) {
-        usersMap[item.username] = {
-          username: item.username,
-          fbUsername: item.fbUsername || 'N/A', // Assuming fbUsername might be available
-          totalDeposit: 0,
-          totalCashout: 0,
-          net: 0,
-          profitMargin: 0,
-        };
-      }
-
-      if (item.type === 'deposit') {
-        usersMap[item.username].totalDeposit += item.amount;
-      } else if (item.type === 'cashout') {
-        usersMap[item.username].totalCashout += item.amountUSD || 0; // Assuming cashouts are in USD
-      }
-    });
-
-    return Object.values(usersMap).map(user => {
-      user.net = user.totalDeposit - user.totalCashout;
-      user.profitMargin = user.totalDeposit > 0 ? ((user.net / user.totalDeposit) * 100).toFixed(2) : '0.00';
-      return user;
-    });
-  }, [data]);
-
+  // Memoized for performance: filter and sort users
   const filteredAndSortedUsers = useMemo(() => {
-    let filtered = usersData.filter(user =>
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.fbUsername.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let filtered = usersData.filter(user => {
+      const matchesSearch = searchTerm === '' ||
+                            user.username.toLowerCase().includes(searchTerm.toLowerCase());
 
-    filtered.sort((a, b) => {
-      let valA = a[sortBy];
-      let valB = b[sortBy];
+      const userNet = parseFloat(user.net);
+      const matchesMinNet = minNet === '' || userNet >= parseFloat(minNet);
+      const matchesMaxNet = maxNet === '' || userNet <= parseFloat(maxNet);
 
-      // Handle numeric sorting
-      if (typeof valA === 'number' && typeof valB === 'number') {
-        return sortOrder === 'asc' ? valA - valB : valB - valA;
-      }
-      // Handle string sorting (case-insensitive)
-      if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortOrder === 'asc'
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      }
-      return 0;
+      return matchesSearch && matchesMinNet && matchesMaxNet;
     });
+
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortColumn];
+        const bValue = b[sortColumn];
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+        }
+        // Handle numeric sorting for amount-related columns
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        // Fallback for mixed types or other cases
+        if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
 
     return filtered;
-  }, [usersData, searchTerm, sortBy, sortOrder]);
+  }, [usersData, searchTerm, minNet, maxNet, sortColumn, sortDirection]);
 
-  // Pagination logic
+  // Pagination Logic
   const totalPages = Math.ceil(filteredAndSortedUsers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const filteredAndSortedUsersForTable = filteredAndSortedUsers.slice(startIndex, endIndex);
-
-  const prevPage = () => {
-    setCurrentPage(prev => Math.max(prev - 1, 1));
-  };
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredAndSortedUsers.slice(startIndex, endIndex);
+  }, [filteredAndSortedUsers, currentPage, itemsPerPage]);
 
   const nextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
+  const prevPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
   const handleSort = (column) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    if (sortColumn === column) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
-      setSortBy(column);
-      setSortOrder('asc'); // Default to ascending when changing column
+      setSortColumn(column);
+      setSortDirection('asc');
     }
   };
 
-  const getSortIndicator = (column) => {
-    if (sortBy === column) {
-      return sortOrder === 'asc' ? ' ▲' : ' ▼';
-    }
-    return '';
-  };
+  if (loading) {
+    return <div className="container mt-md"><p>Loading authentication...</p></div>;
+  }
+
+  if (!isAdmin) {
+    return <div className="container mt-md"><p>Access Denied. Redirecting to login...</p></div>;
+  }
 
   return (
-    <div className="container mt-md">
-      <div className="card">
-        <h1 className="card-header">Profit & Loss</h1>
-        <section className="section-card"> {/* This is the corrected opening section tag */}
+    <div className="admin-dashboard-layout">
+      <Head>
+        <title>Admin Profit/Loss - LuckyPaw</title>
+      </Head>
+
+      <main className="admin-main-content">
+        <div className="container mt-md">
+          <h1 className="card-header">Profit/Loss Overview</h1>
+
           {error && <div className="alert alert-danger">{error}</div>}
 
-          <div className="search-and-filter-controls mb-md">
-            <input
-              type="text"
-              className="input"
-              placeholder="Search by username or FB username..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <section className="admin-filter-section section-card mb-lg">
+            <h2>Filter & Search</h2>
+            <div className="filter-controls form-inline">
+              <input
+                type="text"
+                placeholder="Search by Username"
+                className="form-control mr-md"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // Reset pagination on search
+                }}
+              />
+              <input
+                type="number"
+                placeholder="Min Net ($)"
+                className="form-control mr-md"
+                value={minNet}
+                onChange={(e) => {
+                  setMinNet(e.target.value);
+                  setCurrentPage(1); // Reset pagination on filter change
+                }}
+              />
+              <input
+                type="number"
+                placeholder="Max Net ($)"
+                className="form-control"
+                value={maxNet}
+                onChange={(e) => {
+                  setMaxNet(e.target.value);
+                  setCurrentPage(1); // Reset pagination on filter change
+                }}
+              />
+            </div>
+          </section>
 
-          {loading ? (
+          {loadingData ? (
             <LoadingSkeleton />
           ) : (
-            <div className="table-responsive">
+            <div className="admin-table-section section-card">
+              <div className="section-header">
+                <h2>User Profit/Loss Data</h2>
+                <span>Total Users: {filteredAndSortedUsers.length}</span>
+              </div>
+              <div className="table-responsive">
               <table className="table table-hover">
                 <thead>
                   <tr>
-                    <th onClick={() => handleSort('username')}>Username{getSortIndicator('username')}</th>
-                    <th onClick={() => handleSort('fbUsername')}>FB Username{getSortIndicator('fbUsername')}</th>
-                    <th onClick={() => handleSort('totalDeposit')}>Total Deposit{getSortIndicator('totalDeposit')}</th>
-                    <th onClick={() => handleSort('totalCashout')}>Total Cashout{getSortIndicator('totalCashout')}</th>
-                    <th onClick={() => handleSort('net')}>Net Profit/Loss{getSortIndicator('net')}</th>
-                    <th onClick={() => handleSort('profitMargin')}>Profit Margin{getSortIndicator('profitMargin')}</th>
+                    <th onClick={() => handleSort('username')}>Username {sortColumn === 'username' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
+                    <th onClick={() => handleSort('totalDeposit')}>Total Deposit {sortColumn === 'totalDeposit' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
+                    <th onClick={() => handleSort('totalWithdrawal')}>Total Withdrawal {sortColumn === 'totalWithdrawal' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
+                    <th onClick={() => handleSort('totalCashout')}>Total Cashout {sortColumn === 'totalCashout' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
+                    <th onClick={() => handleSort('net')}>Net (P/L) {sortColumn === 'net' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
+                    <th onClick={() => handleSort('profitMargin')}>Profit Margin {sortColumn === 'profitMargin' && (sortDirection === 'asc' ? '▲' : '▼')}</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedUsersForTable.map((user) => (
-                    <tr key={user.username}>
-                      <td><a href={`/admin/customer/${user.username}`} className="btn-link">{user.username}</a></td>
-                      <td>{user.fbUsername}</td>
-                      <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
-                      <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
-                      <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
-                      <td>{user.profitMargin}%</td>
-                      <td>
-                        {/* Assuming '/admin/customer/[username]' is a valid route for user details */}
-                        <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
-                      </td>
+                  {paginatedUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="text-center">No matching users found.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedUsers.map((user) => (
+                      <tr key={user.username}>
+                        <td>{user.username}</td>
+                        <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
+                        <td className="text-danger">{formatCurrency(user.totalWithdrawal)}</td>
+                        <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
+                        <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
+                        <td>{user.profitMargin}%</td>
+                        <td>
+                          {/* Assuming '/admin/customer/[username]' is a valid route for user details */}
+                          <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
-          {filteredAndSortedUsersForTable.length > itemsPerPage && ( // Check total filtered users for pagination
+          {filteredAndSortedUsers.length > itemsPerPage && ( // Check total filtered users for pagination
             <div className="pagination-controls mt-lg text-center">
               <button
                 className="btn btn-secondary mr-md"
@@ -234,7 +277,7 @@ export default function ProfitLoss() {
               </button>
             </div>
           )}
-        </section> {/* THIS IS THE MISSING CLOSING TAG */}
+        </section>
       </div>
     </div>
   );
