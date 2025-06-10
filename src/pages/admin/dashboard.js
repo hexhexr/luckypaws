@@ -2,10 +2,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { db, auth as firebaseAuth } from '../../lib/firebaseClient'; // Import db and firebaseAuth
+import { db } from '../../lib/firebaseClient';
+import { auth as firebaseAuth } from '../../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
-import { onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
-import { getDoc } from 'firebase/firestore'; // Import getDoc for single document retrieval
+import { onAuthStateChanged } from 'firebase/auth';
 
 // --- Helper Components ---
 
@@ -25,17 +25,15 @@ const OrderDetailModal = ({ order, onClose }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
                 <button className="modal-close-btn" onClick={onClose}>&times;</button>
-                <h3>Order Details: {order.username}</h3>
+                <h3>Order Details: {order.id}</h3>
+                <p><strong>Username:</strong> {order.username}</p>
                 <p><strong>Amount:</strong> ${parseFloat(order.amount || 0).toFixed(2)}</p>
                 <p><strong>Status:</strong> {order.status}</p>
-                <p><strong>Payment Gateway ID:</strong> {order.paymentGatewayId || 'N/A'}</p>
                 <p><strong>Created:</strong> {order.created ? new Date(order.created).toLocaleString() : 'N/A'}</p>
-                <p><strong>Invoice:</strong> <textarea readOnly value={order.invoice} rows="5" className="input"></textarea></p>
-                <p><strong>Read:</strong> {order.read ? 'Yes' : 'No'}</p>
-                {order.error && <p className="text-danger"><strong>Error:</strong> {order.error}</p>}
-                {order.archivedBy && <p><strong>Archived By:</strong> {order.archivedBy}</p>}
-                {order.archivedAt && <p><strong>Archived At:</strong> {new Date(order.archivedAt.seconds * 1000).toLocaleString()}</p>}
-                <button className="btn btn-secondary mt-md" onClick={onClose}>Close</button>
+                <p><strong>Invoice ID:</strong> {order.invoiceId}</p>
+                <p><strong>Payment Hash:</strong> {order.paymentHash}</p>
+                <p><strong>Gateway Response:</strong> {order.gatewayResponse || 'N/A'}</p>
+                <p><strong>Gateway ID:</strong> {order.paymentGatewayId || 'N/A'}</p>
             </div>
         </div>
     );
@@ -44,180 +42,213 @@ const OrderDetailModal = ({ order, onClose }) => {
 
 export default function AdminDashboard() {
   const router = useRouter();
+
+  // --- AUTHENTICATION & LOADING STATES ---
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false); // New state to track admin status
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [error, setError] = useState('');
+
+  // --- DASHBOARD DATA STATES ---
   const [recentOrders, setRecentOrders] = useState([]);
-  const [dailyStats, setDailyStats] = useState({
-    totalNewOrders: 0,
-    totalPaidOrders: 0,
-    totalRevenue: 0,
-    totalCashouts: 0 // New stat
-  });
-  const [modalOrder, setModalOrder] = useState(null);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // Authentication and Role Check
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-      if (user) {
-        // User is signed in, now check their role in Firestore
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDocSnap = await getDoc(userDocRef);
+  const [dailyDeposits, setDailyDeposits] = useState(0);
+  const [dailyCashouts, setDailyCashouts] = useState(0);
+  const [dailyProfit, setDailyProfit] = useState(0);
+  const [loadingStats, setLoadingStats] = useState(true);
 
-          if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-            setIsAdmin(true);
-            setLoading(false);
-          } else {
-            // User is signed in but not an admin
-            console.log('User is not an admin. Redirecting.');
-            await firebaseAuth.signOut(); // Sign them out
-            router.replace('/admin');
-          }
-        } catch (e) {
-          console.error("Error checking admin role:", e);
-          await firebaseAuth.signOut(); // Sign out on error
-          router.replace('/admin');
-        }
-      } else {
-        // No user is signed in
-        console.log('No user signed in. Redirecting to admin login.');
-        router.replace('/admin');
-      }
-    });
+  const [modalOrder, setModalOrder] = useState(null); // State to hold order details for modal
 
-    return () => unsubscribe(); // Clean up auth listener
-  }, [router]);
-
-
-  // Data fetching logic (only runs if isAdmin is true)
-  useEffect(() => {
-    if (!isAdmin) return; // Only proceed if user is confirmed admin
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-
-    // Real-time listener for recent orders (last 50)
-    const ordersQuery = query(collection(db, 'orders'), orderBy('created', 'desc'), where('status', '!=', 'archived'));
-    const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
-      const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRecentOrders(orders);
-    }, (error) => {
-      console.error("Error fetching recent orders:", error);
-      // Handle error, e.g., show an alert
-    });
-
-    // Real-time listener for daily stats
-    const dailyStatsQuery = query(collection(db, 'orders'), where('created', '>=', today.toISOString()), where('status', '!=', 'archived'));
-    const unsubscribeStats = onSnapshot(dailyStatsQuery, (snapshot) => {
-      let totalNew = 0;
-      let totalPaid = 0;
-      let totalRevenue = 0;
-
-      snapshot.docs.forEach(doc => {
-        const order = doc.data();
-        totalNew++;
-        if (order.status === 'paid') {
-          totalPaid++;
-          totalRevenue += parseFloat(order.amount || 0);
-        }
-      });
-
-      // Fetch total cashouts for today
-      const cashoutsQuery = query(collection(db, 'cashouts'), where('time', '>=', today.toISOString()));
-      getDocs(cashoutsQuery)
-        .then(cashoutSnapshot => {
-          let totalCashouts = 0;
-          cashoutSnapshot.docs.forEach(doc => {
-            const cashout = doc.data();
-            totalCashouts += parseFloat(cashout.amountUSD || 0);
-          });
-          setDailyStats({
-            totalNewOrders: totalNew,
-            totalPaidOrders: totalPaid,
-            totalRevenue: totalRevenue,
-            totalCashouts: totalCashouts // Update cashouts
-          });
-        })
-        .catch(error => {
-          console.error("Error fetching daily cashouts:", error);
-        });
-
-    }, (error) => {
-      console.error("Error fetching daily stats:", error);
-    });
-
-    // Cleanup listeners on component unmount
-    return () => {
-      unsubscribeOrders();
-      unsubscribeStats();
-    };
-  }, [isAdmin]); // Re-run effect when isAdmin changes
-
-  const viewOrderDetails = (orderId) => {
-    const order = recentOrders.find(o => o.id === orderId);
-    setModalOrder(order);
-  };
-
-  const markAsRead = async (orderId) => {
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, { read: true });
-      console.log(`Order ${orderId} marked as read.`);
-    } catch (error) {
-      console.error("Error marking order as read:", error);
-      alert('Failed to mark order as read.');
-    }
-  };
-
-  const archiveOrder = async (orderId) => {
-    const confirmArchive = window.confirm("Are you sure you want to archive this order?");
-    if (!confirmArchive) return;
-
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      // Update status to 'archived' and record who/when
-      await updateDoc(orderRef, {
-        status: 'archived',
-        archivedAt: serverTimestamp(), // Use serverTimestamp for precise time
-        archivedBy: firebaseAuth.currentUser?.email || 'unknown' // Record who archived it
-      });
-      console.log(`Order ${orderId} archived.`);
-    } catch (error) {
-      console.error("Error archiving order:", error);
-      alert('Failed to archive order.');
-    }
-  };
-
+  // --- FUNCTIONS ---
 
   const logout = useCallback(async () => {
     try {
       await firebaseAuth.signOut();
-      // No need to clear localStorage('admin_auth') anymore
-      router.push('/admin');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('admin_auth');
+      }
+      router.replace('/admin'); // Redirect to admin login page
     } catch (err) {
-      console.error("Logout error:", err);
-      alert('Failed to logout. Please try again.');
+      console.error("Logout failed:", err);
+      setError("Failed to log out. Please try again.");
     }
   }, [router]);
 
+  const viewOrderDetails = useCallback((orderId) => {
+    const order = recentOrders.find(o => o.id === orderId);
+    setModalOrder(order);
+  }, [recentOrders]);
+
+  const markAsRead = useCallback(async (orderId) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, { read: true });
+      // UI will automatically update via onSnapshot listener
+      console.log(`Order ${orderId} marked as read.`);
+    } catch (error) {
+      console.error("Error marking order as read:", error);
+      setError("Failed to mark order as read.");
+    }
+  }, []);
+
+  const archiveOrder = useCallback(async (orderId) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, { status: 'archived' });
+      // UI will automatically update via onSnapshot listener
+      console.log(`Order ${orderId} archived.`);
+    } catch (error) {
+      console.error("Error archiving order:", error);
+      setError("Failed to archive order.");
+    }
+  }, []);
+
+  // Fetch recent orders
+  const fetchRecentOrders = useCallback(() => {
+    setLoadingOrders(true);
+    try {
+      // IMPORTANT: Ensure 'orders' collection is used here
+      const q = query(
+        collection(db, 'orders'),
+        orderBy('created', 'desc'),
+        limit(10) // Fetch top 10 recent orders
+      );
+      // onSnapshot provides real-time updates
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setRecentOrders(ordersList);
+        setLoadingOrders(false);
+      }, (error) => {
+        console.error("Error fetching recent orders:", error);
+        setError("Error fetching recent orders: " + error.message);
+        setLoadingOrders(false);
+      });
+      return () => unsubscribe(); // Return unsubscribe function for cleanup
+    } catch (error) {
+      console.error("Error fetching recent orders (catch block):", error);
+      setError("Error fetching recent orders: " + error.message);
+      setLoadingOrders(false);
+    }
+  }, []); // No dependencies for this useCallback, as db and collection are stable
+
+  // Fetch daily stats (total profit, cashouts, deposits)
+  const fetchDailyStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      // Fetch all orders within the last 24 hours that are 'paid' (deposits)
+      const qDeposits = query(
+        collection(db, 'orders'),
+        where('status', '==', 'paid'),
+        where('created', '>=', twentyFourHoursAgo)
+      );
+      const depositsSnap = await getDocs(qDeposits);
+      const totalDeposits = depositsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+      setDailyDeposits(totalDeposits);
+
+      // Fetch all cashouts within the last 24 hours that are 'completed'
+      // IMPORTANT: Using 'profitLoss' collection based on previous changes
+      const qCashouts = query(
+        collection(db, 'profitLoss'), // Confirmed to be 'profitLoss'
+        where('time', '>=', twentyFourHoursAgo), // Assuming 'time' field for cashouts
+        where('status', '==', 'completed')
+      );
+      const cashoutsSnap = await getDocs(qCashouts);
+      const totalCashouts = cashoutsSnap.docs.reduce((sum, doc) => sum + (doc.data().amountUSD || 0), 0);
+      setDailyCashouts(totalCashouts);
+
+      const calculatedProfit = totalDeposits - totalCashouts;
+      setDailyProfit(calculatedProfit);
+
+      setLoadingStats(false);
+    } catch (error) {
+      console.error("Error fetching daily stats:", error);
+      setError("Error fetching daily stats: " + error.message);
+      setLoadingStats(false);
+    }
+  }, []); // No dependencies for this useCallback
+
+  // --- AUTHENTICATION & DATA LOADING EFFECT ---
+  useEffect(() => {
+    const unsubscribe = firebaseAuth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          // Force refresh of ID token and claims to ensure 'admin' claim is up-to-date
+          const idTokenResult = await user.getIdTokenResult(true);
+          console.log("User ID Token Claims:", idTokenResult.claims); // LOGGING CLAIMS FOR DEBUGGING
+
+          const isAdminUser = idTokenResult.claims.admin;
+          setIsAdmin(isAdminUser);
+
+          if (!isAdminUser) {
+            console.warn("User is authenticated but not an admin. Redirecting.");
+            router.replace('/admin'); // Redirect if not admin
+          } else {
+            console.log("Admin user recognized. Fetching dashboard data...");
+            // Only fetch data if the user is confirmed as admin
+            fetchDailyStats();
+            // onSnapshot for recent orders will be set up by fetchRecentOrders,
+            // which returns an unsubscribe function that needs to be handled.
+            const unsubscribeOrders = fetchRecentOrders();
+            return () => unsubscribeOrders(); // Cleanup on unmount
+          }
+        } catch (error) {
+          console.error("Error getting ID token result or verifying admin role:", error);
+          setError("Authentication error: Could not verify admin role. Please try logging in again.");
+          firebaseAuth.signOut(); // Force logout on token verification failure
+          router.replace('/admin');
+        } finally {
+          setLoading(false); // Set loading to false once auth check is complete
+        }
+      } else {
+        console.log("No user signed in. Redirecting to admin login.");
+        setLoading(false);
+        router.replace('/admin');
+      }
+    });
+
+    return () => unsubscribe(); // Clean up auth listener on component unmount
+  }, [router, fetchDailyStats, fetchRecentOrders]); // Dependencies for useEffect
+
+  // --- RENDER LOGIC ---
   if (loading) {
     return (
       <div className="container mt-lg text-center">
-        <p>Loading admin dashboard...</p>
+        <Head><title>Loading...</title></Head>
+        <h2>Loading Dashboard...</h2>
+        <p>Please wait while we verify your access.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mt-lg">
+        <Head><title>Error</title></Head>
+        <div className="alert alert-danger">
+          <h3>Error:</h3>
+          <p>{error}</p>
+          <button onClick={() => setError('')} className="btn btn-secondary mt-md">Clear Error</button>
+        </div>
       </div>
     );
   }
 
   if (!isAdmin) {
-    // This state should theoretically not be reached due to the initial redirect,
-    // but as a fallback, we show a message.
+    // This block should ideally not be reached if the redirect works,
+    // but acts as a fallback for non-admin authenticated users.
     return (
       <div className="container mt-lg text-center">
-        <p>Access Denied. You are not authorized to view this page.</p>
+        <Head><title>Access Denied</title></Head>
+        <h2>Access Denied</h2>
+        <p>You do not have administrative privileges to view this page.</p>
+        <button onClick={logout} className="btn btn-primary mt-md">Logout</button>
       </div>
     );
   }
 
+  // Actual dashboard content for authenticated admins
   return (
     <div className="admin-dashboard-container">
       <Head>
@@ -225,73 +256,51 @@ export default function AdminDashboard() {
       </Head>
       <header className="admin-header">
         <h1>Admin Dashboard</h1>
-        <nav>
-          <ul className="admin-nav">
-            <li><a href="/admin/dashboard" className={router.pathname === "/admin/dashboard" ? "active" : ""}>Dashboard</a></li>
-            <li><a href="/admin/cashouts" className={router.pathname === "/admin/cashouts" ? "active" : ""}>Cashouts</a></li>
-            <li><a href="/admin/games" className={router.pathname === "/admin/games" ? "active" : ""}>Games</a></li>
-            <li><a href="/admin/profit-loss" className={router.pathname === "/admin/profit-loss" ? "active" : ""}>Profit/Loss</a></li>
-            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
-          </ul>
-        </nav>
+        <button onClick={logout} className="btn btn-danger">Logout</button>
       </header>
 
-      <main className="admin-main">
-        <section className="dashboard-summary">
-          <h2>Daily Summary</h2>
-          <div className="stat-cards">
-            <StatCard
-              title="New Orders (Today)"
-              value={dailyStats.totalNewOrders}
-              icon="🆕"
-              color="#007bff"
-            />
-            <StatCard
-              title="Paid Orders (Today)"
-              value={dailyStats.totalPaidOrders}
-              icon="✅"
-              color="#28a745"
-            />
-            <StatCard
-              title="Revenue (Today)"
-              value={`$${dailyStats.totalRevenue.toFixed(2)}`}
-              icon="💰"
-              color="#6f42c1"
-            />
-            <StatCard
-              title="Cashouts (Today)"
-              value={`$${dailyStats.totalCashouts.toFixed(2)}`}
-              icon="💸"
-              color="#dc3545"
-            />
-          </div>
+      <main className="admin-content">
+        <section className="dashboard-stats">
+          <h2>Daily Overview (Last 24 Hrs)</h2>
+          {loadingStats ? (
+            <p>Loading daily stats...</p>
+          ) : (
+            <div className="stat-cards-grid">
+              <StatCard title="Total Deposits" value={`$${dailyDeposits.toFixed(2)}`} icon="💰" color="#4CAF50" />
+              <StatCard title="Total Cashouts" value={`$${dailyCashouts.toFixed(2)}`} icon="💸" color="#F44336" />
+              <StatCard title="Net Profit/Loss" value={`$${dailyProfit.toFixed(2)}`} icon={dailyProfit >= 0 ? "📈" : "📉"} color={dailyProfit >= 0 ? "#2196F3" : "#FFC107"} />
+            </div>
+          )}
         </section>
 
-        <section className="recent-orders mt-lg">
+        <section className="dashboard-orders">
           <h2>Recent Orders</h2>
-          <div className="card table-card">
-            {recentOrders.length === 0 ? (
-                <p className="text-center">No recent orders.</p>
-            ) : (
-                <div className="table-responsive">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {recentOrders.map(order => (
-                        <tr key={order.id} className={order.read ? 'order-read' : 'order-unread'}>
+          {loadingOrders ? (
+            <p>Loading recent orders...</p>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-striped">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Amount</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentOrders.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center">No recent orders found.</td></tr>
+                  ) : (
+                    recentOrders.map((order) => (
+                      <tr key={order.id} className={!order.read ? 'un-read' : ''}>
+                        <td>{order.id.substring(0, 6)}...</td>
                         <td>{order.username}</td>
-                        <td>${parseFloat(order.amount || 0).toFixed(2)}</td>
                         <td>
                             <span className={`status-badge status-${order.status}`}>
-                            {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}
+                               {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'N/A'}
                             </span>
                         </td>
                         <td className="text-bold">${parseFloat(order.amount || 0).toFixed(2)}</td>
@@ -308,12 +317,12 @@ export default function AdminDashboard() {
                             </div>
                         </td>
                         </tr>
-                    ))}
-                    </tbody>
-                </table>
-                </div>
-            )}
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
+          )}
         </section>
 
         {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
