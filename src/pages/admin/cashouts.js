@@ -25,320 +25,318 @@ export default function AdminCashouts() {
   const [cashoutStatus, setCashoutStatus] = useState({ message: '', type: '' }); // type: 'success', 'error', 'info'
   const [isAmountlessInvoice, setIsAmountlessInvoice] = useState(false);
   const [isLightningAddressDetected, setIsLightningAddressDetected] = useState(false);
-  const [paymentGatewayId, setPaymentGatewayId] = useState('');
-
+  const [isUSDAmountLocked, setIsUSDAmountLocked] = useState(false); // New state for locking USD amount
 
   // --- STATES FOR CASHOUT HISTORY ---
   const [cashoutHistory, setCashoutHistory] = useState([]);
   const [loadingCashoutHistory, setLoadingCashoutHistory] = useState(true);
-  const [totalCashouts, setTotalCashouts] = useState(0);
 
-
-  // Authentication check and Admin role verification
+  // --- AUTHENTICATION AND ROLE CHECK (Same as dashboard.js) ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
       if (user) {
-        // Check if user's document exists and has isAdmin: true
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        // User is signed in, now check their role in Firestore
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDocSnap = await getDoc(userDocRef);
 
-        if (userDocSnap.exists() && userDocSnap.data().isAdmin) {
-          setIsAdmin(true);
-          console.log("Firebase user is signed in and is an admin. Proceeding to dashboard.");
-        } else {
-          // Not an admin or isAdmin not true
-          setIsAdmin(false);
-          router.replace('/admin'); // Redirect to login
-          console.log("Firebase user is signed in but not an admin. Redirecting...");
+          if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
+            setIsAdmin(true);
+            setLoading(false);
+          } else {
+            // User is signed in but not an admin
+            console.log('User is not an admin. Redirecting.');
+            await firebaseAuth.signOut(); // Sign them out
+            router.replace('/admin');
+          }
+        } catch (e) {
+          console.error("Error checking admin role:", e);
+          await firebaseAuth.signOut(); // Sign out on error
+          router.replace('/admin');
         }
       } else {
-        // No user signed in
-        setIsAdmin(false);
-        router.replace('/admin'); // Redirect to login
-        console.log("No Firebase user signed in. Showing login form.");
+        // No user is signed in
+        console.log('No user signed in. Redirecting to admin login.');
+        router.replace('/admin');
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription
+    return () => unsubscribe(); // Clean up auth listener
   }, [router]);
 
 
-  // Logout function
+  // --- LOGOUT FUNCTION (Same as dashboard.js) ---
   const logout = useCallback(async () => {
     try {
       await firebaseAuth.signOut();
-      localStorage.removeItem('admin_auth'); // Clear local storage flag
-      router.push('/admin'); // Redirect to login page
-    } catch (error) {
-      console.error("Error logging out:", error);
-      alert("Failed to log out.");
+      router.push('/admin');
+    } catch (err) {
+      console.error("Logout error:", err);
+      alert('Failed to logout. Please try again.');
     }
   }, [router]);
 
-
-  // Function to load cashout history
-  const loadCashoutHistory = useCallback(async () => {
-    if (!isAdmin) return; // Only fetch if admin is confirmed
+  // --- CASHOUT HISTORY LOADING ---
+  useEffect(() => {
+    if (!isAdmin) return; // Only load history if user is confirmed admin
 
     setLoadingCashoutHistory(true);
-    try {
-      // Listen for real-time updates to cashout history
-      // IMPORTANT: Changed collection from 'cashouts' to 'profitLoss'
-      const q = query(collection(db, 'profitLoss'), orderBy('time', 'desc'));
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const history = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Ensure time is a proper date string for display, handling Firestore Timestamp
-          time: doc.data().time?.toDate ? doc.data().time.toDate().toISOString() : doc.data().time
-        }));
-        setCashoutHistory(history);
-        setTotalCashouts(history.length);
-      }, (error) => {
-        console.error('Error listening to cashout history:', error);
-        // Show error to user
-      });
-
-      return () => unsubscribe(); // Cleanup real-time listener on component unmount
-    } catch (err) {
-      console.error('Error loading cashout history:', err);
-      // Show error to user if the initial setup fails
-    } finally {
+    const cashoutsQuery = query(collection(db, 'cashouts'), orderBy('time', 'desc'));
+    const unsubscribe = onSnapshot(cashoutsQuery, (snapshot) => {
+      const history = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        time: doc.data().time?.toDate ? doc.data().time.toDate().toISOString() : doc.data().time // Convert Timestamp to ISO string if needed
+      }));
+      setCashoutHistory(history);
       setLoadingCashoutHistory(false);
+    }, (error) => {
+      console.error("Error fetching cashout history:", error);
+      setCashoutStatus({ message: 'Error loading cashout history.', type: 'error' });
+      setLoadingCashoutHistory(false);
+    });
+
+    return () => unsubscribe(); // Clean up listener
+  }, [isAdmin]); // Depend on isAdmin
+
+  // --- CASHOUT FORM LOGIC ---
+  const handleDestinationChange = (e) => {
+    const value = e.target.value;
+    setCashoutDestination(value);
+
+    // Detect Lightning Address (LNURL-pay) format
+    const isLNAddress = value.includes('@');
+    setIsLightningAddressDetected(isLNAddress);
+    setIsAmountlessInvoice(false); // Reset for new destination
+
+    // If it's a bolt11 invoice, parse it
+    if (!isLNAddress && value.startsWith('lnbc')) {
+      try {
+        const decoded = bolt11.decode(value);
+        if (decoded.millisatoshis) {
+          const btcAmount = parseFloat(decoded.millisatoshis) / 1000 / 100_000_000; // Convert msats to BTC
+          // For simplicity, let's assume a fixed BTC to USD rate or fetch one
+          // For now, let's just update the BTC amount and lock USD
+          // You'll need to implement your own BTC to USD conversion here
+          const estimatedUSD = (btcAmount * 70000).toFixed(2); // Example: $70,000 per BTC
+          setCashoutAmount(estimatedUSD);
+          setIsUSDAmountLocked(true); // Lock the USD input
+          setIsAmountlessInvoice(false);
+        } else {
+          setIsAmountlessInvoice(true); // Invoice without amount
+          setIsUSDAmountLocked(false); // Unlock USD input if amountless
+        }
+      } catch (err) {
+        console.error("Error decoding invoice:", err);
+        setCashoutStatus({ message: 'Invalid Lightning Invoice.', type: 'error' });
+        setIsAmountlessInvoice(false);
+        setIsUSDAmountLocked(false);
+      }
+    } else {
+      setIsUSDAmountLocked(false); // Unlock if not a bolt11 invoice
     }
-  }, [isAdmin]);
+  };
 
-
-  // Effect to load history when admin status is confirmed
-  useEffect(() => {
-    if (isAdmin) {
-      const unsubscribe = loadCashoutHistory(); // loadCashoutHistory returns unsubscribe function
-      return () => {
-        if (unsubscribe) unsubscribe(); // Cleanup listener
-      };
-    }
-  }, [isAdmin, loadCashoutHistory]);
-
-
-  // Function to send a cashout
-  const handleSendCashout = useCallback(async (e) => {
+  const handleCashoutSubmit = async (e) => {
     e.preventDefault();
-    setIsSendingCashout(true);
-    setCashoutStatus({ message: '', type: '' });
+    setCashoutStatus({ message: '', type: '' }); // Clear previous status
 
-    if (!cashoutUsername || !cashoutDestination || !cashoutAmount) {
-      setCashoutStatus({ message: 'Please fill in all fields.', type: 'error' });
-      setIsSendingCashout(false);
+    if (!cashoutUsername || !cashoutDestination || (!cashoutAmount && !isAmountlessInvoice)) {
+      setCashoutStatus({ message: 'Please fill all required fields.', type: 'error' });
       return;
     }
 
+    if (parseFloat(cashoutAmount) <= 0 && !isAmountlessInvoice) {
+      setCashoutStatus({ message: 'Amount must be positive.', type: 'error' });
+      return;
+    }
+
+    setIsSendingCashout(true);
     try {
-      let parsedInvoice;
-      try {
-        // Attempt to decode as Bolt11 invoice
-        parsedInvoice = bolt11.decode(cashoutDestination);
-        setIsLightningAddressDetected(false); // Reset if it was set
-      } catch (invoiceErr) {
-        // If not a Bolt11, check if it's a Lightning Address (simple regex for @ symbol)
-        if (cashoutDestination.includes('@')) {
-          setIsLightningAddressDetected(true);
-          parsedInvoice = { // Create a mock invoice object for Lightning Address handling
-            amount: 0, // Amount for Lightning Address is usually determined by the sender
-            description: `Cashout to Lightning Address: ${cashoutDestination}`
-          };
-        } else {
-          throw new Error('Invalid Lightning destination. Must be a Bolt11 invoice or Lightning Address.');
-        }
-      }
-
-      // Determine BTC amount if invoice has an amount, otherwise it's amountless and amountUSD will be sent
-      const btcAmountFromInvoice = parsedInvoice.amount ? parseFloat(parsedInvoice.amount) / 1000 : 0; // Convert millisatoshis to BTC
-
-      // Add cashout request to Firestore
-      // IMPORTANT: Changed collection from 'cashouts' to 'profitLoss'
-      await addDoc(collection(db, 'profitLoss'), {
-        username: cashoutUsername,
-        destination: cashoutDestination,
-        amountUSD: parseFloat(cashoutAmount),
-        amountBTC: btcAmountFromInvoice, // Use BTC amount from invoice if present, else 0
-        description: isLightningAddressDetected ? `Lightning Address cashout for ${cashoutAmount} USD` : `Lightning cashout for ${cashoutAmount} USD`,
-        status: 'pending', // Initial status
-        time: new Date(), // Use server timestamp when deploying to production for consistency
-        type: isLightningAddressDetected ? 'cashout_lightning_address' : 'cashout_lightning',
-        paymentGatewayId: paymentGatewayId || 'N/A' // Include paymentGatewayId
+      // Logic for sending cashout (via API route, as this should be server-side)
+      // This part would typically call a Vercel API route that uses the Admin SDK
+      // Example:
+      const res = await fetch('/api/admin/processCashout', { // You'll need to create this API route
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // You might send the admin's ID token if your API needs to verify it server-side
+          // 'Authorization': `Bearer ${await firebaseAuth.currentUser.getIdToken()}`
+        },
+        body: JSON.stringify({
+          username: cashoutUsername,
+          destination: cashoutDestination,
+          amountUSD: isAmountlessInvoice ? null : parseFloat(cashoutAmount),
+          isAmountlessInvoice: isAmountlessInvoice,
+          isLightningAddress: isLightningAddressDetected,
+          // Add any other necessary data like admin's UID for logging
+        }),
       });
 
-      setCashoutStatus({ message: 'Cashout request added successfully!', type: 'success' });
-      // Clear form
-      setCashoutUsername('');
-      setCashoutDestination('');
-      setCashoutAmount('');
-      setPaymentGatewayId('');
-      setIsAmountlessInvoice(false);
-      setIsLightningAddressDetected(false);
+      const data = await res.json();
 
-    } catch (error) {
-      console.error('Error sending cashout:', error);
-      setCashoutStatus({ message: `Error sending cashout: ${error.message}`, type: 'error' });
+      if (res.ok) {
+        setCashoutStatus({ message: data.message || 'Cashout initiated successfully!', type: 'success' });
+        setCashoutUsername('');
+        setCashoutDestination('');
+        setCashoutAmount('');
+        setIsAmountlessInvoice(false);
+        setIsLightningAddressDetected(false);
+        setIsUSDAmountLocked(false);
+      } else {
+        setCashoutStatus({ message: data.error || 'Failed to initiate cashout.', type: 'error' });
+      }
+    } catch (err) {
+      console.error("Error processing cashout:", err);
+      setCashoutStatus({ message: `An unexpected error occurred: ${err.message}`, type: 'error' });
     } finally {
       setIsSendingCashout(false);
     }
-  }, [cashoutUsername, cashoutDestination, cashoutAmount, paymentGatewayId, isAmountlessInvoice, isLightningAddressDetected]);
+  };
 
-
-  const handleDestinationChange = useCallback((e) => {
-    const value = e.target.value;
-    setCashoutDestination(value);
-    // Check if it's an amountless invoice or lightning address for UI adjustments
-    try {
-      const decoded = bolt11.decode(value);
-      setIsAmountlessInvoice(!decoded.amount);
-      setIsLightningAddressDetected(false);
-    } catch (error) {
-      setIsAmountlessInvoice(false); // Not a valid invoice
-      setIsLightningAddressDetected(value.includes('@')); // Check for lightning address
-    }
-  }, []);
-
+  // --- CONDITIONAL RENDERING FOR LOADING/ACCESS ---
   if (loading) {
-    return <div className="container mt-md text-center">Loading admin panel...</div>;
+    return (
+      <div className="container mt-lg text-center">
+        <p>Loading admin panel...</p>
+      </div>
+    );
   }
 
   if (!isAdmin) {
-    return <div className="container mt-md text-center alert alert-danger">Access Denied. Redirecting...</div>;
+    return (
+      <div className="container mt-lg text-center">
+        <p>Access Denied. You are not authorized to view this page.</p>
+      </div>
+    );
   }
 
+  // --- RENDER ADMIN CASHOUTS PAGE ---
   return (
-    <div className="container mt-md">
+    <div className="admin-cashouts-container">
       <Head>
-        <title>Admin - Cashouts</title>
+        <title>Admin Cashouts</title>
       </Head>
-      <div className="card">
-        <div className="admin-header">
-          <h1 className="text-xl">💰 Cashout Management</h1>
-          <button className="btn btn-secondary" onClick={logout}>Logout</button>
-        </div>
+      <header className="admin-header">
+        <h1>Admin Cashouts</h1>
+        <nav>
+          <ul className="admin-nav">
+            <li><a href="/admin/dashboard" className={router.pathname === "/admin/dashboard" ? "active" : ""}>Dashboard</a></li>
+            <li><a href="/admin/cashouts" className={router.pathname === "/admin/cashouts" ? "active" : ""}>Cashouts</a></li>
+            <li><a href="/admin/games" className={router.pathname === "/admin/games" ? "active" : ""}>Games</a></li>
+            <li><a href="/admin/profit-loss" className={router.pathname === "/admin/profit-loss" ? "active" : ""}>Profit/Loss</a></li>
+            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+          </ul>
+        </nav>
+      </header>
 
-        <section className="admin-section mt-lg">
-          <h2 className="text-lg">Send New Cashout</h2>
-          <form onSubmit={handleSendCashout} className="form-grid">
-            <div className="form-group">
+      <div className="admin-main">
+        <section className="cashout-form-section">
+          <h2>Process New Cashout</h2>
+          <div className="card">
+            <form onSubmit={handleCashoutSubmit}>
               <label htmlFor="cashoutUsername">Username:</label>
               <input
                 id="cashoutUsername"
-                className="input"
                 type="text"
+                className="input"
                 value={cashoutUsername}
                 onChange={(e) => setCashoutUsername(e.target.value)}
+                placeholder="User's Username"
                 required
               />
-            </div>
 
-            <div className="form-group">
               <label htmlFor="cashoutDestination">Lightning Invoice / Address:</label>
               <input
                 id="cashoutDestination"
-                className="input"
                 type="text"
+                className="input"
                 value={cashoutDestination}
                 onChange={handleDestinationChange}
-                placeholder="lnbc1..., username@domain.com"
+                placeholder="lnbc... or user@domain.com"
                 required
               />
-              {isLightningAddressDetected && (
-                <small className="text-info mt-sm">Detected Lightning Address. Amount will be sent based on USD amount.</small>
-              )}
-              {isAmountlessInvoice && (
-                <small className="text-info mt-sm">Detected Amountless Invoice. Amount will be sent based on USD amount.</small>
-              )}
-            </div>
 
-            <div className="form-group">
-              <label htmlFor="cashoutAmount">USD Amount:</label>
+              {isLightningAddressDetected && (
+                <p className="form-info">Lightning Address detected. An invoice will be requested from the address.</p>
+              )}
+
+              <label htmlFor="cashoutAmount">Amount (USD):</label>
               <input
                 id="cashoutAmount"
-                className="input"
                 type="number"
                 step="0.01"
+                className="input"
                 value={cashoutAmount}
                 onChange={(e) => setCashoutAmount(e.target.value)}
-                required
-                min="0.01"
+                placeholder="Amount in USD"
+                required={!isAmountlessInvoice}
+                disabled={isUSDAmountLocked || isAmountlessInvoice} // Disable if invoice has amount or is amountless
               />
-            </div>
+              {isAmountlessInvoice && (
+                <p className="form-info text-warning">Amountless invoice detected. USD amount will be determined by your system.</p>
+              )}
+              {isUSDAmountLocked && (
+                <p className="form-info text-info">Amount locked by invoice.</p>
+              )}
 
-            <div className="form-group">
-              <label htmlFor="paymentGatewayId">Payment Gateway ID (Optional):</label>
-              <input
-                id="paymentGatewayId"
-                className="input"
-                type="text"
-                value={paymentGatewayId}
-                onChange={(e) => setPaymentGatewayId(e.target.value)}
-                placeholder="Optional ID for tracking"
-              />
-            </div>
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={isSendingCashout}>
-              {isSendingCashout ? 'Sending...' : 'Send Cashout'}
-            </button>
-          </form>
-          {cashoutStatus.message && (
-            <div className={`alert mt-md ${cashoutStatus.type === 'error' ? 'alert-danger' : 'alert-success'}`}>
-              {cashoutStatus.message}
-            </div>
-          )}
+              <button className="btn btn-primary mt-md" type="submit" disabled={isSendingCashout}>
+                {isSendingCashout ? 'Processing...' : 'Send Cashout'}
+              </button>
+            </form>
+            {cashoutStatus.message && (
+              <div className={`alert alert-${cashoutStatus.type} mt-md`}>
+                {cashoutStatus.message}
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className="admin-section mt-lg">
-          <h2 className="text-lg">Cashout History ({totalCashouts})</h2>
-          {loadingCashoutHistory ? (
-            <p>Loading cashout history...</p>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-striped">
-                <thead>
-                  <tr>
-                    <th>Username</th>
-                    <th>Destination</th>
-                    <th>USD Amount</th>
-                    <th>BTC Amount</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                    <th>Gateway ID</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cashoutHistory.map((cashout) => (
-                    <tr key={cashout.id}>
-                      <td>{cashout.username}</td>
-                      {/* IMPORTANT FIX: Add null/undefined check for cashout.destination */}
-                      <td>
-                        {cashout.destination
-                          ? (cashout.destination.length > 30
-                            ? `${cashout.destination.substring(0, 30)}...`
-                            : cashout.destination)
-                          : 'N/A'}
-                      </td>
-                      <td>{cashout.amountUSD ? `$${parseFloat(cashout.amountUSD).toFixed(2)}` : 'N/A'}</td>
-                      <td>{cashout.amountBTC ? parseFloat(cashout.amountBTC).toFixed(8) : 'N/A'}</td>
-                      <td style={{
-                        color: cashout.status === 'completed' ? 'green' :
-                               cashout.status === 'pending' ? '#ff9800' :
-                               '#d63031'
-                      }}>
-                        {cashout.status}
-                      </td>
-                      <td>{cashout.time ? new Date(cashout.time).toLocaleString() : 'N/A'}</td>
-                      <td>{cashout.paymentGatewayId || 'N/A'}</td>
+        <section className="cashout-history-section mt-lg">
+          <h2>Cashout History</h2>
+          <div className="card table-card">
+            {loadingCashoutHistory ? (
+              <p className="text-center">Loading cashout history...</p>
+            ) : cashoutHistory.length === 0 ? (
+              <p className="text-center">No cashout history found.</p>
+            ) : (
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>Destination</th>
+                      <th>USD Amount</th>
+                      <th>BTC Amount</th>
+                      <th>Status</th>
+                      <th>Time</th>
+                      <th>Gateway ID</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {cashoutHistory.map((cashout) => (
+                      <tr key={cashout.id}>
+                        <td>{cashout.username}</td>
+                        <td>{cashout.destination.length > 30 ? `${cashout.destination.substring(0, 30)}...` : cashout.destination}</td>
+                        <td>{cashout.amountUSD ? `$${parseFloat(cashout.amountUSD).toFixed(2)}` : 'N/A'}</td>
+                        <td>{cashout.amountBTC ? parseFloat(cashout.amountBTC).toFixed(8) : 'N/A'}</td>
+                        <td style={{
+                          color: cashout.status === 'completed' ? 'green' :
+                                 cashout.status === 'pending' ? '#ff9800' :
+                                 '#d63031'
+                        }}>
+                          {cashout.status}
+                        </td>
+                        <td>{cashout.time ? new Date(cashout.time).toLocaleString() : 'N/A'}</td>
+                        <td>{cashout.paymentGatewayId || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </div>

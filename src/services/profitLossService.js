@@ -13,8 +13,8 @@ export const fetchProfitLossData = async () => {
       time: doc.data().created?.toDate ? doc.data().created.toDate().toISOString() : doc.data().created
     }));
 
-    // Fetch cashouts from 'profitLoss' collection <-- IMPORTANT CHANGE HERE
-    const cashoutSnap = await db.collection('profitLoss').get(); // Updated to 'profitLoss'
+    // Fetch cashouts from 'cashouts' collection (corrected to match where data is stored)
+    const cashoutSnap = await db.collection('cashouts').get(); // Corrected from 'profitLoss'
     const cashoutList = cashoutSnap.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
