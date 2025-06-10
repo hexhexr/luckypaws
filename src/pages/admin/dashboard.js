@@ -5,7 +5,7 @@ import Head from 'next/head';
 import { db } from '../../lib/firebaseClient';
 import { auth as firebaseAuth } from '../../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, limit } from "firebase/firestore";
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // createUserWithEmailAndPassword is unused.
 
 // --- Helper Components ---
 
@@ -189,10 +189,7 @@ export default function AdminDashboard() {
       </Head>
 
       {/* Placeholder for your Admin Navigation Component */}
-      {/* <YourAdminNavigationComponent /> */}
       {/* For example, if you have a Sidebar or AdminHeader component, render it here */}
-      {/* <Sidebar /> */}
-      {/* <AdminHeader /> */}
 
       <main className="admin-main-content"> {/* Adjust class name if different in your CSS */}
         <div className="container mt-md">
@@ -232,7 +229,7 @@ export default function AdminDashboard() {
                         <tr>
                             <td colSpan="6" className="text-center">No recent orders found.</td>
                         </tr>
-                    ) : ( // Re-added this opening parenthesis
+                    ) : ( // Re-added this opening parenthesis for correct JSX grouping
                     recentOrders.map((order) => (
                         <tr key={order.id} className={order.read ? 'order-read' : 'order-unread'}>
                         <td>{order.id.substring(0, 8)}...</td>
@@ -257,7 +254,7 @@ export default function AdminDashboard() {
                         </td>
                         </tr>
                     ))
-                    )} {/* Re-added this closing parenthesis */}
+                    )} {/* Re-added this closing parenthesis for correct JSX grouping */}
                     </tbody>
                 </table>
                 </div>
