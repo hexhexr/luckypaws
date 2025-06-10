@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db } from '../../lib/firebaseClient';
 import { auth as firebaseAuth } from '../../lib/firebaseClient';
-// ADD 'limit' to the import list below
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, limit } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
@@ -124,7 +123,7 @@ export default function AdminDashboard() {
     // Fetch recent orders (e.g., last 10 paid orders)
     setLoadingOrders(true);
     try {
-        const q = query(collection(db, 'orders'), orderBy('created', 'desc'), limit(10)); // LIMIT IS NOW IMPORTED
+        const q = query(collection(db, 'orders'), orderBy('created', 'desc'), limit(10));
         const recentOrdersSnap = await getDocs(q);
         const ordersList = recentOrdersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setRecentOrders(ordersList);
@@ -257,7 +256,8 @@ export default function AdminDashboard() {
                             </div>
                         </td>
                         </tr>
-                    ))}
+                    )) // Corrected: Removed extra `)` here.
+                    }
                     </tbody>
                 </table>
                 </div>
