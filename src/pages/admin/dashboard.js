@@ -4,8 +4,8 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db } from '../../lib/firebaseClient';
 import { auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, limit } from "firebase/firestore";
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // createUserWithEmailAndPassword is unused.
+import { collection, query, where, onSnapshot, orderBy, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc, limit } from "firebase/firestore";
+import { onAuthStateChanged } from 'firebase/auth'; // Removed unused 'createUserWithEmailAndPassword' and 'serverTimestamp'
 
 // --- Helper Components ---
 
@@ -34,7 +34,8 @@ const OrderDetailModal = ({ order, onClose }) => {
                         <p><strong>Amount:</strong> ${order.amount ? parseFloat(order.amount).toFixed(2) : 'N/A'}</p>
                         <p><strong>Status:</strong> {order.status}</p>
                         <p><strong>Created:</strong> {order.created ? new Date(order.created).toLocaleString() : 'N/A'}</p>
-                        <p><strong>Gateway ID:</strong> {order.paymentGatewayId || 'N/A'}</p>
+                        <p><strong>Gateway ID:</strong> {order.paymentGatewayId || 'N/A'}
+                        </p>
                         {order.usdAmount && <p><strong>USD Amount:</strong> ${parseFloat(order.usdAmount).toFixed(2)}</p>}
                         {order.btcAmount && <p><strong>BTC Amount:</strong> {parseFloat(order.btcAmount).toFixed(8)} BTC</p>}
                         {order.lightningInvoice && <p><strong>Lightning Invoice:</strong> <code>{order.lightningInvoice}</code></p>}
@@ -259,10 +260,10 @@ export default function AdminDashboard() {
                 </table>
                 </div>
             )}
-            {/* Removed the extra </div> here */}
         </section>
 
         {modalOrder && <OrderDetailModal order={modalOrder} onClose={() => setModalOrder(null)} />}
+        </div> {/* Correctly closing the "container mt-md" div */}
       </main>
     </div>
   );
