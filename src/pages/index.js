@@ -3,14 +3,19 @@ import React, { useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import PaymentForm from '../components/PaymentForm';
+// import PaymentForm from '../components/PaymentForm'; // <--- REMOVE THIS LINE
+import dynamic from 'next/dynamic'; // <--- ADD THIS LINE
+
+// Dynamically import PaymentForm, ensuring it only renders on the client-side
+const PaymentForm = dynamic(() => import('../components/PaymentForm'), { ssr: false }); // <--- ADD THIS LINE
 
 export default function Home() {
   const paymentFormRef = useRef(null);
 
   useEffect(() => {
     // Scroll to the payment form section on page load
-    if (paymentFormRef.current) {
+    // This part should also be client-side only
+    if (typeof window !== 'undefined' && paymentFormRef.current) { // Add window check
       paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, []);
@@ -40,28 +45,16 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Payment Form Section - Anchor for CTA and auto-focus */}
-        <section id="payment-form-section" className="section-padded" ref={paymentFormRef}>
-          <div className="container">
-            <div className="card">
-              <h2 className="card-header text-center">Secure & Instant Top-Up</h2>
-              <div className="card-body">
-                <PaymentForm />
-              </div>
-            </div>
-          </div>
+        {/* Payment Form Section (will render client-side) */}
+        <section id="payment-form-section" ref={paymentFormRef} className="section-padded">
+          <PaymentForm />
         </section>
 
         {/* Features Section */}
-        <section className="features-section section-padded bg-light-gradient">
+        <section className="features-section section-padded bg-medium-light">
           <div className="container">
-            <h2 className="section-title text-center mb-lg">Why Choose Lucky Paw's?</h2>
+            <h2 className="section-title text-center">Why Choose Lucky Paw's?</h2>
             <div className="feature-grid">
-              <div className="feature-item">
-                <div className="feature-icon">⚡</div>
-                <h3 className="feature-title">Lightning Fast Payments</h3>
-                <p className="feature-description">Top up instantly with Bitcoin Lightning. No waiting, just playing!</p>
-              </div>
               <div className="feature-item">
                 <div className="feature-icon">🎮</div>
                 <h3 className="feature-title">Exciting Fishing Games</h3>
