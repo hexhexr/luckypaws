@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient';
 import QRCodeLib from 'qrcode';
-// Import Icons (example using React Icons)
-import { FaLightningBolt, FaBitcoin, FaSpinner } from 'react-icons/fa'; // Assuming you install react-icons
+
 // Import Modals
 import InvoiceModal from './InvoiceModal';
 import ExpiredModal from './ExpiredModal';
@@ -20,6 +19,7 @@ export default function PaymentForm() {
   const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false });
 
+  // Use a ref to store the expiresAt timestamp for more reliable countdown
   const expiresAtRef = useRef(null);
   const pollingRef = useRef(null);
 
@@ -29,204 +29,225 @@ export default function PaymentForm() {
         const snap = await db.collection('games').orderBy('name').get();
         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
-        console.error("Error loading games:", err);
-        setError("Failed to load games. Please try again later."); // User-friendly error
+        console.error('Error loading games:', err);
+        setError('Failed to load games');
       }
     };
     loadGames();
-    return () => {
-      // Cleanup any listeners if necessary
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(''); // Clear previous errors
-    setLoading(true);
+  // Polling useEffect for status updates
+  useEffect(() => {
+    if (!order || status !== 'pending') {
+      clearInterval(pollingRef.current); // Ensure polling stops if not in pending state
+      return;
+    }
 
-    // Basic client-side validation
-    if (!form.username || !form.game || !form.amount) {
-      setError("Please fill in all required fields.");
-      setLoading(false);
+    // Clear any existing polling interval before setting a new one
+    if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+    }
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/check-status?id=${order.orderId}`);
+        const data = await res.json();
+        
+        if (data?.status === 'paid') {
+          setStatus('paid');
+          setOrder(prev => ({ ...prev, status: 'paid' }));
+          setModals({ invoice: false, receipt: true, expired: false });
+          clearInterval(pollingRef.current);
+          expiresAtRef.current = null; // Clear expiry
+        } else if (data?.status === 'expired') {
+          setStatus('expired');
+          setModals({ invoice: false, receipt: false, expired: true });
+          clearInterval(pollingRef.current);
+          expiresAtRef.current = null; // Clear expiry
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollingRef.current); // Cleanup
+  }, [order, status]); // Dependencies: re-run if order or overall status changes
+
+  const resetAllModals = () => {
+    setModals({ invoice: false, receipt: false, expired: false });
+    setCopied(false);
+    expiresAtRef.current = null; // Clear expiry timestamp
+    clearInterval(pollingRef.current); // Ensure polling stops
+    setError('');
+    // Optionally reset form if you want the user to start fresh
+    // setForm({ username: '', game: '', amount: '', method: 'lightning' });
+  };
+
+  const copyToClipboard = () => {
+    const text = order?.invoice || '';
+    if (!text) {
+      setError('No invoice to copy');
       return;
     }
-    const amountNum = parseFloat(form.amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      setError("Please enter a valid positive amount.");
-      setLoading(false);
-      return;
-    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        setError('Failed to copy invoice to clipboard.');
+    });
+  };
+
+  const isValidQRValue = value =>
+    typeof value === 'string' &&
+    value.trim().length > 10 && // Basic length check
+    /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim()); // More robust lightning invoice regex
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    resetAllModals(); // Reset previous modals and states
+    expiresAtRef.current = null; // Ensure no stale expiry time
 
     try {
-      // Simulate API call for invoice generation
-      const response = await fetch('/api/generateInvoice', { // Assuming you have an API route
+      const res = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Failed to generate invoice.');
+      const data = await res.json();
+      if (!res.ok || !data.invoice || !data.expiresAt) { // Ensure expiresAt is received
+        throw new Error(data.message || 'Invoice generation failed. Missing data.');
+      }
+      if (typeof data.invoice !== 'string' || !isValidQRValue(data.invoice)) {
+        console.error('Invalid invoice format received from API:', data.invoice);
+        throw new Error('Received invalid invoice format from server.');
       }
 
-      const data = await response.json();
-      setOrder(data.order);
-      expiresAtRef.current = data.expiresAt;
-      setModals(m => ({ ...m, invoice: true }));
+      const newOrder = {
+        ...form,
+        invoice: data.invoice,
+        orderId: data.orderId,
+        btc: typeof data.btc === 'string' ? data.btc : '0.00000000',
+        created: new Date().toISOString(),
+        expiresAt: data.expiresAt, // Store the expiry timestamp
+        status: 'pending',
+      };
+      setOrder(newOrder);
       setStatus('pending');
-
-      // Start polling for payment status
-      // You'll need to implement the actual polling logic here,
-      // e.g., using setInterval to check Firebase/backend.
-      // Example: pollingRef.current = setInterval(() => checkPaymentStatus(data.order.id), 5000);
+      expiresAtRef.current = data.expiresAt; // Update ref for new expiry
+      setModals({ invoice: true, receipt: false, expired: false });
 
     } catch (err) {
-      console.error("Invoice generation error:", err);
-      setError(err.message || 'An unexpected error occurred.');
+      console.error('Handle submit error:', err);
+      setError(err.message || 'An error occurred while generating the invoice.');
     } finally {
       setLoading(false);
     }
   };
 
-  const selectPredefinedAmount = (amount) => {
-    setForm(f => ({ ...f, amount: amount.toString() }));
-  };
-
-  // Helper for QR code validation (assuming it's used somewhere in your modals)
-  const isValidQRValue = (value) => {
-    try {
-      QRCodeLib.toDataURL(value);
-      return true;
-    } catch (err) {
-      return false;
-    }
-  };
-
-  const resetAllModals = () => {
-    setModals({ invoice: false, receipt: false, expired: false });
-    setOrder(null);
-    setError('');
-    setStatus('idle');
-    setCopied(false);
-    if (pollingRef.current) clearInterval(pollingRef.current);
-  };
+  const shorten = str =>
+    !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
   return (
-    <section id="payment-form-section" className="section-padded payment-section-container">
-      <div className="container">
-        <div className="card payment-form-card"> {/* Added card class here */}
-          <h2 className="section-title text-center mb-md">Top Up Your Balance</h2>
-          <p className="section-subtitle text-center mb-lg">
-            Instant deposits using Bitcoin Lightning Network.
-          </p>
-
-          {error && <div className="alert alert-danger mt-md mb-md">{error}</div>}
-
-          <form onSubmit={handleSubmit} className="payment-form-grid"> {/* Apply grid for layout */}
-            <div className="form-group">
-              <label htmlFor="username">Your Game Username</label>
-              <input
-                type="text"
-                id="username"
-                className="input-field"
-                placeholder="e.g., PlayerOne"
-                value={form.username}
-                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="game">Select Game</label>
-              <select
-                id="game"
-                className="input-field"
-                value={form.game}
-                onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
-                required
-                disabled={games.length === 0} // Disable if games not loaded
-              >
-                <option value="">{games.length === 0 ? 'Loading games...' : 'Choose a game...'}</option>
-                {games.map(game => (
-                  <option key={game.id} value={game.id}>{game.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="amount">Amount (USD)</label>
-              <input
-                type="number"
-                id="amount"
-                className="input-field"
-                placeholder="Minimum $10"
-                value={form.amount}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                min="10" // Example minimum
-                step="0.01"
-                required
-              />
-              <div className="amount-suggestions mt-xs">
-                <button type="button" className="btn btn-secondary btn-small mr-sm" onClick={() => selectPredefinedAmount(10)}>$10</button>
-                <button type="button" className="btn btn-secondary btn-small mr-sm" onClick={() => selectPredefinedAmount(20)}>$20</button>
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => selectPredefinedAmount(50)}>$50</button>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Payment Method</label>
-              <div className="radio-option-group">
-                <label className="radio-label">
-                  <input
-                    type="radio"
-                    name="method"
-                    value="lightning"
-                    checked={form.method === 'lightning'}
-                    onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
-                  />
-                  <FaLightningBolt className="icon-inline mr-xs" /> Lightning (Instant)
-                </label>
-                {/* Potentially add other methods here */}
-                {/* <label className="radio-label">
-                  <input type="radio" name="method" value="bitcoin" disabled />
-                  <FaBitcoin className="icon-inline mr-xs" /> Bitcoin (On-chain) - Coming Soon
-                </label> */}
-              </div>
-            </div>
-
-            <div className="button-group text-center">
-              <button
-                className="btn btn-primary btn-large"
-                type="submit"
-                disabled={loading || !form.username || !form.game || !form.amount || parseFloat(form.amount) <= 0}
-              >
-                {loading ? (
-                  <>
-                    <FaSpinner className="icon-spin mr-sm" /> Generating Invoice...
-                  </>
-                ) : (
-                  'Generate Invoice'
-                )}
-              </button>
-            </div>
-          </form>
+    <>
+      <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
+      <form onSubmit={handleSubmit} className="payment-form-layout">
+        <div className="form-group">
+          <label htmlFor="username">Username</label>
+          <input
+            id="username"
+            className="input-field"
+            name="username"
+            value={form.username}
+            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+            required
+            placeholder="Your in-game username"
+          />
         </div>
-      </div>
-      {/* Render Modals here */}
+
+        <div className="form-group">
+          <label htmlFor="game">Select Game</label>
+          <select
+            id="game"
+            className="select-field"
+            name="game"
+            value={form.game}
+            onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
+            required
+          >
+            <option value="" disabled>Select a Game</option>
+            {games.map(g => (
+              <option key={g.id} value={g.name}>{g.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="amount">Amount (USD)</label>
+          <input
+            id="amount"
+            className="input-field"
+            type="number"
+            min="1"
+            step="0.01"
+            name="amount"
+            value={form.amount}
+            onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+            required
+            placeholder="e.g., 50.00"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Payment Method</label>
+          <div className="radio-option-group">
+            <label>
+              <input
+                type="radio"
+                name="method"
+                value="lightning"
+                checked={form.method === 'lightning'}
+                onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
+              />
+              Lightning (Instant)
+            </label>
+          </div>
+        </div>
+
+        <div className="button-group">
+          <button className="btn btn-primary" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
+            {loading ? 'Generating Invoice...' : 'Generate Invoice'}
+          </button>
+        </div>
+      </form>
+
+      {error && <div className="alert alert-danger mt-md">{error}</div>}
+
+      {/* Render Modals here, passing necessary props */}
       {modals.invoice && (
         <InvoiceModal
           order={order}
-          expiresAt={expiresAtRef.current}
+          expiresAt={expiresAtRef.current} // Pass the expiresAt timestamp
           setCopied={setCopied}
           copied={copied}
           resetModals={resetAllModals}
           isValidQRValue={isValidQRValue}
         />
       )}
-      {modals.expired && (<ExpiredModal resetModals={resetAllModals} />)}
-      {modals.receipt && order && (<ReceiptModal order={order} resetModals={resetAllModals} />)}
-    </section>
+
+      {modals.expired && (
+        <ExpiredModal resetModals={resetAllModals} />
+      )}
+
+      {modals.receipt && order && (
+        <ReceiptModal
+          order={order}
+          resetModals={resetAllModals}
+          shorten={shorten}
+        />
+      )}
+    </>
   );
 }
