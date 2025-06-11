@@ -4,11 +4,12 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, onSnapshot, doc, getDoc, where } from 'firebase/firestore'; // Added 'where'
+import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
-// Removed: import { fetchProfitLossData } from '../../services/profitLossService';
-// Reason: Data fetching is now integrated directly into the component for real-time aggregation.
+// IMPORTANT: Retaining the original import for data fetching from the service.
+// This ensures the component's existing logic for data retrieval is not disturbed.
+import { fetchProfitLossData } from '../../services/profitLossService';
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -25,7 +26,7 @@ const LoadingSkeleton = () => (
   </div>
 );
 
-// Sortable Table Header Component (reused from dashboard)
+// Sortable Table Header Component
 const SortableTableHeader = ({ label, field, currentSortField, currentSortDirection, onSort }) => {
     const isCurrent = field === currentSortField;
     const sortIcon = isCurrent
@@ -44,11 +45,10 @@ export default function AdminProfitLoss() {
   // --- AUTHENTICATION STATES ---
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-
-  // --- DATA STATES ---
-  const [orders, setOrders] = useState([]); // All paid orders (deposits)
-  const [cashouts, setCashouts] = useState([]); // All completed cashouts
   const [error, setError] = useState('');
+
+  // --- DATA STATE (Populated from fetchProfitLossData service) ---
+  const [allTransactions, setAllTransactions] = useState([]);
 
   // --- FILTERING, SORTING, PAGINATION STATES (for User Profit/Loss table) ---
   const [timeframeFilter, setTimeframeFilter] = useState('all-time-users'); // 'daily', 'weekly', 'all-time-users'
@@ -68,7 +68,7 @@ export default function AdminProfitLoss() {
 
           if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
             setIsAdmin(true);
-            setLoading(false);
+            setLoading(false); // Set loading to false after admin check and before data fetch
           } else {
             console.log('User is not an admin. Redirecting.');
             await firebaseAuth.signOut();
@@ -82,6 +82,7 @@ export default function AdminProfitLoss() {
       } else {
         console.log('No user signed in. Redirecting to admin login.');
         router.replace('/admin');
+        setLoading(false); // Set loading to false if no user
       }
     });
 
@@ -89,80 +90,52 @@ export default function AdminProfitLoss() {
   }, [router]);
 
 
-  // --- REAL-TIME DATA FETCHING (Orders and Cashouts) ---
+  // --- DATA FETCHING (from profitLossService) ---
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) return; // Only fetch data if admin is confirmed
 
-    setError('');
-
-    // Fetch all paid orders (deposits)
-    const unsubscribeOrders = onSnapshot(
-      query(collection(db, 'orders'), where('status', '==', 'paid')),
-      (snapshot) => {
-        setOrders(snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          created: doc.data().created?.toDate ? doc.data().created.toDate() : null, // Convert Timestamp to Date object
-          amount: parseFloat(doc.data().amount || 0)
-        })));
-      },
-      (err) => {
-        console.error("Error fetching orders:", err);
-        setError("Failed to load orders data.");
+    const fetchData = async () => {
+      setError('');
+      try {
+        // Fetch combined data from the service
+        const data = await fetchProfitLossData();
+        setAllTransactions(data);
+      } catch (e) {
+        console.error("Error fetching profit loss data:", e);
+        setError("Failed to load profit and loss data.");
       }
-    );
-
-    // Fetch all completed cashouts from the 'cashouts' collection
-    const unsubscribeCashouts = onSnapshot(
-      query(collection(db, 'cashouts'), where('status', '==', 'completed')),
-      (snapshot) => {
-        setCashouts(snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          created: doc.data().created?.toDate ? doc.data().created.toDate() : null, // Assuming 'created' field exists and is Timestamp
-          amount: parseFloat(doc.data().amountUSD || doc.data().amount || 0) // Use amountUSD if available, else amount
-        })));
-      },
-      (err) => {
-        console.error("Error fetching cashouts:", err);
-        setError("Failed to load cashouts data.");
-      }
-    );
-
-    return () => {
-      unsubscribeOrders();
-      unsubscribeCashouts();
     };
+
+    fetchData(); // Initial fetch on component mount and isAdmin change
+
+    // Note: If fetchProfitLossData does not use real-time listeners (e.g., onSnapshot),
+    // then this data will not update in real-time unless the component re-mounts
+    // or isAdmin changes. Based on the provided snippet of profitLossService.js,
+    // it uses `.get()` which is a one-time fetch.
   }, [isAdmin]);
 
 
   // --- AGGREGATION LOGIC (Daily/Weekly/All-Time User Profit/Loss) ---
 
-  // Combined and sorted transactions for time-based aggregation
-  const allTransactions = useMemo(() => {
-    const combined = [
-      ...orders.map(o => ({ ...o, type: 'deposit', transactionDate: o.created, username: o.username })),
-      ...cashouts.map(c => ({ ...c, type: 'cashout', transactionDate: c.created, username: c.username }))
-    ].filter(t => t.transactionDate !== null); // Filter out transactions without valid dates
-
-    return combined.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime()); // Sort oldest to newest
-  }, [orders, cashouts]);
-
-
   // Daily Profit/Loss Aggregation
   const dailyStats = useMemo(() => {
     const stats = {}; // { 'YYYY-MM-DD': { totalDeposits: X, totalCashouts: Y, net: Z } }
     allTransactions.forEach(t => {
-      const dateKey = t.transactionDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      // Ensure transactionDate is a Date object, handling different possible 'time' formats from service
+      const transactionDate = t.time ? new Date(t.time) : null;
+
+      if (!transactionDate || isNaN(transactionDate.getTime())) return; // Skip invalid dates
+
+      const dateKey = transactionDate.toISOString().slice(0, 10); // YYYY-MM-DD
       if (!stats[dateKey]) {
         stats[dateKey] = { date: dateKey, totalDeposits: 0, totalCashouts: 0, net: 0 };
       }
       if (t.type === 'deposit') {
-        stats[dateKey].totalDeposits += t.amount;
-        stats[dateKey].net += t.amount;
+        stats[dateKey].totalDeposits += parseFloat(t.amount || 0);
+        stats[dateKey].net += parseFloat(t.amount || 0);
       } else if (t.type === 'cashout') {
-        stats[dateKey].totalCashouts += t.amount;
-        stats[dateKey].net -= t.amount;
+        stats[dateKey].totalCashouts += parseFloat(t.amountUSD || t.amount || 0); // Use amountUSD if available, else amount
+        stats[dateKey].net -= parseFloat(t.amountUSD || t.amount || 0);
       }
     });
     return Object.values(stats).sort((a, b) => b.date.localeCompare(a.date)); // Sort newest to oldest
@@ -173,14 +146,15 @@ export default function AdminProfitLoss() {
     const stats = {}; // { 'YYYY-WW': { totalDeposits: X, totalCashouts: Y, net: Z } }
 
     allTransactions.forEach(t => {
+      const transactionDate = t.time ? new Date(t.time) : null;
+      if (!transactionDate || isNaN(transactionDate.getTime())) return; // Skip invalid dates
+
       // Get week number (ISO week date - week starts on Monday)
-      const date = t.transactionDate;
+      const date = transactionDate;
       const year = date.getFullYear();
       const firstDayOfYear = new Date(year, 0, 1);
       const days = Math.floor((date.getTime() - firstDayOfYear.getTime()) / (24 * 60 * 60 * 1000));
-      // This is a simplified week number calculation. For strict ISO week, a more robust function is needed.
-      // For general purposes, this will group by approximate weeks.
-      const weekNumber = Math.ceil((days + firstDayOfYear.getDay() + 1) / 7);
+      const weekNumber = Math.ceil((days + firstDayOfYear.getDay() + 1) / 7); // Simplified week calculation
 
       const weekKey = `${year}-${String(weekNumber).padStart(2, '0')}`;
 
@@ -188,11 +162,11 @@ export default function AdminProfitLoss() {
         stats[weekKey] = { week: weekKey, totalDeposits: 0, totalCashouts: 0, net: 0 };
       }
       if (t.type === 'deposit') {
-        stats[weekKey].totalDeposits += t.amount;
-        stats[weekKey].net += t.amount;
+        stats[weekKey].totalDeposits += parseFloat(t.amount || 0);
+        stats[weekKey].net += parseFloat(t.amount || 0);
       } else if (t.type === 'cashout') {
-        stats[weekKey].totalCashouts += t.amount;
-        stats[weekKey].net -= t.amount;
+        stats[weekKey].totalCashouts += parseFloat(t.amountUSD || t.amount || 0);
+        stats[weekKey].net -= parseFloat(t.amountUSD || t.amount || 0);
       }
     });
     return Object.values(stats).sort((a, b) => b.week.localeCompare(a.week)); // Sort newest to oldest
@@ -216,9 +190,9 @@ export default function AdminProfitLoss() {
       }
 
       if (t.type === 'deposit') {
-        userMap[username].totalDeposits += t.amount;
+        userMap[username].totalDeposits += parseFloat(t.amount || 0);
       } else if (t.type === 'cashout') {
-        userMap[username].totalCashout += t.amount;
+        userMap[username].totalCashout += parseFloat(t.amountUSD || t.amount || 0);
       }
       userMap[username].net = userMap[username].totalDeposits - userMap[username].totalCashout;
       userMap[username].profitMargin = userMap[username].totalDeposits > 0
