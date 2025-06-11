@@ -1,19 +1,11 @@
 // pages/admin/profit-loss.js
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head'; // Import Head for page title
+import Head from 'next/head';
 
-// Import Firebase client-side SDK elements
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore'; // Import necessary Firestore functions
-import { onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
-
-// It's good practice to fetch data directly in the component or via a custom hook
-// if the service primarily uses client-side Firebase SDK.
-// For server-side rendering or more complex scenarios, keep a dedicated service.
-// Assuming fetchProfitLossData is meant for client-side use given firebaseClient import.
-// You might need to adjust fetchProfitLossData if it's currently expecting global db.
-import { fetchProfitLossData } from '../../services/profitLossService'; // Assuming this uses client-side Firebase
+import { collection, query, onSnapshot, getDocs, doc, getDoc, where } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -26,200 +18,298 @@ const LoadingSkeleton = () => (
     <div className="skeleton-line" style={{ width: '90%' }}></div>
     <div className="skeleton-line" style={{ width: '70%' }}></div>
     <div className="skeleton-line" style={{ width: '85%' }}></div>
-    <style jsx>{`
-      .loading-skeleton {
-        padding: var(--spacing-md);
-        border-radius: var(--radius-sm);
-        background-color: var(--card-bg);
-        box-shadow: var(--shadow-sm);
-      }
-      .skeleton-line {
-        height: 1em;
-        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-        background-size: 200% 100%;
-        animation: loading 1.5s infinite;
-        margin-bottom: var(--spacing-sm);
-        border-radius: 4px;
-      }
-      @keyframes loading {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-      }
-    `}</style>
+    <div className="skeleton-line" style={{ width: '75%' }}></div>
   </div>
 );
 
+// Sortable Table Header Component (reused from dashboard)
+const SortableTableHeader = ({ label, field, currentSortField, currentSortDirection, onSort }) => {
+    const isCurrent = field === currentSortField;
+    const sortIcon = isCurrent
+        ? (currentSortDirection === 'asc' ? '▲' : '▼')
+        : '';
+    return (
+        <th onClick={() => onSort(field)} style={{ cursor: 'pointer' }}>
+            {label} {sortIcon}
+        </th>
+    );
+};
 
-export default function ProfitLoss() {
+export default function AdminProfitLoss() {
   const router = useRouter();
 
   // --- AUTHENTICATION STATES ---
-  const [loadingAuth, setLoadingAuth] = useState(true); // Changed name to avoid conflict
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // --- DATA STATES ---
-  const [allTransactions, setAllTransactions] = useState([]);
+  const [orders, setOrders] = useState([]); // All paid orders (deposits)
+  const [cashouts, setCashouts] = useState([]); // All cashouts
   const [error, setError] = useState('');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
+
+  // --- FILTERING, SORTING, PAGINATION STATES (for User Profit/Loss table) ---
+  const [timeframeFilter, setTimeframeFilter] = useState('all-time-users'); // 'daily', 'weekly', 'all-time-users'
   const [searchTerm, setSearchTerm] = useState('');
-  const [loadingData, setLoadingData] = useState(true); // Separate loading state for data
-
-  // --- PAGINATION STATES ---
+  const [sortField, setSortField] = useState('net'); // Default sort by net profit
+  const [sortDirection, setSortDirection] = useState('desc'); // Default sort desc
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Number of items per page
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // --- AUTHENTICATION AND ROLE CHECK (Same as other admin pages) ---
+  // --- AUTHENTICATION AND ROLE CHECK ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
       if (user) {
-        // User is signed in, now check their role in Firestore
         try {
           const userDocRef = doc(db, 'users', user.uid);
           const userDocSnap = await getDoc(userDocRef);
 
           if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
             setIsAdmin(true);
-            setLoadingAuth(false);
+            setLoading(false);
           } else {
-            // User is signed in but not an admin
             console.log('User is not an admin. Redirecting.');
-            await firebaseAuth.signOut(); // Sign them out
+            await firebaseAuth.signOut();
             router.replace('/admin');
           }
         } catch (e) {
           console.error("Error checking admin role:", e);
-          await firebaseAuth.signOut(); // Sign out on error
+          await firebaseAuth.signOut();
           router.replace('/admin');
         }
       } else {
-        // No user is signed in
         console.log('No user signed in. Redirecting to admin login.');
         router.replace('/admin');
       }
     });
 
-    return () => unsubscribe(); // Clean up auth listener
+    return () => unsubscribe();
   }, [router]);
 
 
-  // --- LOGOUT FUNCTION (Same as other admin pages) ---
-  const logout = useCallback(async () => {
-    try {
-      await firebaseAuth.signOut();
-      router.push('/admin');
-    } catch (err) {
-      console.error("Logout error:", err);
-      alert('Failed to logout. Please try again.');
-    }
-  }, [router]);
-
-
-  // --- DATA FETCHING LOGIC ---
+  // --- REAL-TIME DATA FETCHING (Orders and Cashouts) ---
   useEffect(() => {
-    if (!isAdmin) return; // Only fetch data if user is confirmed admin
+    if (!isAdmin) return;
 
-    const getProfitLoss = async () => {
-      setLoadingData(true);
-      setError('');
-      try {
-        const data = await fetchProfitLossData(); // This function should use client-side Firebase
-        setAllTransactions(data);
-      } catch (err) {
-        console.error('Failed to fetch profit/loss data:', err);
-        setError('Failed to load profit/loss data. Please try again.');
-      } finally {
-        setLoadingData(false);
+    setError('');
+
+    // Fetch all paid orders (deposits)
+    const unsubscribeOrders = onSnapshot(
+      query(collection(db, 'orders'), where('status', '==', 'paid')),
+      (snapshot) => {
+        setOrders(snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          created: doc.data().created?.toDate ? doc.data().created.toDate() : null, // Convert Timestamp to Date object
+          amount: parseFloat(doc.data().amount || 0)
+        })));
+      },
+      (err) => {
+        console.error("Error fetching orders:", err);
+        setError("Failed to load orders data.");
       }
+    );
+
+    // Fetch all completed cashouts
+    const unsubscribeCashouts = onSnapshot(
+      query(collection(db, 'cashouts'), where('status', '==', 'completed')),
+      (snapshot) => {
+        setCashouts(snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          created: doc.data().created?.toDate ? doc.data().created.toDate() : null, // Assuming 'created' field exists and is Timestamp
+          amount: parseFloat(doc.data().amountUSD || doc.data().amount || 0) // Use amountUSD if available, else amount
+        })));
+      },
+      (err) => {
+        console.error("Error fetching cashouts:", err);
+        setError("Failed to load cashouts data.");
+      }
+    );
+
+    return () => {
+      unsubscribeOrders();
+      unsubscribeCashouts();
     };
-
-    // Since fetchProfitLossData uses get() which is not real-time,
-    // we might want to set up an interval or a refresh button
-    // or convert fetchProfitLossData to use onSnapshot for real-time updates if preferred.
-    // For now, let's fetch once on isAdmin change and then provide a refresh mechanism if needed.
-    getProfitLoss();
-
-    // Optionally, if you want real-time updates for deposits/cashouts,
-    // you'd set up onSnapshot listeners directly in this component's useEffect,
-    // similar to how it's done in Dashboard.js for recent orders.
-    // For now, we'll stick with the existing fetchProfitLossData service.
-
-  }, [isAdmin]); // Re-fetch data when isAdmin status changes
+  }, [isAdmin]);
 
 
-  // --- FILTERING AND AGGREGATION LOGIC ---
-  const aggregatedUsers = useMemo(() => {
-    const users = {};
+  // --- AGGREGATION LOGIC (Daily/Weekly/All-Time User Profit/Loss) ---
 
-    allTransactions.forEach(item => {
-      const username = item.username;
-      if (!users[username]) {
-        users[username] = {
-          username: username,
-          fbUsername: item.fbUsername || 'N/A', // Assuming fbUsername exists
-          totalDeposit: 0,
+  // Combined and sorted transactions for time-based aggregation
+  const allTransactions = useMemo(() => {
+    const combined = [
+      ...orders.map(o => ({ ...o, type: 'deposit', transactionDate: o.created })),
+      ...cashouts.map(c => ({ ...c, type: 'cashout', transactionDate: c.created }))
+    ].filter(t => t.transactionDate !== null); // Filter out transactions without valid dates
+
+    return combined.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime()); // Sort oldest to newest
+  }, [orders, cashouts]);
+
+
+  // Daily Profit/Loss Aggregation
+  const dailyStats = useMemo(() => {
+    const stats = {}; // { 'YYYY-MM-DD': { totalDeposits: X, totalCashouts: Y, net: Z } }
+    allTransactions.forEach(t => {
+      const dateKey = t.transactionDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      if (!stats[dateKey]) {
+        stats[dateKey] = { date: dateKey, totalDeposits: 0, totalCashouts: 0, net: 0 };
+      }
+      if (t.type === 'deposit') {
+        stats[dateKey].totalDeposits += t.amount;
+        stats[dateKey].net += t.amount;
+      } else if (t.type === 'cashout') {
+        stats[dateKey].totalCashouts += t.amount;
+        stats[dateKey].net -= t.amount;
+      }
+    });
+    return Object.values(stats).sort((a, b) => b.date.localeCompare(a.date)); // Sort newest to oldest
+  }, [allTransactions]);
+
+  // Weekly Profit/Loss Aggregation
+  const weeklyStats = useMemo(() => {
+    const stats = {}; // { 'YYYY-WW': { totalDeposits: X, totalCashouts: Y, net: Z } }
+
+    allTransactions.forEach(t => {
+      // Get week number (ISO week date - week starts on Monday)
+      const date = t.transactionDate;
+      const year = date.getFullYear();
+      const firstDayOfYear = new Date(year, 0, 1);
+      const days = Math.floor((date.getTime() - firstDayOfYear.getTime()) / (24 * 60 * 60 * 1000));
+      const weekNumber = Math.ceil((days + firstDayOfYear.getDay() + 1) / 7); // Adjust for week start/offset
+
+      const weekKey = `${year}-${String(weekNumber).padStart(2, '0')}`;
+
+      if (!stats[weekKey]) {
+        stats[weekKey] = { week: weekKey, totalDeposits: 0, totalCashouts: 0, net: 0 };
+      }
+      if (t.type === 'deposit') {
+        stats[weekKey].totalDeposits += t.amount;
+        stats[weekKey].net += t.amount;
+      } else if (t.type === 'cashout') {
+        stats[weekKey].totalCashouts += t.amount;
+        stats[weekKey].net -= t.amount;
+      }
+    });
+    return Object.values(stats).sort((a, b) => b.week.localeCompare(a.week)); // Sort newest to oldest
+  }, [allTransactions]);
+
+
+  // All-Time User Profit/Loss Aggregation (from combined orders & cashouts)
+  const userProfitLossData = useMemo(() => {
+    const userMap = {}; // { username: { totalDeposits, totalCashout, net, profitMargin } }
+
+    allTransactions.forEach(t => {
+      const username = t.username || 'Unknown User'; // Handle cases where username might be missing
+      if (!userMap[username]) {
+        userMap[username] = {
+          username,
+          totalDeposits: 0,
           totalCashout: 0,
           net: 0,
-          profitMargin: 0,
+          profitMargin: 0
         };
       }
 
-      // Filter by date range (if applicable)
-      const itemDate = new Date(item.time);
-      const start = filterStartDate ? new Date(filterStartDate) : null;
-      const end = filterEndDate ? new Date(filterEndDate) : null;
-
-      if ((!start || itemDate >= start) && (!end || itemDate <= end)) {
-        if (item.type === 'deposit') {
-          users[username].totalDeposit += parseFloat(item.amount || 0);
-        } else if (item.type === 'cashout') {
-          users[username].totalCashout += parseFloat(item.amountUSD || item.amount || 0); // Use amountUSD for cashouts
-        }
+      if (t.type === 'deposit') {
+        userMap[username].totalDeposits += t.amount;
+      } else if (t.type === 'cashout') {
+        userMap[username].totalCashout += t.amount;
       }
+      userMap[username].net = userMap[username].totalDeposits - userMap[username].totalCashout;
+      userMap[username].profitMargin = userMap[username].totalDeposits > 0
+        ? ((userMap[username].net / userMap[username].totalDeposits) * 100).toFixed(2)
+        : 0;
     });
 
-    return Object.values(users).map(user => {
-      user.net = user.totalDeposit - user.totalCashout;
-      user.profitMargin = user.totalDeposit > 0
-        ? ((user.net / user.totalDeposit) * 100).toFixed(2)
-        : 0; // Handle division by zero
-      return user;
-    });
-  }, [allTransactions, filterStartDate, filterEndDate]);
+    return Object.values(userMap);
+  }, [allTransactions]);
 
+  // --- CLIENT-SIDE FILTERING, SORTING, PAGINATION LOGIC (for User table) ---
   const filteredAndSortedUsers = useMemo(() => {
-    let filtered = aggregatedUsers;
+    let filtered = userProfitLossData;
 
-    // Apply search term filter
+    // Search Filtering
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(user =>
-        user.username.toLowerCase().includes(lowerCaseSearchTerm) ||
-        (user.fbUsername && user.fbUsername.toLowerCase().includes(lowerCaseSearchTerm))
+        user.username.toLowerCase().includes(lowerCaseSearchTerm)
       );
     }
 
-    // Sort by net profit/loss (descending) by default
-    return filtered.sort((a, b) => b.net - a.net);
-  }, [aggregatedUsers, searchTerm]);
+    // Sorting
+    const sorted = [...filtered].sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
 
-  // --- PAGINATION LOGIC ---
+      // Handle numeric sorting (for amount, net, profitMargin)
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+      // Handle string sorting (for username)
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [userProfitLossData, searchTerm, sortField, sortDirection]);
+
+  // Pagination calculation for user table
   const totalPages = Math.ceil(filteredAndSortedUsers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const filteredAndSortedUsersForTable = filteredAndSortedUsers.slice(startIndex, endIndex);
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredAndSortedUsers.slice(startIndex, endIndex);
+  }, [filteredAndSortedUsers, currentPage, itemsPerPage]);
 
-  const nextPage = () => {
-    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+
+  // --- HANDLERS FOR UI CONTROLS ---
+  const handleSort = useCallback((field) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc'); // Default to descending for new sort field
+    }
+    setCurrentPage(1); // Reset page on sort change
+  }, [sortField, sortDirection]);
+
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset page on search change
+  }, []);
+
+  const handleItemsPerPageChange = useCallback((e) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1); // Reset page on items per page change
+  }, []);
+
+  const nextPage = useCallback(() => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  }, [currentPage, totalPages]);
+
+  const prevPage = useCallback(() => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  }, [currentPage]);
+
+  const logout = async () => {
+    try {
+      await firebaseAuth.signOut();
+      router.push('/admin');
+    } catch (error) {
+      console.error("Error logging out:", error);
+      alert('Failed to log out. Please try again.');
+    }
   };
 
-  const prevPage = () => {
-    setCurrentPage(prev => Math.max(prev - 1, 1));
-  };
 
-
-  // --- CONDITIONAL RENDERING FOR LOADING/ACCESS ---
-  if (loadingAuth) {
+  // --- CONDITIONAL RENDERING ---
+  if (loading) {
     return (
       <div className="container mt-lg text-center">
         <p>Loading admin panel...</p>
@@ -241,7 +331,7 @@ export default function ProfitLoss() {
         <title>Admin Profit/Loss</title>
       </Head>
       <header className="admin-header">
-        <h1>Profit/Loss Report</h1>
+        <h1>Admin Profit/Loss</h1>
         <nav>
           <ul className="admin-nav">
             <li><a href="/admin/dashboard" className={router.pathname === "/admin/dashboard" ? "active" : ""}>Dashboard</a></li>
@@ -253,110 +343,228 @@ export default function ProfitLoss() {
         </nav>
       </header>
 
-      <div className="admin-main">
-        <section className="filters-section">
-          <h2>Filters</h2>
-          <div className="card">
-            <div className="filter-group">
-              <label htmlFor="search-term">Search Username:</label>
-              <input
-                id="search-term"
-                type="text"
-                className="input"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by username or Firebase username"
-              />
+      <main className="admin-main-content">
+        {error && <div className="alert alert-danger mb-lg">{error}</div>}
+
+        <section className="timeframe-selection mb-lg card">
+            <h2>Profit & Loss Overview</h2>
+            <div className="status-filter-buttons"> {/* Reusing button group styling */}
+                <button
+                    className={`btn ${timeframeFilter === 'daily' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setTimeframeFilter('daily')}
+                >
+                    Daily Stats
+                </button>
+                <button
+                    className={`btn ${timeframeFilter === 'weekly' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setTimeframeFilter('weekly')}
+                >
+                    Weekly Stats
+                </button>
+                <button
+                    className={`btn ${timeframeFilter === 'all-time-users' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setTimeframeFilter('all-time-users')}
+                >
+                    All-Time User P/L
+                </button>
             </div>
-            <div className="filter-group">
-              <label htmlFor="start-date">Start Date:</label>
-              <input
-                id="start-date"
-                type="date"
-                className="input"
-                value={filterStartDate}
-                onChange={(e) => setFilterStartDate(e.target.value)}
-              />
-            </div>
-            <div className="filter-group">
-              <label htmlFor="end-date">End Date:</label>
-              <input
-                id="end-date"
-                type="date"
-                className="input"
-                value={filterEndDate}
-                onChange={(e) => setFilterEndDate(e.target.value)}
-              />
-            </div>
-          </div>
         </section>
 
-        <section className="profit-loss-data mt-lg">
-          <h2>User Profit/Loss Summary</h2>
-          {error && <div className="alert alert-danger mt-md">{error}</div>}
-          {loadingData ? (
-            <LoadingSkeleton />
-          ) : filteredAndSortedUsersForTable.length === 0 ? (
-            <div className="card">
-              <p className="text-center">No matching profit/loss data found.</p>
-            </div>
-          ) : (
-            <div className="card table-card">
-              <div className="table-responsive">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Username</th>
-                    <th>Firebase Username</th>
-                    <th>Total Deposit</th>
-                    <th>Total Cashout</th>
-                    <th>Net Profit/Loss</th>
-                    <th>Profit Margin</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedUsersForTable.map(user => (
-                    <tr key={user.username}>
-                      <td>{user.username}</td>
-                      <td>{user.fbUsername}</td>
-                      <td className="text-success">{formatCurrency(user.totalDeposit)}</td>
-                      <td className="text-danger">{formatCurrency(user.totalCashout)}</td>
-                      <td style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>{formatCurrency(user.net)}</td>
-                      <td>{user.profitMargin}%</td>
-                      <td>
-                        {/* Assuming '/admin/customer/[username]' is a valid route for user details */}
-                        <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          )}
+        {timeframeFilter === 'daily' && (
+            <section className="daily-stats-section mt-lg">
+                <h2>Daily Profit & Loss</h2>
+                <div className="card table-card">
+                    {dailyStats.length === 0 ? (
+                        <p className="text-center">No daily data available.</p>
+                    ) : (
+                        <div className="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Total Deposits</th>
+                                    <th>Total Cashouts</th>
+                                    <th>Net P/L</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {dailyStats.map(stat => (
+                                    <tr key={stat.date}>
+                                        <td>{stat.date}</td>
+                                        <td>{formatCurrency(stat.totalDeposits)}</td>
+                                        <td>{formatCurrency(stat.totalCashouts)}</td>
+                                        <td style={{ color: stat.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
+                                            {formatCurrency(stat.net)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        </div>
+                    )}
+                </div>
+            </section>
+        )}
 
-          {filteredAndSortedUsers.length > itemsPerPage && ( // Check total filtered users for pagination
-            <div className="pagination-controls mt-lg text-center">
-              <button
-                className="btn btn-secondary mr-md"
-                onClick={prevPage}
-                disabled={currentPage === 1}
-              >
-                ← Previous
-              </button>
-              <span>Page {currentPage} of {totalPages}</span>
-              <button
-                className="btn btn-secondary ml-md"
-                onClick={nextPage}
-                disabled={currentPage === totalPages}
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </section> {/* Removed the extra closing section tag that caused the build error */}
-      </div>
+        {timeframeFilter === 'weekly' && (
+            <section className="weekly-stats-section mt-lg">
+                <h2>Weekly Profit & Loss</h2>
+                <div className="card table-card">
+                    {weeklyStats.length === 0 ? (
+                        <p className="text-center">No weekly data available.</p>
+                    ) : (
+                        <div className="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Week (YYYY-WW)</th>
+                                    <th>Total Deposits</th>
+                                    <th>Total Cashouts</th>
+                                    <th>Net P/L</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {weeklyStats.map(stat => (
+                                    <tr key={stat.week}>
+                                        <td>{stat.week}</td>
+                                        <td>{formatCurrency(stat.totalDeposits)}</td>
+                                        <td>{formatCurrency(stat.totalCashouts)}</td>
+                                        <td style={{ color: stat.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
+                                            {formatCurrency(stat.net)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        </div>
+                    )}
+                </div>
+            </section>
+        )}
+
+
+        {timeframeFilter === 'all-time-users' && (
+            <section className="user-profit-loss-section mt-lg">
+                <h2>All-Time User Profit/Loss</h2>
+
+                <div className="card filter-controls mb-lg">
+                    <div className="filter-group">
+                        <label htmlFor="userSearch">Search User:</label>
+                        <input
+                            type="text"
+                            id="userSearch"
+                            className="input"
+                            placeholder="Search by username..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                        />
+                    </div>
+                     <div className="filter-group">
+                        <label htmlFor="itemsPerPage">Users per page:</label>
+                        <select
+                            id="itemsPerPage"
+                            className="input"
+                            value={itemsPerPage}
+                            onChange={handleItemsPerPageChange}
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="card table-card">
+                {paginatedUsers.length === 0 && !loading ? (
+                    <p className="text-center">No users to display based on current filters.</p>
+                ) : (
+                    <div className="table-responsive">
+                    <table>
+                        <thead>
+                        <tr>
+                            <SortableTableHeader
+                                label="Username"
+                                field="username"
+                                currentSortField={sortField}
+                                currentSortDirection={sortDirection}
+                                onSort={handleSort}
+                            />
+                            <SortableTableHeader
+                                label="Total Deposits"
+                                field="totalDeposits"
+                                currentSortField={sortField}
+                                currentSortDirection={sortDirection}
+                                onSort={handleSort}
+                            />
+                            <SortableTableHeader
+                                label="Total Cashout"
+                                field="totalCashout"
+                                currentSortField={sortField}
+                                currentSortDirection={sortDirection}
+                                onSort={handleSort}
+                            />
+                            <SortableTableHeader
+                                label="Net P/L"
+                                field="net"
+                                currentSortField={sortField}
+                                currentSortDirection={sortDirection}
+                                onSort={handleSort}
+                            />
+                            <SortableTableHeader
+                                label="Profit Margin"
+                                field="profitMargin"
+                                currentSortField={sortField}
+                                currentSortDirection={sortDirection}
+                                onSort={handleSort}
+                            />
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {paginatedUsers.map((user) => (
+                            <tr key={user.username}>
+                                <td>{user.username}</td>
+                                <td className="text-bold text-success">{formatCurrency(user.totalDeposits)}</td>
+                                <td className="text-bold text-danger">{formatCurrency(user.totalCashout)}</td>
+                                <td className="text-bold" style={{ color: user.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)' }}>
+                                    {formatCurrency(user.net)}
+                                </td>
+                                <td className="text-bold">{user.profitMargin}%</td>
+                                <td>
+                                    {/* Assuming '/admin/customer/[username]' is a valid route for user details */}
+                                    <a href={`/admin/customer/${user.username}`} className="btn-link">View Details</a>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                    </div>
+                )}
+                </div>
+
+                {filteredAndSortedUsers.length > itemsPerPage && (
+                    <div className="pagination-controls mt-lg text-center">
+                        <button
+                            className="btn btn-secondary mr-md"
+                            onClick={prevPage}
+                            disabled={currentPage === 1}
+                        >
+                            ← Previous
+                        </button>
+                        <span>Page {currentPage} of {totalPages}</span>
+                        <button
+                            className="btn btn-secondary ml-md"
+                            onClick={nextPage}
+                            disabled={currentPage === totalPages}
+                        >
+                            Next →
+                        </button>
+                    </div>
+                )}
+            </section>
+        )}
+      </main>
     </div>
   );
 }
