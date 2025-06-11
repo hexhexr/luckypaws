@@ -1081,3 +1081,610 @@ label {
     background-color: var(--red-light);
     color: var(--red-dark);
 }
+/* General Body & Root Variables */
+body {
+    font-family: 'Inter', sans-serif; /* Recommended font, you can link it from Google Fonts */
+    background-color: #f4f7f6; /* Light grey background */
+    color: #333; /* Dark grey text */
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+    /* Color Palette */
+    --primary-blue: #007bff; /* Standard blue for primary actions */
+    --primary-green: #28a745; /* Success green */
+    --red-alert: #dc3545; /* Danger red */
+    --orange: #ffc107; /* Warning orange */
+    --info-blue: #17a2b8; /* Info blue */
+    --purple: #6f42c1; /* Example for users stat card */
+    --light-gray: #f8f9fa; /* Light background for table headers */
+    --dark-gray: #343a40; /* Darker text/element color, also for header */
+    --text-color: #333;
+    --border-color: #dee2e6; /* Light border for cards and tables */
+    --card-bg: #ffffff; /* White card background */
+    --header-bg: #343a40; /* Dark header background */
+    --nav-active-bg: #495057; /* Active nav item background */
+    --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); /* Small shadow */
+    --shadow-md: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08); /* Medium shadow for hover/modals */
+
+    /* Spacing */
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* Borders & Radius */
+    --radius-sm: 0.25rem; /* Small border-radius for inputs, buttons */
+    --radius-md: 0.5rem; /* Medium border-radius for cards, modals */
+}
+
+/* Utilities (already present in your code, enhancing their styles) */
+.container {
+    width: 100%;
+    max-width: 1200px; /* Max width for main content */
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+}
+
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mr-md { margin-right: var(--spacing-md); }
+.ml-md { margin-left: var(--spacing-md); }
+.text-center { text-align: center; }
+.text-bold { font-weight: bold; }
+.text-success { color: var(--primary-green) !important; } /* !important to override specificity */
+.text-danger { color: var(--red-alert) !important; }
+.text-info { color: var(--info-blue) !important; }
+.text-warning { color: var(--orange) !important; }
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
+    border: 1px solid transparent;
+    text-decoration: none; /* For button-like links */
+    box-shadow: var(--shadow-sm);
+}
+.btn:hover {
+    transform: translateY(-1px); /* Slight lift on hover */
+    box-shadow: var(--shadow-md);
+}
+.btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: var(--primary-blue);
+    color: white;
+    border-color: var(--primary-blue);
+}
+.btn-primary:hover {
+    background-color: #0056b3; /* Darker shade of primary blue */
+    border-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border-color: #6c757d;
+}
+.btn-secondary:hover {
+    background-color: #5a6268; /* Darker shade of secondary grey */
+    border-color: #5a6268;
+}
+
+.btn-success {
+    background-color: var(--primary-green);
+    color: white;
+    border-color: var(--primary-green);
+}
+.btn-success:hover {
+    background-color: #218838; /* Darker shade of green */
+    border-color: #218838;
+}
+
+.btn-info {
+    background-color: var(--info-blue);
+    color: white;
+    border-color: var(--info-blue);
+}
+.btn-info:hover {
+    background-color: #138496; /* Darker shade of info blue */
+    border-color: #138496;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.875rem; /* Smaller font size */
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--primary-blue);
+    text-decoration: underline;
+    padding: 0;
+    margin: 0;
+    font-size: inherit;
+    box-shadow: none;
+    transform: none;
+}
+.btn-link:hover {
+    color: #0056b3;
+    text-decoration: none; /* Underline disappears on hover for a cleaner look */
+}
+
+/* Forms */
+.input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: var(--spacing-md); /* Consistent spacing below inputs */
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background-color: var(--card-bg); /* Ensure input background is white */
+}
+.input:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Focus ring */
+    outline: none;
+}
+.input:disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
+
+
+label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+    color: var(--dark-gray);
+}
+
+.filter-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.form-info {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: -10px; /* Pulls text closer to input */
+    margin-bottom: var(--spacing-md);
+}
+
+/* Cards */
+.card {
+    background-color: var(--card-bg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg); /* Consistent spacing between cards/sections */
+    border: 1px solid var(--border-color);
+}
+.card h2, .card h3 {
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg);
+    color: var(--dark-gray);
+}
+
+/* Admin Layout */
+.admin-dashboard-container,
+.admin-cashouts-container,
+.admin-profit-loss-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.admin-header {
+    background-color: var(--header-bg);
+    color: white;
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-md);
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+    gap: var(--spacing-md);
+}
+
+.admin-header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.admin-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: flex-end; /* Align to right */
+}
+
+.admin-nav li a,
+.admin-nav li button {
+    color: white;
+    text-decoration: none;
+    padding: 8px 15px;
+    border-radius: var(--radius-sm);
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    white-space: nowrap; /* Prevent wrapping */
+    border: none; /* Buttons should not have default button border */
+    background: none; /* Buttons should be transparent by default */
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.admin-nav li a:hover,
+.admin-nav li button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.admin-nav li a.active {
+    background-color: var(--nav-active-bg);
+    font-weight: bold;
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-main, .admin-main-content {
+    flex-grow: 1; /* Allow main content to take available space */
+    padding: var(--spacing-lg);
+    max-width: 1400px; /* Wider main content area */
+    margin: 0 auto;
+}
+
+/* Dashboard Specific Styles */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive grid for stat cards */
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--card-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border-left: 5px solid; /* For color differentiation */
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-card-title {
+    font-size: 1rem;
+    margin-bottom: var(--spacing-sm);
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.stat-card-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.stat-card-icon {
+    font-size: 3rem;
+    opacity: 0.7;
+    margin-left: var(--spacing-md);
+}
+
+/* Tables */
+.table-card {
+    padding: 0; /* Table content will have its own padding */
+    overflow-x: auto; /* Enable horizontal scrolling on small screens */
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto; /* Ensures table is scrollable on smaller screens */
+    -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse; /* Removes double borders */
+    background-color: var(--card-bg);
+    min-width: 700px; /* Ensure table doesn't get too squished */
+}
+
+table th,
+table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+table th {
+    background-color: var(--light-gray);
+    font-weight: 600;
+    color: var(--dark-gray);
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    position: sticky; /* Make headers sticky for horizontal scroll */
+    top: 0;
+    z-index: 1; /* Ensure headers are above content */
+}
+
+table tbody tr:hover {
+    background-color: #f1f1f1; /* Light hover effect for rows */
+}
+
+.order-unread {
+    font-weight: bold;
+    background-color: #fff9e6; /* Light yellow for unread orders */
+    color: var(--dark-gray);
+}
+.order-read {
+    color: #666; /* Muted color for read orders */
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: capitalize;
+    color: white;
+    min-width: 70px; /* Give badges a minimum width for consistency */
+    text-align: center;
+}
+
+.status-badge.status-paid,
+.status-badge.status-completed { /* For cashouts and orders */
+    background-color: var(--primary-green);
+}
+
+.status-badge.status-pending {
+    background-color: var(--orange);
+}
+
+.status-badge.status-failed,
+.status-badge.status-rejected,
+.status-badge.status-archived {
+    background-color: var(--red-alert);
+}
+
+/* Actions in tables */
+.action-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap; /* Allow buttons to wrap */
+}
+
+/* Modals */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Ensure modal is on top of everything */
+    animation: fadeIn 0.3s forwards;
+}
+
+.modal {
+    background: var(--card-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto; /* Enable scrolling for long content */
+    animation: slideIn 0.3s forwards;
+    transform: translateY(20px); /* Initial position for slide-in */
+    opacity: 0;
+}
+
+.modal-lg {
+    width: 600px; /* Larger modal for details */
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.2s ease;
+}
+.modal-close-btn:hover {
+    color: #333;
+}
+
+.modal-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Two columns for details */
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+.modal-content-grid p {
+    margin: 0;
+    padding: 5px 0;
+}
+.modal-content-grid strong {
+    color: var(--dark-gray);
+}
+
+
+/* Alerts */
+.alert {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-md);
+    font-weight: 500;
+}
+.alert-danger {
+    background-color: #f8d7da; /* Light red */
+    color: #721c24; /* Dark red text */
+    border: 1px solid #f5c6cb;
+}
+.alert-success {
+    background-color: #d4edda; /* Light green */
+    color: #155724; /* Dark green text */
+    border: 1px solid #c3e6cb;
+}
+.alert-info {
+    background-color: #d1ecf1; /* Light blue */
+    color: #0c5460; /* Dark blue text */
+    border: 1px solid #bee5eb;
+}
+
+/* Pagination Controls (for profit-loss page) */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background-color: var(--card-bg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+.pagination-controls span {
+    font-weight: 500;
+    color: var(--dark-gray);
+}
+
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Loading Skeleton (for profit-loss page) */
+.loading-skeleton {
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+.skeleton-line {
+  height: 1.2em; /* Adjusted height for better visual */
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+/* More specific widths for varied skeleton lines */
+.skeleton-line:nth-child(1) { width: 95%; }
+.skeleton-line:nth-child(2) { width: 80%; }
+.skeleton-line:nth-child(3) { width: 70%; }
+.skeleton-line:nth-child(4) { width: 90%; }
+.skeleton-line:nth-child(5) { width: 85%; }
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+
+/* Media Queries for Responsiveness */
+@media (max-width: 768px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+    .admin-nav {
+        flex-direction: column;
+        width: 100%;
+        gap: var(--spacing-sm);
+        align-items: flex-start;
+    }
+    .admin-nav li {
+        width: 100%;
+    }
+    .admin-nav li a,
+    .admin-nav li button {
+        display: block;
+        width: 100%;
+        text-align: center;
+    }
+    .stats-grid {
+        grid-template-columns: 1fr; /* Stack stat cards on small screens */
+    }
+    .table-responsive {
+        width: 100%; /* Ensure full width on smaller screens */
+    }
+    .modal-lg {
+        width: 95%; /* Make modal wider on small screens */
+    }
+    .modal-content-grid {
+        grid-template-columns: 1fr; /* Stack modal details on small screens */
+    }
+    .admin-main, .admin-main-content {
+        padding: var(--spacing-md);
+    }
+    /* Ensure table itself can scroll if content overflows */
+    table {
+        min-width: unset; /* Remove min-width on small screens */
+        width: 100%;
+        display: block; /* Allows table to overflow its container */
+        overflow-x: auto;
+    }
+    table thead, table tbody tr {
+        display: table-row; /* Keep row structure */
+    }
+}
+
+/* Optional: Link to Google Fonts in your _document.js or index.html if you want 'Inter' */
+/*
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+*/
