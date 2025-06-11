@@ -2111,3 +2111,262 @@ table tbody tr:hover {
         justify-content: center; /* Center social icons on mobile */
     }
 }
+/* ============================\
+   ✅ Payment Form Specific Styles
+   ============================ */
+
+.payment-section-container {
+    padding-top: var(--spacing-xl); /* Ensure enough space when scrolled to */
+    padding-bottom: var(--spacing-xl);
+}
+
+.payment-form-card {
+    background-color: var(--card-bg);
+    padding: var(--spacing-xl); /* Generous padding inside the card */
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg); /* More prominent shadow for the form card */
+    max-width: 600px; /* Constrain form width for readability */
+    margin: 0 auto; /* Center the form card */
+}
+
+/* Use grid for better form layout */
+.payment-form-grid {
+    display: grid;
+    gap: var(--spacing-lg); /* Space between form groups */
+}
+
+/* Form Group - Basic structure */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: var(--spacing-sm); /* Adjusted for grid gap */
+}
+
+.form-group label {
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-xs); /* Space between label and input */
+    font-size: 0.95rem;
+}
+
+/* Input Fields */
+.input-field {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md); /* Vertical and horizontal padding */
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background-color: var(--input-bg);
+    color: var(--text-dark);
+    font-size: 1rem;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: var(--input-border-focus); /* Lighter green focus */
+    box-shadow: 0 0 0 3px rgba(0, 200, 83, 0.2); /* Soft green glow */
+}
+
+/* Validation Feedback */
+.input-field.input-error {
+    border-color: var(--red-alert);
+}
+.error-message {
+    color: var(--red-alert);
+    font-size: 0.85rem;
+    margin-top: var(--spacing-xs);
+}
+
+/* Pre-defined Amount Buttons */
+.amount-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs); /* space below amount input */
+}
+
+/* Radio Button Group */
+.radio-option-group {
+    display: flex;
+    flex-direction: column; /* Stack radio options */
+    gap: var(--spacing-sm);
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    color: var(--text-dark);
+    font-size: 1rem;
+}
+
+.radio-label input[type="radio"] {
+    /* Basic styling for radio button */
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease-in-out;
+    flex-shrink: 0; /* Prevent squishing */
+}
+
+.radio-label input[type="radio"]:checked {
+    border-color: var(--primary-green);
+    background-color: var(--primary-green);
+}
+
+.radio-label input[type="radio"]:checked::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-white); /* Inner dot */
+}
+
+/* Icons for radio labels */
+.icon-inline {
+    font-size: 1.1rem;
+    color: var(--primary-green); /* Color icons green */
+}
+
+/* Spinner icon for loading states */
+.icon-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Alerts */
+.alert {
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    font-weight: 500;
+    margin-bottom: var(--spacing-md);
+    border: 1px solid transparent;
+}
+
+.alert-danger {
+    background-color: var(--red-alert-light); /* Assuming you define this */
+    color: var(--red-alert-dark); /* Assuming you define this */
+    border-color: var(--red-alert);
+}
+/* Add these to your :root in globals.css */
+/* --red-alert-light: #fee8e8; */
+/* --red-alert-dark: #cc0000; */
+
+.alert-success {
+    background-color: var(--primary-green-light-bg); /* Define a very light green bg */
+    color: var(--green-dark); /* Darker green text */
+    border-color: var(--primary-green);
+}
+/* Add these to your :root in globals.css */
+/* --primary-green-light-bg: #e6f7ed; */
+
+
+/* ============================\
+   ✅ Responsive Adjustments for Main Pages (from previous turn, reiterated for clarity)
+   ============================ */
+
+/* Mobile Navigation */
+@media (max-width: 768px) {
+    .main-header .header-content {
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .main-nav {
+        display: none; /* Hidden by default on mobile */
+        flex-direction: column;
+        width: 100%;
+        background-color: var(--card-bg);
+        position: absolute;
+        top: 100%;
+        left: 0;
+        box-shadow: var(--shadow-md);
+        padding: var(--spacing-md) 0;
+        z-index: 1000;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .main-nav.open { /* Class to be toggled by JS */
+        display: flex;
+    }
+
+    .main-nav ul {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-sm);
+        width: 100%;
+    }
+
+    .main-nav li {
+        width: 100%;
+        text-align: center;
+    }
+
+    .main-nav a {
+        padding: var(--spacing-sm) var(--spacing-md);
+        display: block;
+        width: 100%;
+    }
+
+    .menu-toggle { /* Hamburger icon */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 30px;
+        height: 20px;
+        cursor: pointer;
+        padding: var(--spacing-xs);
+        border: none;
+        background: none;
+        z-index: 1001;
+    }
+
+    .menu-toggle span {
+        display: block;
+        width: 100%;
+        height: 3px;
+        background-color: var(--text-dark);
+        border-radius: 2px;
+        transition: all 0.3s ease-in-out;
+    }
+
+    .menu-toggle.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+    .menu-toggle.open span:nth-child(2) { opacity: 0; }
+    .menu-toggle.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+    /* Hero Section & Features */
+    .hero-cta-buttons {
+        flex-direction: column; /* Stack buttons on small screens */
+        align-items: center;
+    }
+    .hero-cta-buttons .btn {
+        width: 80%; /* Make buttons wider on mobile */
+        max-width: 300px;
+    }
+    .feature-grid {
+        grid-template-columns: 1fr; /* Single column on mobile */
+    }
+
+    /* Footer */
+    .footer-content {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    .footer-section {
+        width: 100%;
+    }
+    .social-links {
+        justify-content: center;
+    }
+}
