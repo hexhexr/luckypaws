@@ -4,7 +4,8 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db } from '../../lib/firebaseClient';
 import { auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc } from "firebase/firestore";
+// Corrected import: Added getDoc to the import list from 'firebase/firestore'
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 
 // --- Helper Components ---
@@ -69,7 +70,7 @@ export default function AdminDashboard() {
         // User is signed in, now check their role in Firestore
         try {
           const userDocRef = doc(db, 'users', user.uid);
-          const userDocSnap = await getDoc(userDocRef);
+          const userDocSnap = await getDoc(userDocRef); // getDoc is now imported
 
           if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
             setIsAdmin(true);
