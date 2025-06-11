@@ -1688,3 +1688,426 @@ table tbody tr:hover {
 /*
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 */
+/* ===========================
+   Admin Profit/Loss Page Specific Styles
+   ============================ */
+
+/* Main Container for Admin Profit/Loss page */
+.admin-profit-loss-container {
+  padding: var(--spacing-lg) 0; /* Add some vertical padding to the main content area */
+}
+
+/* Header for Admin Pages */
+.admin-header {
+    background-color: var(--card-bg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.admin-header h1 {
+    margin: 0;
+    color: var(--text-dark);
+    font-size: 1.8rem;
+}
+
+.admin-nav .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
+}
+
+.admin-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.admin-nav a {
+    text-decoration: none;
+    color: var(--text-light);
+    font-weight: 500;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    transition: all 0.2s ease-in-out;
+}
+
+.admin-nav a:hover,
+.admin-nav a.active {
+    color: var(--primary-green);
+    background-color: var(--input-bg);
+}
+
+.admin-main-content {
+    max-width: 1200px; /* Max width for content */
+    margin: 0 auto; /* Center content */
+    padding: 0 var(--spacing-lg); /* Horizontal padding */
+}
+
+/* Timeframe Selection Section */
+.timeframe-selection {
+    padding: var(--spacing-lg);
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.timeframe-selection h2 {
+    margin-top: 0;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-dark);
+}
+
+/* Reusing .status-filter-buttons for consistent button group styling */
+.status-filter-buttons {
+    display: flex;
+    gap: var(--spacing-sm); /* Space between buttons */
+    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+}
+
+.status-filter-buttons .btn {
+    flex: 1; /* Make buttons take equal space */
+    min-width: 120px; /* Minimum width for buttons */
+}
+
+
+/* General Section Styling for Daily, Weekly, User Tables */
+.daily-stats-section,
+.weekly-stats-section,
+.user-profit-loss-section {
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.daily-stats-section h2,
+.weekly-stats-section h2,
+.user-profit-loss-section h2 {
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-md);
+    font-size: 1.7rem;
+}
+
+/* Filter Controls Section (Search and Items per page) */
+.filter-controls {
+    display: flex;
+    gap: var(--spacing-lg); /* Space between filter groups */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    padding: var(--spacing-md);
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 250px; /* Ensure input fields have enough space */
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.filter-group .input,
+.filter-group select.input {
+    width: 100%;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background-color: var(--input-bg);
+    color: var(--text-dark);
+    transition: border-color 0.2s ease-in-out;
+}
+
+.filter-group .input:focus,
+.filter-group select.input:focus {
+    outline: none;
+    border-color: var(--input-border-focus);
+    box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.2); /* Soft focus ring */
+}
+
+/* Table Card Styling (for all tables) */
+.table-card {
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto; /* Ensures tables are scrollable on small screens */
+}
+
+/* General Table Styling (reusing .data-table where applicable) */
+.table-responsive table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-responsive th,
+.table-responsive td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.table-responsive th {
+    background-color: var(--bg-medium-light);
+    font-weight: 600;
+    color: var(--text-dark);
+    cursor: pointer; /* Indicate sortable columns */
+    white-space: nowrap; /* Prevent header text from wrapping */
+}
+
+.table-responsive tbody tr:hover {
+    background-color: var(--input-bg); /* Light hover effect */
+}
+
+/* Pagination Controls */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-md) 0;
+}
+
+.pagination-controls .btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: 0.95rem;
+}
+
+.pagination-controls span {
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .admin-nav ul {
+        justify-content: flex-start;
+        margin-top: var(--spacing-sm);
+    }
+
+    .admin-main-content {
+        padding: 0 var(--spacing-md);
+    }
+
+    .filter-controls {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .filter-group {
+        min-width: unset;
+        width: 100%;
+    }
+
+    .status-filter-buttons {
+        flex-direction: column;
+    }
+
+    .status-filter-buttons .btn {
+        width: 100%;
+        min-width: unset;
+    }
+}
+/* --- Header Improvements --- */
+@media (max-width: 768px) {
+    .main-header .header-content {
+        flex-wrap: wrap; /* Allow logo and nav to wrap */
+        justify-content: space-between; /* Space out logo and menu toggle */
+    }
+
+    .main-nav {
+        /* Hide by default on mobile */
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        background-color: var(--card-bg); /* Or a slightly darker color */
+        position: absolute; /* Position relative to header or viewport */
+        top: 100%; /* Below the header */
+        left: 0;
+        box-shadow: var(--shadow-md);
+        padding: var(--spacing-md) 0;
+        z-index: 1000;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .main-nav.open {
+        display: flex; /* Show when open */
+    }
+
+    .main-nav ul {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-sm);
+        width: 100%;
+    }
+
+    .main-nav li {
+        width: 100%;
+        text-align: center;
+    }
+
+    .main-nav a {
+        padding: var(--spacing-sm) var(--spacing-md);
+        display: block;
+        width: 100%;
+    }
+
+    /* Hamburger menu icon */
+    .menu-toggle {
+        display: flex; /* Show only on mobile */
+        flex-direction: column;
+        justify-content: space-between;
+        width: 30px;
+        height: 20px;
+        cursor: pointer;
+        padding: var(--spacing-xs);
+        border: none;
+        background: none;
+        z-index: 1001; /* Ensure it's above other content */
+    }
+
+    .menu-toggle span {
+        display: block;
+        width: 100%;
+        height: 3px;
+        background-color: var(--text-dark);
+        border-radius: 2px;
+        transition: all 0.3s ease-in-out;
+    }
+
+    /* Animation for hamburger to 'X' */
+    .menu-toggle.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+    .menu-toggle.open span:nth-child(2) { opacity: 0; }
+    .menu-toggle.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+    /* Hide desktop nav elements on mobile if a separate mobile menu is used */
+    .main-nav {
+        display: none;
+    }
+}
+
+/* --- Hero Section & Features Improvements --- */
+.hero-section {
+    position: relative;
+    overflow: hidden; /* To contain background elements */
+    /* Add background image/video styles here */
+}
+
+.hero-title, .hero-subtitle {
+    /* Responsive font sizes */
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.2;
+}
+.hero-subtitle {
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+}
+
+.hero-cta-buttons {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+@media (max-width: 600px) {
+    .hero-cta-buttons {
+        flex-direction: column; /* Stack buttons on small screens */
+        align-items: center;
+    }
+    .hero-cta-buttons .btn {
+        width: 80%; /* Make buttons wider on mobile */
+        max-width: 300px;
+    }
+}
+
+/* Feature Item Styling */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive grid */
+    gap: var(--spacing-lg);
+}
+
+.feature-item {
+    background-color: var(--card-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.feature-item:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+.feature-icon {
+    font-size: 3rem; /* Adjust size for actual icons */
+    margin-bottom: var(--spacing-md);
+    color: var(--primary-green);
+    background-color: var(--bg-medium-light); /* Example background for icon */
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: inline-flex; /* To center icon inside circle */
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- Footer Improvements --- */
+.footer-content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--spacing-lg); /* Space between footer sections */
+}
+
+.footer-section {
+    flex: 1; /* Distribute space */
+    min-width: 180px; /* Minimum width before wrapping */
+}
+
+.social-links a {
+    font-size: 1.5rem; /* Size for social icons */
+    margin-right: var(--spacing-sm);
+    color: var(--text-light);
+    transition: color 0.2s ease-in-out;
+}
+
+.social-links a:hover {
+    color: var(--primary-green); /* Hover effect for social icons */
+}
+
+@media (max-width: 768px) {
+    .footer-content {
+        flex-direction: column; /* Stack footer sections on mobile */
+        align-items: center;
+        text-align: center;
+    }
+    .footer-section {
+        min-width: unset;
+        width: 100%;
+    }
+    .social-links {
+        justify-content: center; /* Center social icons on mobile */
+    }
+}
