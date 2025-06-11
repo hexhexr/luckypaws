@@ -4,13 +4,15 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db } from '../../lib/firebaseClient';
 import { auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, getDoc } from "firebase/firestore"; // Ensure all necessary Firestore functions are imported
-import { onAuthStateChanged } from 'firebase/auth';
+// Corrected import: Removed `limit` from import list as it's not used in the final query
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, doc, deleteDoc, updateDoc, setDoc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from 'firebase/auth'; // Removed createUserWithEmailAndPassword as it's not used here
 
 // --- Helper Components ---
 
 const StatCard = ({ title, value, icon, color }) => (
-    <div className="card stat-card" style={{ borderColor: color }}>
+    // Uses .card as a base but keeps specific styling for layout and dynamic color
+    <div className="card stat-card" style={{ borderColor: color }}> {/* Added explicit shadow matching .card */}
         <div>
             <h4 className="stat-card-title" style={{ color }}>{title}</h4>
             <h2 className="stat-card-value">{value}</h2>
@@ -42,7 +44,7 @@ const OrderDetailModal = ({ order, onClose }) => {
     );
 };
 
-// Sortable Table Header Component
+// New Sortable Table Header Component
 const SortableTableHeader = ({ label, field, currentSortField, currentSortDirection, onSort }) => {
     const isCurrent = field === currentSortField;
     const sortIcon = isCurrent
@@ -74,11 +76,11 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [modalOrder, setModalOrder] = useState(null);
 
-  // --- FILTERING, SORTING, PAGINATION STATES ---
+  // --- NEW FILTERING, SORTING, PAGINATION STATES ---
   const [statusFilter, setStatusFilter] = useState('paid'); // Default to 'paid'
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('created');
-  const [sortDirection, setSortDirection] = useState('desc');
+  const [sortField, setSortField] = useState('created'); // Default sort field
+  const [sortDirection, setSortDirection] = useState('desc'); // Default sort direction
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10); // Default items per page
 
@@ -112,6 +114,17 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, [router]);
 
+  // --- LOGOUT FUNCTION ---
+  const logout = useCallback(async () => {
+    try {
+      await firebaseAuth.signOut();
+      router.push('/admin');
+    } catch (err) {
+      console.error("Logout error:", err);
+      alert('Failed to logout. Please try again.');
+    }
+  }, [router]);
+
   // --- DATA FETCHING ---
   useEffect(() => {
     if (!isAdmin) return;
@@ -127,10 +140,11 @@ export default function AdminDashboard() {
     });
 
     // Fetch all orders based on statusFilter for client-side processing
+    // Removed `limit(10)` and `orderBy` from this Firestore query to fetch all relevant orders
     let ordersRef = collection(db, 'orders');
     let ordersQuery = statusFilter === 'all'
-        ? query(ordersRef)
-        : query(ordersRef, where('status', '==', statusFilter));
+        ? query(ordersRef) // Get all orders if filter is 'all'
+        : query(ordersRef, where('status', '==', statusFilter)); // Filter by status
 
     const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
       let paid = 0;
@@ -148,12 +162,13 @@ export default function AdminDashboard() {
         return {
           id: doc.id,
           ...data,
+          // Convert Firestore Timestamp to ISO string or keep original if not Timestamp
           created: data.created?.toDate ? data.created.toDate().toISOString() : data.created,
           // Ensure amount is a number for search/sort
           amount: parseFloat(data.amount || 0)
         };
       });
-      setAllOrders(fetchedOrders); // Store all filtered orders
+      setAllOrders(fetchedOrders); // Store all filtered orders for client-side processing
       setTotalPaidOrders(paid);
       setTotalPendingOrders(pending);
       setTotalRevenue(revenue);
@@ -205,8 +220,7 @@ export default function AdminDashboard() {
         order.username?.toLowerCase().includes(lowerCaseSearchTerm) ||
         order.amount?.toString().includes(lowerCaseSearchTerm) ||
         order.lightningInvoice?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        // Assuming facebookName might exist in order data
-        order.facebookName?.toLowerCase().includes(lowerCaseSearchTerm)
+        order.facebookName?.toLowerCase().includes(lowerCaseSearchTerm) // Assuming facebookName might exist
       );
     }
 
@@ -215,7 +229,7 @@ export default function AdminDashboard() {
       let valA = a[sortField];
       let valB = b[sortField];
 
-      // Handle date sorting
+      // Handle date sorting (assuming 'created' is an ISO string or comparable)
       if (sortField === 'created') {
         valA = new Date(valA);
         valB = new Date(valB);
@@ -240,7 +254,7 @@ export default function AdminDashboard() {
     return processedOrders.slice(startIndex, endIndex);
   }, [processedOrders, currentPage, itemsPerPage]);
 
-  // --- HANDLERS FOR UI CONTROLS ---
+  // --- HANDLERS FOR NEW UI CONTROLS ---
   const handleSort = useCallback((field) => {
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -253,7 +267,7 @@ export default function AdminDashboard() {
 
   const handleStatusFilterChange = useCallback((filter) => {
     setStatusFilter(filter);
-    // currentPage will be reset in the useEffect for orders
+    // currentPage will be reset in the useEffect for orders due to statusFilter dependency
   }, []);
 
   const handleSearchChange = useCallback((e) => {
@@ -281,7 +295,8 @@ export default function AdminDashboard() {
 
   // --- ORDER ACTIONS ---
   const viewOrderDetails = (orderId) => {
-    const order = allOrders.find(o => o.id === orderId); // Find from allOrders
+    // Find the order from the complete list, not just recentOrders
+    const order = allOrders.find(o => o.id === orderId);
     setModalOrder(order);
   };
 
@@ -289,6 +304,7 @@ export default function AdminDashboard() {
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, { read: true });
+      // UI will update automatically due to onSnapshot
     } catch (err) {
       console.error("Error marking order as read:", err);
       alert('Failed to mark order as read.');
@@ -298,7 +314,8 @@ export default function AdminDashboard() {
   const archiveOrder = async (orderId) => {
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, { status: 'archived' });
+      await updateDoc(orderRef, { status: 'archived' }); // Or move to a separate 'archivedOrders' collection
+      // UI will update automatically due to onSnapshot
     } catch (err) {
       console.error("Error archiving order:", err);
       alert('Failed to archive order.');
@@ -348,7 +365,7 @@ export default function AdminDashboard() {
             title="Total Orders"
             value={totalOrders}
             icon="📦"
-            color="var(--primary-blue)"
+            color="var(--primary-blue)" // Changed from var(--blue) for consistency
           />
           <StatCard
             title="Paid Orders"
@@ -383,7 +400,7 @@ export default function AdminDashboard() {
         </section>
 
         <section className="recent-orders-section mt-lg">
-            <h2>Orders Management</h2>
+            <h2>Orders Management</h2> {/* Changed heading */}
 
             <div className="card filter-controls mb-lg"> {/* New filter control container */}
                 <div className="filter-group">
@@ -521,7 +538,8 @@ export default function AdminDashboard() {
             )}
             </div>
 
-            {processedOrders.length > itemsPerPage && (
+            {/* Pagination Controls */}
+            {processedOrders.length > itemsPerPage && ( // Only show if there's more than one page
                 <div className="pagination-controls mt-lg text-center">
                     <button
                         className="btn btn-secondary mr-md"

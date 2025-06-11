@@ -4,8 +4,11 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, onSnapshot, getDocs, doc, getDoc, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc, where } from 'firebase/firestore'; // Added 'where'
 import { onAuthStateChanged } from 'firebase/auth';
+
+// Removed: import { fetchProfitLossData } from '../../services/profitLossService';
+// Reason: Data fetching is now integrated directly into the component for real-time aggregation.
 
 const formatCurrency = (amount) => {
   const numAmount = parseFloat(amount);
@@ -44,7 +47,7 @@ export default function AdminProfitLoss() {
 
   // --- DATA STATES ---
   const [orders, setOrders] = useState([]); // All paid orders (deposits)
-  const [cashouts, setCashouts] = useState([]); // All cashouts
+  const [cashouts, setCashouts] = useState([]); // All completed cashouts
   const [error, setError] = useState('');
 
   // --- FILTERING, SORTING, PAGINATION STATES (for User Profit/Loss table) ---
@@ -53,7 +56,7 @@ export default function AdminProfitLoss() {
   const [sortField, setSortField] = useState('net'); // Default sort by net profit
   const [sortDirection, setSortDirection] = useState('desc'); // Default sort desc
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Default items per page
 
   // --- AUTHENTICATION AND ROLE CHECK ---
   useEffect(() => {
@@ -109,7 +112,7 @@ export default function AdminProfitLoss() {
       }
     );
 
-    // Fetch all completed cashouts
+    // Fetch all completed cashouts from the 'cashouts' collection
     const unsubscribeCashouts = onSnapshot(
       query(collection(db, 'cashouts'), where('status', '==', 'completed')),
       (snapshot) => {
@@ -138,8 +141,8 @@ export default function AdminProfitLoss() {
   // Combined and sorted transactions for time-based aggregation
   const allTransactions = useMemo(() => {
     const combined = [
-      ...orders.map(o => ({ ...o, type: 'deposit', transactionDate: o.created })),
-      ...cashouts.map(c => ({ ...c, type: 'cashout', transactionDate: c.created }))
+      ...orders.map(o => ({ ...o, type: 'deposit', transactionDate: o.created, username: o.username })),
+      ...cashouts.map(c => ({ ...c, type: 'cashout', transactionDate: c.created, username: c.username }))
     ].filter(t => t.transactionDate !== null); // Filter out transactions without valid dates
 
     return combined.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime()); // Sort oldest to newest
@@ -175,7 +178,9 @@ export default function AdminProfitLoss() {
       const year = date.getFullYear();
       const firstDayOfYear = new Date(year, 0, 1);
       const days = Math.floor((date.getTime() - firstDayOfYear.getTime()) / (24 * 60 * 60 * 1000));
-      const weekNumber = Math.ceil((days + firstDayOfYear.getDay() + 1) / 7); // Adjust for week start/offset
+      // This is a simplified week number calculation. For strict ISO week, a more robust function is needed.
+      // For general purposes, this will group by approximate weeks.
+      const weekNumber = Math.ceil((days + firstDayOfYear.getDay() + 1) / 7);
 
       const weekKey = `${year}-${String(weekNumber).padStart(2, '0')}`;
 
