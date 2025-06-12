@@ -1,13 +1,22 @@
 // pages/api/set-admin-claim.js
 // Temporarily removed withAuth for initial admin setup.
-// REMEMBER TO RE-ADD 'withAuth' AFTER SETTING YOUR FIRST ADMIN USER FOR SECURITY!
-import { auth } from '../../lib/firebaseAdmin'; // Adjust path as needed
-// import { withAuth } from '../../lib/authMiddleware'; // Temporarily commented out
+// TEMPORARILY ADDED CORS HEADERS for local testing.
+// REMEMBER TO RE-ADD 'withAuth' AND REMOVE CORS HEADERS AFTER SETTING YOUR FIRST ADMIN USER FOR SECURITY!
+import { auth } from '../../../lib/firebaseAdmin'; // Adjust path as needed
 
 const handler = async (req, res) => {
-  // This endpoint is critical for setting admin privileges. It should be highly protected.
-  // TEMPORARY: withAuth has been removed to allow initial admin setup.
-  // RE-ENABLE withAuth (and consider a super-admin check) immediately after first admin is set!
+  // --- TEMPORARY CORS HEADERS (REMOVE AFTER INITIAL ADMIN SETUP) ---
+  // Allow requests from any origin during this temporary setup
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  // --- END TEMPORARY CORS HEADERS ---
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
