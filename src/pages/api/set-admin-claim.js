@@ -2,7 +2,7 @@
 // Temporarily removed withAuth for initial admin setup.
 // TEMPORARILY ADDED CORS HEADERS for local testing.
 // REMEMBER TO RE-ADD 'withAuth' AND REMOVE CORS HEADERS AFTER SETTING YOUR FIRST ADMIN USER FOR SECURITY!
-import { auth } from '../../../lib/firebaseAdmin'; // Adjust path as needed
+import { auth } from '../../lib/firebaseAdmin'; // Adjust path as needed
 
 const handler = async (req, res) => {
   // --- TEMPORARY CORS HEADERS (REMOVE AFTER INITIAL ADMIN SETUP) ---
