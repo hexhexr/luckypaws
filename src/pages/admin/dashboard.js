@@ -522,11 +522,12 @@ export default function AdminDashboard() {
                         <td>
                             <div className="action-buttons">
                                 <button className="btn btn-info btn-small" onClick={() => viewOrderDetails(order.id)}>Details</button>
+                                {/* THE FIX IS APPLIED HERE */}
                                 {order.status === 'paid' && !order.read && (
-                                <button className="btn btn-success btn-small" onClick={() => markAsRead(order.id)}>Mark Read</button>
+                                <button className="btn btn-success btn-small" onClick={async () => await markAsRead(order.id)}>Mark Read</button>
                                 )}
                                 {order.status !== 'archived' && (
-                                    <button className="btn btn-secondary btn-small" onClick={() => archiveOrder(order.id)}>Archive</button>
+                                    <button className="btn btn-secondary btn-small" onClick={async () => await archiveOrder(order.id)}>Archive</button>
                                 )}
                             </div>
                         </td>
