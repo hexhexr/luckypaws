@@ -1,7 +1,8 @@
 // pages/api/admin/cashouts/history.js
 import { db } from '../../../../lib/firebaseAdmin';
+import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
@@ -14,4 +15,6 @@ export default async function handler(req, res) {
     console.error('Error fetching cashout history:', error);
     res.status(500).json({ message: 'Failed to fetch cashout history.' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

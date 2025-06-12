@@ -1,6 +1,7 @@
 import { db } from '../../../lib/firebaseAdmin';
+import { withAuth } from '../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
   const { id, update } = req.body;
@@ -16,4 +17,6 @@ export default async function handler(req, res) {
     console.error('Order update error:', err);
     res.status(500).json({ message: 'Failed to update order' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

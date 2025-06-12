@@ -1,5 +1,7 @@
 // pages/api/admin/cashouts/quote.js
-export default async function handler(req, res) {
+import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
+
+const handler = async (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
@@ -12,6 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // This part remains as is, fetching the price from CoinGecko
     const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
     if (!response.ok) {
       throw new Error('Failed to fetch price data.');
@@ -25,4 +28,6 @@ export default async function handler(req, res) {
     console.error('Quote API Error:', error);
     res.status(500).json({ message: 'Failed to generate quote.' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

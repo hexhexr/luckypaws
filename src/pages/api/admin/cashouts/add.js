@@ -1,7 +1,8 @@
 // pages/api/admin/cashouts/add.js
 import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
+import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -29,4 +30,6 @@ export default async function handler(req, res) {
     console.error('Error adding cashout:', error);
     res.status(500).json({ message: 'Failed to add cashout' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

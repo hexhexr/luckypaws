@@ -1,6 +1,7 @@
 // pages/api/admin/cashouts/send.js
 import { db } from '../../../../lib/firebaseAdmin';
 import * as bolt11 from 'lightning-invoice';
+import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
 
 // --- Helper function to get real-time BTC price ---
 async function getBtcPrice() {
@@ -64,7 +65,7 @@ async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
 }
 
 // --- Main handler for sending cashouts ---
-export default async function handler(req, res) {
+const handler = async (req, res) => { // Define handler as a const
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -174,13 +175,18 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('[Handler] Full error processing cashout:', error);
     // Update Firebase with failure status if an error occurred before the API call
-    await db.collection('cashouts').doc(cashoutRef.id).set({
-        status: 'failed',
-        description: error.message,
-        username: username || 'unknown',
-        destination: destination || 'unknown',
-        time: new Date().toISOString()
-    }, { merge: true });
+    // Ensure cashoutRef.id exists, otherwise it might try to update a non-existent doc
+    if (cashoutRef.id) { // Only attempt to update if a document was already created
+      await db.collection('cashouts').doc(cashoutRef.id).set({
+          status: 'failed',
+          description: error.message,
+          username: username || 'unknown',
+          destination: destination || 'unknown',
+          time: new Date().toISOString()
+      }, { merge: true });
+    }
     res.status(500).json({ message: error.message || 'An unexpected error occurred.' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

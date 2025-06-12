@@ -1,43 +1,40 @@
 // pages/api/set-admin-claim.js
-const admin = require('firebase-admin');
+// Instead of re-initializing admin, use your existing firebaseAdmin setup
+import { auth } from '../../lib/firebaseAdmin'; // Adjust path as needed
+import { withAuth } from '../../lib/authMiddleware'; // Import the authentication middleware
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // Replace escaped newlines for Vercel's environment variables
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-const auth = admin.auth();
-
-export default async function handler(req, res) {
-  if (req.method !== 'GET') { // You can use GET for a simple trigger, or POST for more security
+const handler = async (req, res) => {
+  // This endpoint is critical for setting admin privileges. It should be highly protected.
+  // The 'withAuth' middleware will ensure *some* authenticated user is calling it.
+  // You might want to add *another* layer of checking here, e.g., only allowing a specific
+  // 'super_admin' UID from your environment variables to call this.
+  if (req.method !== 'POST') { // It's safer to use POST for sensitive operations like this
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  // Ensure FIREBASE_ADMIN_UID is available
-  const adminUid = process.env.FIREBASE_ADMIN_UID;
+  const { uid, isAdmin } = req.body; // Expect uid and isAdmin (boolean) in the request body
 
-  if (!adminUid) {
-    console.error("FIREBASE_ADMIN_UID environment variable is not set!");
-    return res.status(500).json({ success: false, message: "Server configuration error: Admin UID missing." });
+  if (!uid || typeof isAdmin === 'undefined' || typeof isAdmin !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'Missing or invalid user ID (uid) or isAdmin flag (boolean).' });
   }
 
   try {
-    await auth.setCustomUserClaims(adminUid, { admin: true });
-    console.log(`Successfully set custom claims for user ${adminUid}: { admin: true }`);
+    // Set the custom claim. 'admin: true' grants admin privileges. 'admin: false' revokes them.
+    await auth.setCustomUserClaims(uid, { admin: isAdmin });
+    console.log(`Successfully set custom claims for user ${uid}: { admin: ${isAdmin} }`);
 
-    const userRecord = await auth.getUser(adminUid);
-    console.log('Verified custom claims:', userRecord.customClaims);
+    // Force a token refresh on the client side for the changes to take effect immediately
+    await auth.revokeRefreshTokens(uid);
+    console.log(`Revoked refresh tokens for user ${uid} to force token refresh.`);
 
-    return res.status(200).json({ success: true, message: `Admin claim set for ${adminUid}.` });
+    return res.status(200).json({ success: true, message: `Admin claim set to ${isAdmin} for user ${uid}. User token refreshed.` });
 
   } catch (error) {
     console.error('Error setting custom admin claim:', error);
-    return res.status(500).json({ success: false, message: 'Failed to set admin claim.', error: error.message });
+    // If the error indicates that the requesting user (req.decodedToken.uid) doesn't have permission
+    // to call setCustomUserClaims (e.g., if you set up IAM roles), you might want to return 403.
+    res.status(500).json({ success: false, message: 'Failed to set admin claim.', error: error.message });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

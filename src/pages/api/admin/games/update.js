@@ -1,7 +1,8 @@
 // pages/api/admin/games/update.js
 import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
+import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -19,4 +20,6 @@ export default async function handler(req, res) {
     console.error('Error updating game:', error);
     res.status(500).json({ message: 'Failed to update game' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

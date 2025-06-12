@@ -1,6 +1,7 @@
 import { db } from '../../../lib/firebaseAdmin.js';
+import { withAuth } from '../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -23,4 +24,6 @@ export default async function handler(req, res) {
     console.error('Failed to archive order:', err);
     res.status(500).json({ message: 'Archive failed. See server logs for details.' });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

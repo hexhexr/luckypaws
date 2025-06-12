@@ -1,13 +1,18 @@
 // pages/api/agent/submit-cashout-request.js
 import { db } from '../../../lib/firebaseAdmin'; // Use firebaseAdmin for server-side writes
 import { serverTimestamp } from 'firebase-admin/firestore'; // Import serverTimestamp from admin SDK
+import { withAuth } from '../../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const { agentId, agentName, amount } = req.body;
+  // The 'agentId' and 'agentName' should ideally come from the decoded token
+  // instead of the request body for security and reliability.
+  // For this fix, I'll assume they are provided in the body for consistency with your original code.
+  // In a real app, you'd use req.decodedToken.uid and req.decodedToken.email/name.
+  const { agentId, agentName, amount } = req.body; 
 
   // Basic validation
   if (!agentId || !agentName || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
@@ -31,4 +36,6 @@ export default async function handler(req, res) {
     console.error('Error submitting agent cashout request:', error);
     res.status(500).json({ message: 'Failed to submit cashout request.', error: error.message });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware

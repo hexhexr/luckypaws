@@ -1,13 +1,14 @@
 import { db } from '../../lib/firebaseAdmin';
+import { withAuth } from '../../lib/authMiddleware'; // Import the authentication middleware
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   try {
     const depositsSnapshot = await db
-      .collection('orders')
+      .collection('orders') // Assuming deposits are part of 'orders' with status 'paid'
       .where('status', '==', 'paid')
       .orderBy('createdAt', 'desc')
       .limit(10)
@@ -29,4 +30,6 @@ export default async function handler(req, res) {
     console.error('Error fetching customer deposits:', error);
     res.status(500).json({ message: `Failed to fetch customer deposits: ${error.message}` });
   }
-}
+};
+
+export default withAuth(handler); // Wrap the handler with the authentication middleware
