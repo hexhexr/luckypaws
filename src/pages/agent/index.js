@@ -32,26 +32,20 @@ export default function AgentDashboard() {
     const [message, setMessage] = useState({ text: '', type: '' });
 
     // --- State for All Features ---
-    // Panel UI
     const [panelWidth, setPanelWidth] = useState(550);
     const [isResizing, setIsResizing] = useState(false);
     const [iframeUrl, setIframeUrl] = useState('https://luckypaws.vercel.app/games');
     const [urlInput, setUrlInput] = useState(iframeUrl);
 
-    // Username Generator
     const [facebookName, setFacebookName] = useState('');
-    const [manualPageCode, setManualPageCode] = useState(''); // Restored for manual input
+    const [manualPageCode, setManualPageCode] = useState('');
     const [generatedUsername, setGeneratedUsername] = useState('');
     
-    // Customer Management
     const [customers, setCustomers] = useState([]);
-
-    // Limit Checker
     const [limitCheckResult, setLimitCheckResult] = useState(null);
     const [timeRemaining, setTimeRemaining] = useState('');
     const countdownIntervalRef = useRef();
 
-    // Deposits & Agent Requests
     const [deposits, setDeposits] = useState([]);
     const [depositsLoading, setDepositsLoading] = useState(true);
     const [agentRequests, setAgentRequests] = useState([]);
@@ -67,7 +61,7 @@ export default function AgentDashboard() {
                     if (docSnap.exists()) {
                         const profile = docSnap.data();
                         setAgentProfile(profile);
-                        setManualPageCode(profile.pageCode || ''); // Set default for manual input
+                        setManualPageCode(profile.pageCode || '');
                     }
                     setLoading(false);
                 } else { router.replace('/agent/login'); }
@@ -76,7 +70,7 @@ export default function AgentDashboard() {
         return () => unsubscribeAuth();
     }, [router]);
 
-    // --- Data Fetching (Listeners & API Calls) ---
+    // --- Data Fetching ---
     const fetchDeposits = useCallback(async () => {
         if (!user) return;
         setDepositsLoading(true);
@@ -117,14 +111,29 @@ export default function AgentDashboard() {
         };
     }, [handleMouseMove, handleMouseUp]);
 
-
-    // --- Feature Handlers ---
-    const handleApiRequest = async (endpoint, body, successMessage) => { /* ... (Unchanged) ... */ };
+    // --- Fully Implemented Feature Handlers ---
+    const handleApiRequest = async (endpoint, body, successMessage) => {
+        setMessage({ text: '', type: '' });
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            setMessage({ text: successMessage || data.message, type: 'success' });
+            return data;
+        } catch (err) {
+            setMessage({ text: err.message, type: 'error' });
+            return null;
+        }
+    };
     
     const handleGenerateUsername = async (e) => {
         e.preventDefault();
-        const pageCodeToUse = manualPageCode; // Use the value from the manual input
-        const data = await handleApiRequest('/api/generate-username', { facebookName, pageCode: pageCodeToUse });
+        const data = await handleApiRequest('/api/generate-username', { facebookName, pageCode: manualPageCode });
         if (data) setGeneratedUsername(data.username);
     };
     
@@ -187,8 +196,8 @@ export default function AgentDashboard() {
 
                         <SectionCard title="Username Generator">
                             <form onSubmit={handleGenerateUsername} className="space-y-2">
-                                <div><label>Customer's FB Name</label><input value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input-field" /></div>
-                                <div><label>Page Code</label><input value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input-field" /></div>
+                                <div><label htmlFor="facebookName" className="block text-sm font-medium text-gray-700">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input-field" /></div>
+                                <div><label htmlFor="manualPageCode" className="block text-sm font-medium text-gray-700">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input-field" /></div>
                                 <button type="submit" className="btn btn-primary w-full">Generate</button>
                                 {generatedUsername && <p className="alert alert-success mt-2">Generated: <strong>{generatedUsername}</strong></p>}
                             </form>
@@ -211,13 +220,12 @@ export default function AgentDashboard() {
                         </SectionCard>
 
                         <SectionCard title="My Customers">
-                            <div className="max-h-48 overflow-y-auto">{customers.map(c => (<div key={c.id} className="text-sm p-2 border-b"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs">View Profile</a></div>))}</div>
+                            <div className="max-h-48 overflow-y-auto">{customers.map(c => (<div key={c.id} className="text-sm p-2 border-b"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-xs hover:underline">View Profile</a></div>))}</div>
                         </SectionCard>
 
                         <SectionCard title="My Cashout Requests">
-                            <div className="max-h-48 overflow-y-auto">{agentRequests.map(r => (<div key={r.id} className="text-sm p-2 border-b"><p>${r.amount} requested on {new Date(r.requestedAt.seconds * 1000).toLocaleDateString()}</p><p>Status: <span className={`font-bold status-${r.status}`}>{r.status}</span></p></div>))}</div>
+                            <div className="max-h-48 overflow-y-auto">{agentRequests.map(r => (<div key={r.id} className="text-sm p-2 border-b"><p>${r.amount.toFixed(2)} requested on {new Date(r.requestedAt.seconds * 1000).toLocaleDateString()}</p><p>Status: <span className={`font-bold status-${r.status}`}>{r.status}</span></p></div>))}</div>
                         </SectionCard>
-
                     </div>
                 </aside>
 
