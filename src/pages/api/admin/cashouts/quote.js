@@ -1,5 +1,5 @@
 // pages/api/admin/cashouts/quote.js
-import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
+import { withAuth } from '../../../../lib/authMiddleware';
 
 const handler = async (req, res) => {
   if (req.method !== 'GET') {
@@ -14,13 +14,14 @@ const handler = async (req, res) => {
   }
 
   try {
-    // This part remains as is, fetching the price from CoinGecko
     const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
     if (!response.ok) {
-      throw new Error('Failed to fetch price data.');
+      throw new Error('Failed to fetch price data from CoinGecko.');
     }
     const data = await response.json();
     const btcPrice = data.bitcoin.usd;
+    if(!btcPrice) throw new Error('Invalid price data received.');
+
     const sats = Math.round((usdAmount / btcPrice) * 100_000_000);
 
     res.status(200).json({ sats, btcPrice, usdAmount });
@@ -30,4 +31,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default withAuth(handler); // Wrap the handler with the authentication middleware
+export default withAuth(handler);

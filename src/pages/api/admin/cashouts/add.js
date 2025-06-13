@@ -1,6 +1,6 @@
 // pages/api/admin/cashouts/add.js
-import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
-import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
+import { db } from '../../../../lib/firebaseAdmin';
+import { withAuth } from '../../../../lib/authMiddleware';
 
 const handler = async (req, res) => {
   if (req.method !== 'POST') {
@@ -12,17 +12,20 @@ const handler = async (req, res) => {
   if (!username || typeof amount === 'undefined' || amount === null || isNaN(parseFloat(amount))) {
     return res.status(400).json({ message: 'Missing or invalid username or amount' });
   }
+  
+  const loggedInUserEmail = req.decodedToken.email; // from withAuth middleware
 
   try {
-    const cashoutRef = db.collection('profitLoss').doc(); // Auto-generate ID
+    const cashoutRef = db.collection('profitLoss').doc();
     await cashoutRef.set({
-      id: cashoutRef.id, // Store ID within the document
-      username: username,
-      amount: parseFloat(amount), // Ensure amount is stored as a number
+      id: cashoutRef.id,
+      username: username.toLowerCase().trim(),
+      amount: parseFloat(amount),
       type: 'cashout', // Explicitly mark as cashout
-      description: description || '', // Optional description
-      time: new Date().toISOString(), // Timestamp for the cashout
-      addedBy: 'admin', // You might want to track which admin added it
+      description: description || 'Manual admin entry',
+      time: new Date().toISOString(),
+      addedBy: loggedInUserEmail, // Track which admin added it
+      status: 'completed' // Manual entries are considered complete
     });
 
     res.status(201).json({ success: true, message: 'Cashout added successfully', cashoutId: cashoutRef.id });
@@ -32,4 +35,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default withAuth(handler); // Wrap the handler with the authentication middleware
+export default withAuth(handler);

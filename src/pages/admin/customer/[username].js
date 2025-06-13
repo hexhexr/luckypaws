@@ -1,127 +1,155 @@
+// pages/admin/customer/[username].js
 import { useRouter } from 'next/router';
-import { useEffect, useState, useCallback } from 'react';
-import { db } from '../../../lib/firebaseClient'; // ✅ Ensure correct path
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { db, auth as firebaseAuth } from '../../../lib/firebaseClient';
+import { collection, query, where, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import Head from 'next/head';
+import DataTable from '../../../components/DataTable';
+
+const LoadingSkeleton = () => (
+    <div className="loading-skeleton mt-md">
+        <div className="skeleton-line" style={{ width: '90%' }}></div>
+        <div className="skeleton-line" style={{ width: '95%' }}></div>
+    </div>
+);
 
 export default function CustomerProfile() {
-  const router = useRouter();
-  const { username } = router.query;
+    const router = useRouter();
+    const { username } = router.query;
+    
+    const [authLoading, setAuthLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+    
+    const [transactions, setTransactions] = useState([]);
+    const [dataLoading, setDataLoading] = useState(true);
+    const [totals, setTotals] = useState({ deposits: 0, cashouts: 0, net: 0 });
+    
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+            if (user) {
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists() && userDoc.data().isAdmin) {
+                    setIsAdmin(true);
+                } else {
+                    router.replace('/admin');
+                }
+            } else {
+                router.replace('/admin');
+            }
+            setAuthLoading(false);
+        });
+        return () => unsubscribe();
+    }, [router]);
+    
+    const loadUserData = useCallback(async () => {
+        if (!username || !isAdmin) return;
+        setDataLoading(true);
+        
+        try {
+            // Fetch Deposits (Paid Orders)
+            const depositsQuery = query(collection(db, 'orders'), where('username', '==', username), where('status', '==', 'paid'));
+            const depositsSnap = await getDocs(depositsQuery);
+            const userDeposits = depositsSnap.docs.map(doc => ({
+                id: doc.id,
+                type: 'Deposit',
+                amount: parseFloat(doc.data().amount || 0),
+                time: doc.data().created,
+                game: doc.data().game || 'N/A'
+            }));
+            
+            // Fetch Cashouts
+            const cashoutsQuery = query(collection(db, 'cashouts'), where('username', '==', username), where('status', '==', 'completed'));
+            const cashoutsSnap = await getDocs(cashoutsQuery);
+            const userCashouts = cashoutsSnap.docs.map(doc => ({
+                id: doc.id,
+                type: 'Cashout',
+                amount: -parseFloat(doc.data().amountUSD || 0), // Negative for cashouts
+                time: doc.data().time,
+                game: 'N/A'
+            }));
+            
+            const allTrans = [...userDeposits, ...userCashouts];
+            setTransactions(allTrans);
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [totals, setTotals] = useState({ usd: 0, btc: 0 });
+            const totalDeposits = userDeposits.reduce((sum, t) => sum + t.amount, 0);
+            const totalCashouts = userCashouts.reduce((sum, t) => sum - t.amount, 0); // amount is already negative
+            
+            setTotals({
+                deposits: totalDeposits,
+                cashouts: totalCashouts,
+                net: totalDeposits - totalCashouts
+            });
 
-  // 🔐 Auth check
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-      router.replace('/admin/login');
-    }
-  }, []);
+        } catch (err) {
+            console.error('Error loading user data:', err);
+        } finally {
+            setDataLoading(false);
+        }
+    }, [username, isAdmin]);
+    
+    useEffect(() => {
+        loadUserData();
+    }, [loadUserData]);
+    
+    const logout = async () => {
+        await firebaseAuth.signOut();
+        router.replace('/admin');
+    };
+    
+    const columns = useMemo(() => [
+        { header: 'Time', accessor: 'time', sortable: true, cell: (row) => new Date(row.time).toLocaleString() },
+        { header: 'Type', accessor: 'type', sortable: true, cell: (row) => (
+            <span className={row.type === 'Deposit' ? 'text-success' : 'text-danger'}>{row.type}</span>
+        )},
+        { header: 'Amount (USD)', accessor: 'amount', sortable: true, cell: (row) => `$${row.amount.toFixed(2)}`},
+        { header: 'Game', accessor: 'game', sortable: true },
+    ], []);
 
-  // ✅ Load only paid orders for this user from Firebase
-  const loadUserData = useCallback(async () => {
-    if (!username) return;
-
-    setLoading(true);
-    try {
-      const snap = await db
-        .collection('orders')
-        .where('username', '==', username)
-        .where('status', '==', 'paid')
-        .get();
-
-      const userOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const usd = userOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
-      const btc = userOrders.reduce((sum, o) => sum + Number(o.btc || 0), 0);
-
-      setOrders(userOrders);
-      setTotals({ usd, btc });
-    } catch (err) {
-      console.error('Error loading user orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [username]);
-
-  useEffect(() => {
-    loadUserData();
-  }, [loadUserData]);
-
-  const logout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      localStorage.removeItem('admin_auth');
-      router.replace('/admin');
-    }
-  };
-
-  return (
-    <div className="admin-dashboard">
-      <div className="sidebar">
-        <h1>Lucky Paw Admin</h1>
-        <a className="nav-btn" href="/admin/dashboard">📋 Orders</a>
-        <a className="nav-btn" href="/admin/profit-loss">📊 Profit & Loss</a>
-        <a className="nav-btn" href="/admin/games">🎮 Games</a>
-        <button className="nav-btn" onClick={logout}>🚪 Logout</button>
-      </div>
-
-      <div className="main-content">
-        <h2 className="section-title">Customer Profile: {username}</h2>
-
-        <div className="card customer-profile-card mt-md">
-          <div className="totals-summary text-center">
-            <p>Total Deposits: <strong className="text-success">${totals.usd.toFixed(2)}</strong></p>
-            <p>Total BTC: <strong>{totals.btc.toFixed(8)} BTC</strong></p>
-          </div>
-
-          <h3 className="card-subtitle mt-md">Transaction History</h3>
-
-          {loading ? (
-            <p className="text-center mt-md">Loading orders...</p>
-          ) : orders.length === 0 ? (
-            <p className="text-center mt-md">No orders found for this user.</p>
-          ) : (
-            <div className="table-responsive mt-md">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Game</th>
-                    <th>Amount</th>
-                    <th>BTC</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((o) => (
-                    <tr key={o.id || `${o.username}-${o.created}`}>
-                      <td>{o.game || 'N/A'}</td>
-                      <td>${Number(o.amount || 0).toFixed(2)}</td>
-                      <td>{Number(o.btc || 0).toFixed(8)}</td>
-                      <td className={
-                        o.status === 'paid' ? 'status-paid' :
-                        o.status === 'pending' ? 'status-pending' : 'status-cancelled'
-                      }>
-                        {o.status || 'unknown'}
-                      </td>
-                      <td>{o.created ? new Date(o.created).toLocaleString() : 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="text-center mt-xl">
-            <button className="btn btn-secondary" onClick={() => router.back()}>
-              Back
-            </button>
-          </div>
+    if (authLoading) return <div className="loading-screen">Authenticating...</div>
+    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>
+    
+    return (
+        <div className="admin-dashboard-container">
+            <Head><title>Customer Profile - {username}</title></Head>
+            <header className="admin-header">
+                <h1>Customer Profile: {username}</h1>
+                <nav>
+                    <ul className="admin-nav">
+                        <li><a href="/admin/dashboard">Dashboard</a></li>
+                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                        <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+                    </ul>
+                </nav>
+            </header>
+            
+            <main className="admin-main-content">
+                <section className="stats-grid">
+                    <div className="stat-card" style={{borderColor: 'var(--primary-green)'}}>
+                        <h4 className="stat-card-title">Total Deposits</h4>
+                        <h2 className="stat-card-value">${totals.deposits.toFixed(2)}</h2>
+                    </div>
+                     <div className="stat-card" style={{borderColor: 'var(--red-alert)'}}>
+                        <h4 className="stat-card-title">Total Cashouts</h4>
+                        <h2 className="stat-card-value">${totals.cashouts.toFixed(2)}</h2>
+                    </div>
+                     <div className="stat-card" style={{borderColor: totals.net >= 0 ? 'var(--primary-blue)' : 'var(--orange)'}}>
+                        <h4 className="stat-card-title">Net P/L</h4>
+                        <h2 className="stat-card-value">${totals.net.toFixed(2)}</h2>
+                    </div>
+                </section>
+                
+                <section className="mt-xl">
+                    <h2>Transaction History</h2>
+                    {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={transactions} defaultSortField="time"/>}
+                </section>
+                
+                <div className="text-center mt-xl">
+                    <button className="btn btn-secondary" onClick={() => router.back()}>
+                        ← Back to Previous Page
+                    </button>
+                </div>
+            </main>
         </div>
-      </div>
-    </div>
-  );
+    );
 }

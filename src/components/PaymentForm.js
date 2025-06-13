@@ -1,13 +1,12 @@
 // src/components/PaymentForm.js
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient';
-import QRCodeLib from 'qrcode';
+import { collection, getDocs, orderBy } from 'firebase/firestore';
 
 // Import Modals
 import InvoiceModal from './InvoiceModal';
 import ExpiredModal from './ExpiredModal';
 import ReceiptModal from './ReceiptModal';
-import QRErrorBoundary from './QRErrorBoundary';
 
 export default function PaymentForm() {
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
@@ -26,7 +25,9 @@ export default function PaymentForm() {
   useEffect(() => {
     const loadGames = async () => {
       try {
-        const snap = await db.collection('games').orderBy('name').get();
+        const gamesCollection = collection(db, 'games');
+        const q = query(gamesCollection, orderBy('name'));
+        const snap = await getDocs(q);
         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
         console.error('Error loading games:', err);
@@ -83,21 +84,6 @@ export default function PaymentForm() {
     // setForm({ username: '', game: '', amount: '', method: 'lightning' });
   };
 
-  const copyToClipboard = () => {
-    const text = order?.invoice || '';
-    if (!text) {
-      setError('No invoice to copy');
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(err => {
-        console.error('Failed to copy:', err);
-        setError('Failed to copy invoice to clipboard.');
-    });
-  };
-
   const isValidQRValue = value =>
     typeof value === 'string' &&
     value.trim().length > 10 && // Basic length check
@@ -151,85 +137,83 @@ export default function PaymentForm() {
     !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
   return (
-    <>
-      <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
-      <form onSubmit={handleSubmit} className="payment-form-layout">
-        <div className="form-group">
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            className="input-field"
-            name="username"
-            value={form.username}
-            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-            required
-            placeholder="Your in-game username"
-          />
-        </div>
+    <div className="payment-form-card">
+        <h2 className="card-subtitle text-center mb-md" style={{ color: 'var(--primary-green)' }}>Generate Your Payment Invoice</h2>
+        <form onSubmit={handleSubmit} className="payment-form-grid">
+            <div className="form-group">
+                <label htmlFor="username">Username</label>
+                <input
+                    id="username"
+                    className="input-field"
+                    name="username"
+                    value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    required
+                    placeholder="Your in-game username"
+                />
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="game">Select Game</label>
-          <select
-            id="game"
-            className="select-field"
-            name="game"
-            value={form.game}
-            onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
-            required
-          >
-            <option value="" disabled>Select a Game</option>
-            {games.map(g => (
-              <option key={g.id} value={g.name}>{g.name}</option>
-            ))}
-          </select>
-        </div>
+            <div className="form-group">
+                <label htmlFor="game">Select Game</label>
+                <select
+                    id="game"
+                    className="select"
+                    name="game"
+                    value={form.game}
+                    onChange={e => setForm(f => ({ ...f, game: e.target.value }))}
+                    required
+                >
+                    <option value="" disabled>Select a Game</option>
+                    {games.map(g => (
+                        <option key={g.id} value={g.name}>{g.name}</option>
+                    ))}
+                </select>
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="amount">Amount (USD)</label>
-          <input
-            id="amount"
-            className="input-field"
-            type="number"
-            min="1"
-            step="0.01"
-            name="amount"
-            value={form.amount}
-            onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-            required
-            placeholder="e.g., 50.00"
-          />
-        </div>
+            <div className="form-group">
+                <label htmlFor="amount">Amount (USD)</label>
+                <input
+                    id="amount"
+                    className="input-field"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    name="amount"
+                    value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                    required
+                    placeholder="e.g., 50.00"
+                />
+            </div>
 
-        <div className="form-group">
-          <label>Payment Method</label>
-          <div className="radio-option-group">
-            <label>
-              <input
-                type="radio"
-                name="method"
-                value="lightning"
-                checked={form.method === 'lightning'}
-                onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
-              />
-              Lightning (Instant)
-            </label>
-          </div>
-        </div>
+            <div className="form-group">
+                <label>Payment Method</label>
+                <div className="radio-option-group">
+                    <label className="radio-label">
+                        <input
+                            type="radio"
+                            name="method"
+                            value="lightning"
+                            checked={form.method === 'lightning'}
+                            onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
+                        />
+                        <span className="icon-inline">⚡</span>
+                        Lightning (Instant)
+                    </label>
+                </div>
+            </div>
 
-        <div className="button-group">
-          <button className="btn btn-primary" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
-            {loading ? 'Generating Invoice...' : 'Generate Invoice'}
-          </button>
-        </div>
-      </form>
+            <button className="btn btn-primary btn-full-width" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
+                {loading ? 'Generating...' : 'Generate Invoice'}
+            </button>
+        </form>
 
       {error && <div className="alert alert-danger mt-md">{error}</div>}
 
-      {/* Render Modals here, passing necessary props */}
       {modals.invoice && (
         <InvoiceModal
           order={order}
-          expiresAt={expiresAtRef.current} // Pass the expiresAt timestamp
+          expiresAt={expiresAtRef.current}
           setCopied={setCopied}
           copied={copied}
           resetModals={resetAllModals}
@@ -237,17 +221,11 @@ export default function PaymentForm() {
         />
       )}
 
-      {modals.expired && (
-        <ExpiredModal resetModals={resetAllModals} />
-      )}
+      {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
 
       {modals.receipt && order && (
-        <ReceiptModal
-          order={order}
-          resetModals={resetAllModals}
-          shorten={shorten}
-        />
+        <ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />
       )}
-    </>
+    </div>
   );
 }

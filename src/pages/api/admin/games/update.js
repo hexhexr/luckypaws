@@ -1,6 +1,6 @@
 // pages/api/admin/games/update.js
-import { db } from '../../../../lib/firebaseAdmin'; // Adjust path as needed
-import { withAuth } from '../../../../lib/authMiddleware'; // Import the authentication middleware
+import { db } from '../../../../lib/firebaseAdmin';
+import { withAuth } from '../../../../lib/authMiddleware';
 
 const handler = async (req, res) => {
   if (req.method !== 'POST') {
@@ -9,12 +9,12 @@ const handler = async (req, res) => {
 
   const { id, name } = req.body;
 
-  if (!id || !name) {
+  if (!id || !name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({ message: 'Missing game ID or new name' });
   }
 
   try {
-    await db.collection('games').doc(id).update({ name });
+    await db.collection('games').doc(id).update({ name: name.trim() });
     res.status(200).json({ success: true, message: 'Game updated successfully' });
   } catch (error) {
     console.error('Error updating game:', error);
@@ -22,4 +22,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default withAuth(handler); // Wrap the handler with the authentication middleware
+export default withAuth(handler);

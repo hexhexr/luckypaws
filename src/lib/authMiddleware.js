@@ -1,12 +1,11 @@
 // src/lib/authMiddleware.js
-// Make sure src/lib/firebaseAdmin.js initializes Firebase Admin SDK and exports 'auth'
 import { auth } from './firebaseAdmin'; 
 
 /**
- * Verifies a Firebase ID token.
+ * Verifies a Firebase ID token and checks for admin privileges.
  * @param {string} token The Firebase ID token from the client.
  * @returns {Promise<object>} The decoded token payload.
- * @throws {Error} If the token is invalid, expired, or user is not authorized.
+ * @throws {Error} If the token is invalid, expired, or the user is not an admin.
  */
 export const verifyIdToken = async (token) => {
   if (!token) {
@@ -14,19 +13,22 @@ export const verifyIdToken = async (token) => {
   }
   try {
     const decodedToken = await auth.verifyIdToken(token);
-    // Optional: Add custom claim checks here if you use them for roles (e.g., admin, agent)
-    // Example: if (!decodedToken.admin) { throw new Error('Not authorized as admin.'); }
+    // You can also check for specific roles like 'agent' here if needed
+    // For admin routes, we check the 'admin' claim.
+    if (!decodedToken.admin) {
+        throw new Error('User does not have administrative privileges.');
+    }
     return decodedToken;
   } catch (error) {
     console.error('Error verifying Firebase ID token:', error.message);
-    throw new Error('Unauthorized: Invalid or expired token.');
+    throw new Error(`Unauthorized: ${error.message}`);
   }
 };
 
 /**
- * Middleware for protecting API routes.
+ * Middleware for protecting API routes that require admin access.
  * @param {function} handler The original API route handler.
- * @returns {function} A new handler that includes token verification.
+ * @returns {function} A new handler that includes admin token verification.
  */
 export const withAuth = (handler) => async (req, res) => {
   try {

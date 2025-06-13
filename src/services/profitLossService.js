@@ -1,29 +1,30 @@
 // services/profitLossService.js
 import { db } from '../lib/firebaseClient';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 export const fetchProfitLossData = async () => {
   try {
     // Fetch paid orders (deposits)
-    const orderSnap = await db.collection('orders').where('status', '==', 'paid').get();
+    const orderQuery = query(collection(db, 'orders'), where('status', '==', 'paid'));
+    const orderSnap = await getDocs(orderQuery);
     const depositList = orderSnap.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       type: 'deposit',
-      // Convert Firestore Timestamp to ISO string if it's a Timestamp object
       time: doc.data().created?.toDate ? doc.data().created.toDate().toISOString() : doc.data().created
     }));
 
-    // Fetch cashouts from 'cashouts' collection (corrected to match where data is stored)
-    const cashoutSnap = await db.collection('cashouts').get(); // Corrected from 'profitLoss'
+    // Fetch cashouts from 'cashouts' collection
+    const cashoutQuery = query(collection(db, 'cashouts'));
+    const cashoutSnap = await getDocs(cashoutQuery);
     const cashoutList = cashoutSnap.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       type: 'cashout',
-      // Convert Firestore Timestamp to ISO string for cashouts as well
-      time: doc.data().time?.toDate ? doc.data().time.toDate().toISOString() : (doc.data().created?.toDate ? doc.data().created.toDate().toISOString() : doc.data().time || doc.data().created)
+      time: doc.data().time?.toDate ? doc.data().time.toDate().toISOString() : doc.data().time
     }));
 
-    // Sort by time. Ensure time is consistently a parsable date string or Date object.
+    // Combine and sort by time
     const combined = [...depositList, ...cashoutList].sort((a, b) => new Date(b.time) - new Date(a.time));
     return combined;
   } catch (err) {

@@ -8,12 +8,11 @@ import PaymentForm from '../components/PaymentForm';
 export default function Home() {
   const paymentFormRef = useRef(null);
 
-  useEffect(() => {
-    // Scroll to the payment form section on page load
+  const scrollToPayment = () => {
     if (paymentFormRef.current) {
       paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, []);
+  };
 
   return (
     <>
@@ -34,7 +33,7 @@ export default function Home() {
               Top up your balance instantly with Bitcoin Lightning and cast your line for big wins.
             </p>
             <div className="hero-cta-buttons">
-              <a href="#payment-form-section" className="btn btn-primary btn-large">Top Up Now!</a>
+              <button onClick={scrollToPayment} className="btn btn-primary btn-large">Top Up Now!</button>
               <a href="/games" className="btn btn-secondary btn-large">Explore Games</a>
             </div>
           </div>
@@ -42,20 +41,15 @@ export default function Home() {
 
         {/* Payment Form Section - Anchor for CTA and auto-focus */}
         <section id="payment-form-section" className="section-padded" ref={paymentFormRef}>
-          <div className="container">
-            <div className="card">
-              <h2 className="card-header text-center">Secure & Instant Top-Up</h2>
-              <div className="card-body">
-                <PaymentForm />
-              </div>
-            </div>
+          <div className="container" style={{maxWidth: '650px'}}>
+             <PaymentForm />
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="features-section section-padded bg-light-gradient">
+        <section className="features-section section-padded">
           <div className="container">
-            <h2 className="section-title text-center mb-lg">Why Choose Lucky Paw's?</h2>
+            <h2 className="section-title text-center mb-xl">Why Choose Lucky Paw's?</h2>
             <div className="feature-grid">
               <div className="feature-item">
                 <div className="feature-icon">⚡</div>
@@ -72,21 +66,7 @@ export default function Home() {
                 <h3 className="feature-title">Secure & Transparent</h3>
                 <p className="feature-description">Your transactions are safe, and your game results are fair.</p>
               </div>
-              <div className="feature-item">
-                <div className="feature-icon">🤝</div>
-                <h3 className="feature-title">24/7 Support</h3>
-                <p className="feature-description">Our dedicated support team is always ready to assist you.</p>
-              </div>
             </div>
-          </div>
-        </section>
-
-        {/* Call to Action Section (Optional, can be removed if hero is enough) */}
-        <section className="cta-section text-center section-padded">
-          <div className="container">
-            <h2 className="section-title">Ready to Catch Big Wins?</h2>
-            <p className="section-subtitle">Join the Lucky Paw's community today!</p>
-            <a href="#payment-form-section" className="btn btn-primary btn-large">Get Started Now</a>
           </div>
         </section>
       </main>

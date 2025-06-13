@@ -8,18 +8,19 @@ export default async function handler(req, res) {
 
   const { username, game, amount, method } = req.body;
   if (!username || !game || !amount || !method) {
-    return res.status(400).json({ message: 'Missing fields' });
+    return res.status(400).json({ message: 'Missing required fields.' });
   }
 
   const apiUrl = process.env.SPEED_API_BASE_URL || 'https://api.tryspeed.com';
   const url = `${apiUrl}/payments`;
   const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
   const payload = {
     amount: Number(amount),
     currency: 'USD',
-    success_url: 'https://luckypaws.vercel.app/receipt', // Ensure this URL is correct for your app
-    cancel_url: 'https://luckypaws.vercel.app', // Ensure this URL is correct for your app
+    success_url: `${baseUrl}/receipt`,
+    cancel_url: `${baseUrl}/`,
   };
 
   try {
@@ -36,78 +37,28 @@ export default async function handler(req, res) {
 
     const payment = await response.json();
 
-    // --- DEBUG LOGGING ---
-    console.log('--- DEBUG: Speed API Response Start ---');
-    console.log('Raw Speed API payment object:', JSON.stringify(payment, null, 2));
-    console.log('Current server time (Date.now()):', Date.now());
-    if (payment.expires_at) {
-        console.log('Speed API expires_at:', payment.expires_at, '(Unix ms timestamp)');
-        const remainingTimeOnServer = Math.max(0, Math.floor((payment.expires_at - Date.now()) / 1000));
-        console.log(`Remaining time on server before expiry: ${remainingTimeOnServer} seconds`);
-        if (remainingTimeOnServer <= 0) {
-            console.error('ERROR: Invoice expires_at is already in the past or very short on server!');
-        }
-    } else {
-        console.warn('WARNING: Speed API did not return expires_at in the response.');
-    }
-    console.log('--- DEBUG: Speed API Response End ---');
-    // --- END DEBUG LOGGING ---
-
-    // Validate Speed API response
-    if (
-      !payment.id ||
-      !payment.payment_method_options?.lightning?.payment_request
-    ) {
-      console.error('Invalid response from Speed API: Missing ID or invoice', JSON.stringify(payment, null, 2));
-      return res.status(500).json({ message: 'Invalid response from Speed API', payment });
+    if (!response.ok || !payment.id || !payment.payment_method_options?.lightning?.payment_request) {
+      console.error('Invalid response from Speed API:', payment);
+      return res.status(500).json({ message: 'Invalid response from payment gateway', details: payment.message });
     }
 
     const invoice = payment.payment_method_options.lightning.payment_request;
-
-    // --- Retrieve expiresAt from Speed API (already in milliseconds) ---
-    let expiresAt = null;
-    if (typeof payment.expires_at === 'number' && payment.expires_at > 0) {
-      expiresAt = payment.expires_at; // Use directly as it's already in milliseconds
-    } else if (typeof payment.expires_at === 'string') {
-      const parsedExpiresAt = Number(payment.expires_at);
-      if (!isNaN(parsedExpiresAt) && parsedExpiresAt > 0) {
-        expiresAt = parsedExpiresAt; // Use directly as it's already in milliseconds
-      }
-    }
-    // --- LOGGING for expiresAt AFTER parsing ---
-    console.log('Parsed expiresAt to be sent to frontend:', expiresAt);
-    if (expiresAt && (expiresAt - Date.now() <= 0)) {
-        console.error('ERROR: Parsed expiresAt is past current server time!');
-    }
-    // --- End Logging ---
-
+    const expiresAt = payment.expires_at; // In milliseconds
     let btc = 'N/A';
-    const requestedAmountUSD = parseFloat(amount);
 
-    // Calculate BTC amount or fetch from CoinGecko if Speed API doesn't provide it
-    if (payment.amount_in_satoshis && typeof payment.amount_in_satoshis === 'number' && payment.amount_in_satoshis > 0) {
+    if (payment.amount_in_satoshis > 0) {
       btc = (payment.amount_in_satoshis / 100000000).toFixed(8);
     } else {
-      try {
-        const btcRes = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
-        );
-        const btcData = await btcRes.json();
-        const rate = btcData?.bitcoin?.usd;
-
-        if (rate && typeof rate === 'number' && rate > 0) {
-          btc = (requestedAmountUSD / rate).toFixed(8);
-        } else {
-          console.warn('CoinGecko rate not found or invalid:', rate);
-          btc = 'N/A - Rate Error';
+        try {
+            const btcRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+            const btcData = await btcRes.json();
+            const rate = btcData?.bitcoin?.usd;
+            if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
+        } catch (e) {
+            console.error('CoinGecko fallback failed:', e);
         }
-      } catch (e) {
-        console.error('CoinGecko BTC fallback failed:', e);
-        btc = 'N/A - CoinGecko Error';
-      }
     }
 
-    // Save order with invoice for frontend QR code
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -115,17 +66,16 @@ export default async function handler(req, res) {
       amount,
       btc,
       method,
-      status: 'pending', // Initial status
-      invoice, // IMPORTANT: raw Lightning invoice string here
+      status: 'pending',
+      invoice,
       created: new Date().toISOString(),
-      expiresAt: expiresAt, // Store the actual expiry timestamp in Firebase
-      paidManually: false,
+      expiresAt,
+      read: false, // Add a 'read' flag for the admin dashboard
     });
 
-    // IMPORTANT: Returning expiresAt to the frontend
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
   } catch (err) {
-    console.error('Speed API or payment processing error:', err.message || err);
+    console.error('Payment creation error:', err);
     return res.status(500).json({ message: 'Payment creation failed', error: err.message });
   }
 }

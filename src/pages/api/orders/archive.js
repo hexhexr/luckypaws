@@ -1,5 +1,6 @@
+// pages/api/orders/archive.js
 import { db } from '../../../lib/firebaseAdmin.js';
-import { withAuth } from '../../../lib/authMiddleware'; // Import the authentication middleware
+import { withAuth } from '../../../lib/authMiddleware';
 
 const handler = async (req, res) => {
   if (req.method !== 'POST') {
@@ -13,12 +14,10 @@ const handler = async (req, res) => {
 
   try {
     const orderRef = db.collection('orders').doc(id);
-    // Instead of deleting, we update the status to 'archived'
     await orderRef.update({
       status: 'archived',
       archivedAt: new Date().toISOString(),
     });
-    console.log(`Order ${id} archived successfully.`);
     res.status(200).json({ success: true, message: 'Order archived successfully.' });
   } catch (err) {
     console.error('Failed to archive order:', err);
@@ -26,4 +25,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default withAuth(handler); // Wrap the handler with the authentication middleware
+export default withAuth(handler);
