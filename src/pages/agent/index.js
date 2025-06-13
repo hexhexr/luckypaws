@@ -84,6 +84,8 @@ export default function AgentDashboard() {
         const customerMap = new Map(customers.map(c => [c.username, c.facebookName]));
         return recentDeposits.map(dep => ({
             ...dep,
+            // FIX: Ensure amount is a number for calculations and formatting
+            amount: parseFloat(dep.amount || 0),
             facebookName: customerMap.get(dep.username) || 'N/A'
         }));
     }, [customers, recentDeposits]);
@@ -154,7 +156,7 @@ export default function AgentDashboard() {
                         <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-row"><input name="customerUsername" required className="input-field" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                         <SectionCard title="Recent Deposits"><div className="list-container">{enrichedDeposits.map(dep => (<div key={dep.id} className="list-item"><p><strong>{dep.facebookName}</strong> ({dep.username})</p><p>Deposited ${dep.amount.toFixed(2)} for {dep.game}</p><p className="list-item-footer">{dep.created?.toDate ? dep.created.toDate().toLocaleString() : 'N/A'}</p></div>))}</div></SectionCard>
                         <SectionCard title="My Customers"><div className="list-container">{customers.map(c => (<div key={c.id} className="list-item"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="link">View Profile</a></div>))}</div></SectionCard>
-                        <SectionCard title="My Cashout Requests"><div className="list-container">{agentRequests.map(r => (<div key={r.id} className="list-item"><p>${r.amount.toFixed(2)} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p><p>Status: <span className={`status-${r.status}`}>{r.status}</span></p></div>))}</div></SectionCard>
+                        <SectionCard title="My Cashout Requests"><div className="list-container">{agentRequests.map(r => (<div key={r.id} className="list-item"><p>${parseFloat(r.amount || 0).toFixed(2)} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p><p>Status: <span className={`status-${r.status}`}>{r.status}</span></p></div>))}</div></SectionCard>
                     </div>
                 </aside>
                 <div className="resize-handle" onMouseDown={handleMouseDown}></div>
