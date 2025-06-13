@@ -1,7 +1,7 @@
 // src/components/PaymentForm.js
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient';
-import { collection, getDocs, orderBy } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
 // Import Modals
 import InvoiceModal from './InvoiceModal';
@@ -221,7 +221,7 @@ export default function PaymentForm() {
         />
       )}
 
-      {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
+      {modals.expired && <ExpiredModal resetModals={resetModals} />}
 
       {modals.receipt && order && (
         <ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />
