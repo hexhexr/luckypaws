@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { db, auth } from '../../lib/firebaseClient';
-import { onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, doc } from 'firebase/firestore';
+import { onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, doc, limit } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
