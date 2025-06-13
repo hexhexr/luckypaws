@@ -12,7 +12,7 @@ const handler = async (req, res) => {
       .collection('orders')
       .where('status', '==', 'paid')
       .orderBy('created', 'desc')
-      .limit(15) // Fetch a few more for better context
+      .limit(15)
       .get();
 
     const deposits = await Promise.all(
@@ -20,11 +20,12 @@ const handler = async (req, res) => {
         const orderData = doc.data();
         let facebookName = 'N/A';
 
-        // Perform a secondary lookup to find the facebookName
+        // BUG FIX: Look up the facebookName from the 'customers' collection,
+        // which is the correct source of truth managed by the agent.
         if (orderData.username) {
-          const usernameSnapshot = await db.collection('usernames').where('username', '==', orderData.username).limit(1).get();
-          if (!usernameSnapshot.empty) {
-            facebookName = usernameSnapshot.docs[0].data().facebookName || 'N/A';
+          const customerSnapshot = await db.collection('customers').where('username', '==', orderData.username).limit(1).get();
+          if (!customerSnapshot.empty) {
+            facebookName = customerSnapshot.docs[0].data().facebookName || 'N/A';
           }
         }
 
@@ -33,7 +34,7 @@ const handler = async (req, res) => {
           username: orderData.username,
           amount: parseFloat(orderData.amount || 0),
           game: orderData.game,
-          facebookName: facebookName,
+          facebookName: facebookName, // This will now be correctly populated
           created: orderData.created?.toDate ? orderData.created.toDate().toISOString() : orderData.created,
         };
       })
