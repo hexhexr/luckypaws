@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { db, auth } from '../../lib/firebaseClient';
-import { onSnapshot, query, collection, where, orderBy, updateDoc, getDoc, doc, limit } from 'firebase/firestore';
+import { onSnapshot, query, collection, where, orderBy, getDoc, doc, limit } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
@@ -28,7 +28,6 @@ export default function AgentPage() {
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
   const [depositsLoading, setDepositsLoading] = useState(true);
 
-  // Authentication & Profile Fetch
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -54,7 +53,6 @@ export default function AgentPage() {
     return () => unsubscribeAuth();
   }, [router]);
   
-  // Fetch Page Code Settings
   useEffect(() => {
     if (!user) return;
     const agentSettingsRef = doc(db, 'agentSettings', 'pageCodeConfig');
@@ -70,7 +68,6 @@ export default function AgentPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Live Deposit Checker
   useEffect(() => {
     if (!user) return;
     setDepositsLoading(true);
@@ -80,6 +77,7 @@ export default function AgentPage() {
       setLast10AllDeposits(deposits);
       setDepositsLoading(false);
     }, (error) => {
+      console.error("Error fetching live deposits:", error);
       setMessage({ text: 'Error fetching live deposits.', type: 'error' });
       setDepositsLoading(false);
     });
@@ -90,7 +88,6 @@ export default function AgentPage() {
     e.preventDefault();
     setGeneratedUsername('');
     setMessage({ text: '', type: '' });
-
     try {
       const response = await fetch('/api/generate-username', {
         method: 'POST',
@@ -115,7 +112,12 @@ export default function AgentPage() {
   };
 
   const depositColumns = useMemo(() => [
-    { header: 'Time', accessor: 'created', cell: (row) => row.created?.toDate().toLocaleString() },
+    { 
+      header: 'Time', 
+      accessor: 'created', 
+      // THE FIX IS HERE: Check for the toDate method before calling it.
+      cell: (row) => row.created?.toDate ? row.created.toDate().toLocaleString() : 'N/A' 
+    },
     { header: 'Username', accessor: 'username' },
     { header: 'Amount (USD)', accessor: 'amount', cell: (row) => `$${parseFloat(row.amount).toFixed(2)}` }
   ], []);

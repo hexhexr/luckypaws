@@ -1,5 +1,6 @@
 // pages/api/admin/cashouts/send.js
 import { db } from '../../../../lib/firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 import * as bolt11 from 'lightning-invoice';
 import { withAuth } from '../../../../lib/authMiddleware';
 
@@ -13,7 +14,7 @@ async function getBtcPrice() {
     return price;
   } catch (error) {
     console.error('[PriceFetch] Error:', error);
-    return 70000; // Fallback price
+    return 70000;
   }
 }
 
@@ -27,23 +28,18 @@ async function fetchInvoiceFromLightningAddress(lightningAddress, amountMsat) {
   try {
     const [username, domain] = lightningAddress.split('@');
     const lnurlpUrl = `https://${domain}/.well-known/lnurlp/${username}`;
-
     const lnurlRes = await fetch(lnurlpUrl);
     if (!lnurlRes.ok) throw new Error(`LNURL-pay endpoint failed: ${lnurlRes.statusText}`);
     const lnurlData = await lnurlRes.json();
-
     if (lnurlData.tag !== 'payRequest') throw new Error('Invalid LNURL-pay response.');
     if (amountMsat < lnurlData.minSendable || amountMsat > lnurlData.maxSendable) {
       throw new Error(`Amount is outside the acceptable range for this Lightning Address.`);
     }
-
     const callbackUrl = new URL(lnurlData.callback);
     callbackUrl.searchParams.append('amount', amountMsat);
-
     const invoiceRes = await fetch(callbackUrl.toString());
     if (!invoiceRes.ok) throw new Error(`Callback failed: ${invoiceRes.statusText}`);
     const invoiceData = await invoiceRes.json();
-
     if (!invoiceData.pr) throw new Error('Invoice not found in callback response.');
     return invoiceData.pr;
   } catch (error) {
@@ -94,7 +90,7 @@ const handler = async (req, res) => {
       amountUSD: usdAmount,
       amountSats: satsToPay,
       destination,
-      time: new Date().toISOString(),
+      time: Timestamp.now(), // THE FIX IS HERE
       status: 'initializing',
     };
     await cashoutRef.set(initialCashoutData);
@@ -132,7 +128,7 @@ const handler = async (req, res) => {
         description: error.message,
         username: username || 'unknown',
         destination: destination || 'unknown',
-        time: new Date().toISOString()
+        time: Timestamp.now() // THE FIX IS HERE
     }, { merge: true });
     res.status(500).json({ message: error.message || 'An unexpected error occurred.' });
   }

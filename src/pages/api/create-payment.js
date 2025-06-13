@@ -1,5 +1,6 @@
 // pages/api/create-payment.js
 import { db } from '../../lib/firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -16,7 +17,6 @@ export default async function handler(req, res) {
   const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
-  // **THE FIX IS HERE**: Add a unique reference to the payload
   const uniqueReference = `${username.replace(/\s+/g, '_')}-${Date.now()}`;
 
   const payload = {
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     currency: 'USD',
     success_url: `${baseUrl}/receipt`,
     cancel_url: `${baseUrl}/`,
-    reference: uniqueReference, // Ensures a new payment is created every time
+    reference: uniqueReference,
   };
 
   try {
@@ -42,12 +42,11 @@ export default async function handler(req, res) {
     const payment = await response.json();
 
     if (!response.ok || !payment.id || !payment.payment_method_options?.lightning?.payment_request) {
-      console.error('Invalid response from Speed API:', payment);
       return res.status(500).json({ message: 'Invalid response from payment gateway', details: payment.message });
     }
 
     const invoice = payment.payment_method_options.lightning.payment_request;
-    const expiresAt = payment.expires_at; // In milliseconds
+    const expiresAt = payment.expires_at;
     let btc = 'N/A';
 
     if (payment.amount_in_satoshis > 0) {
@@ -58,9 +57,7 @@ export default async function handler(req, res) {
             const btcData = await btcRes.json();
             const rate = btcData?.bitcoin?.usd;
             if (rate > 0) btc = (parseFloat(amount) / rate).toFixed(8);
-        } catch (e) {
-            console.error('CoinGecko fallback failed:', e);
-        }
+        } catch (e) { console.error('CoinGecko fallback failed:', e); }
     }
 
     await db.collection('orders').doc(payment.id).set({
@@ -72,10 +69,10 @@ export default async function handler(req, res) {
       method,
       status: 'pending',
       invoice,
-      created: new Date().toISOString(),
+      created: Timestamp.now(), // THE FIX IS HERE
       expiresAt,
       read: false,
-      reference: uniqueReference, // Save the reference for tracking
+      reference: uniqueReference,
     });
 
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
