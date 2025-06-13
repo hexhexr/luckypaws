@@ -1,6 +1,7 @@
 // pages/api/customer-cashout-limit.js
 import { db } from '../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { withAgentAuth } from '../../lib/authMiddleware'; // BUG FIX: Import and apply agent authentication
 
 const MAX_LIMIT = 300;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -9,7 +10,6 @@ export async function checkCashoutLimit(username) {
   const now = Timestamp.now();
   const twentyFourHoursAgo = Timestamp.fromMillis(now.toMillis() - TWENTY_FOUR_HOURS_MS);
 
-  // CORRECTED: Using Admin SDK syntax
   const cashoutsRef = db.collection('cashouts');
   const q = cashoutsRef
     .where('username', '==', username)
@@ -29,9 +29,11 @@ export async function checkCashoutLimit(username) {
 
   const cashoutsInWindow = snapshot.docs.map(doc => doc.data());
   
+  // The start of the 24-hour rolling window is the timestamp of the first cashout within the last 24 hours.
   const windowStartTime = cashoutsInWindow[0].time;
   const windowResetsAt = Timestamp.fromMillis(windowStartTime.toMillis() + TWENTY_FOUR_HOURS_MS);
 
+  // If the window has already reset, return the full limit.
   if (windowResetsAt.toMillis() < now.toMillis()) {
       return {
           totalCashoutsInWindow: 0,
@@ -41,6 +43,7 @@ export async function checkCashoutLimit(username) {
   }
   
   const totalCashoutsInWindow = cashoutsInWindow.reduce((sum, cashout) => {
+    // Ensure we only sum cashouts that fall within the current active window
     if (cashout.time.toMillis() < windowResetsAt.toMillis()) {
         return sum + parseFloat(cashout.amountUSD || 0);
     }
@@ -57,10 +60,7 @@ export async function checkCashoutLimit(username) {
 }
 
 const handler = async (req, res) => {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
-
+  // This endpoint is now protected and req.decodedToken is available.
   const { username } = req.query;
 
   if (!username || typeof username !== 'string' || username.trim() === '') {
@@ -80,4 +80,5 @@ const handler = async (req, res) => {
   }
 };
 
-export default handler;
+// BUG FIX: This handler is now wrapped with agent authentication for security.
+export default withAgentAuth(handler);

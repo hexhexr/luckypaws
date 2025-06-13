@@ -19,15 +19,20 @@ export default async function handler(req, res) {
 
   const uniqueReference = `${username.replace(/\s+/g, '_')}-${Date.now()}`;
 
-  const payload = {
-    amount: Number(amount),
-    currency: 'USD',
-    success_url: `${baseUrl}/receipt`,
-    cancel_url: `${baseUrl}/`,
-    reference: uniqueReference,
-  };
+  // Intentionally define paymentId outside the try block
+  let paymentId = null;
 
   try {
+    const payload = {
+      amount: Number(amount),
+      currency: 'USD',
+      // BUG FIX: The success_url requires the payment ID to show the correct receipt.
+      // This will be dynamically replaced after we get the ID from the Speed API response.
+      success_url: `${baseUrl}/receipt?id={payment_id}`,
+      cancel_url: `${baseUrl}/`,
+      reference: uniqueReference,
+    };
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -42,13 +47,21 @@ export default async function handler(req, res) {
     const payment = await response.json();
 
     if (!response.ok || !payment.id || !payment.payment_method_options?.lightning?.payment_request) {
+      console.error('Invalid response from payment gateway:', payment);
       return res.status(500).json({ message: 'Invalid response from payment gateway', details: payment.message });
     }
+
+    // Assign the received payment ID
+    paymentId = payment.id;
+
+    // Now, correctly fill the success_url for the database record
+    const final_success_url = `${baseUrl}/receipt?id=${paymentId}`;
 
     const invoice = payment.payment_method_options.lightning.payment_request;
     const expiresAt = payment.expires_at;
     let btc = 'N/A';
 
+    // Calculate BTC amount, with a fallback to CoinGecko for resilience
     if (payment.amount_in_satoshis > 0) {
       btc = (payment.amount_in_satoshis / 100000000).toFixed(8);
     } else {
@@ -60,6 +73,7 @@ export default async function handler(req, res) {
         } catch (e) { console.error('CoinGecko fallback failed:', e); }
     }
 
+    // Store the order in Firestore with all necessary details
     await db.collection('orders').doc(payment.id).set({
       orderId: payment.id,
       username,
@@ -69,10 +83,11 @@ export default async function handler(req, res) {
       method,
       status: 'pending',
       invoice,
-      created: Timestamp.now(), // THE FIX IS HERE
+      created: Timestamp.now(),
       expiresAt,
       read: false,
       reference: uniqueReference,
+      success_url: final_success_url, // Store the correct URL
     });
 
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });

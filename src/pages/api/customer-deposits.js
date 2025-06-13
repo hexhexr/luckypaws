@@ -1,5 +1,6 @@
+// pages/api/customer-deposits.js
 import { db } from '../../lib/firebaseAdmin';
-import { withAuth } from '../../lib/authMiddleware'; // Import the authentication middleware
+import { withAuth } from '../../lib/authMiddleware'; // This API is admin-protected
 
 const handler = async (req, res) => {
   if (req.method !== 'GET') {
@@ -7,19 +8,24 @@ const handler = async (req, res) => {
   }
 
   try {
+    // BUG FIX: The field name is 'created', not 'createdAt'. This caused the query to fail.
     const depositsSnapshot = await db
-      .collection('orders') // Assuming deposits are part of 'orders' with status 'paid'
+      .collection('orders')
       .where('status', '==', 'paid')
-      .orderBy('createdAt', 'desc')
+      .orderBy('created', 'desc') // Corrected field name
       .limit(10)
       .get();
 
-    const lastDeposits = depositsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      username: doc.data().username,
-      amount: parseFloat(doc.data().amount || 0),
-      createdAt: doc.data().createdAt,
-    }));
+    const lastDeposits = depositsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        username: data.username,
+        amount: parseFloat(data.amount || 0),
+        // Ensure timestamp is sent in a consistent, serializable format
+        created: data.created?.toDate ? data.created.toDate().toISOString() : null,
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -32,4 +38,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default withAuth(handler); // Wrap the handler with the authentication middleware
+export default withAuth(handler); // Wrap the handler with admin authentication

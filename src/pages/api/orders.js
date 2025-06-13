@@ -1,26 +1,38 @@
+// pages/api/orders.js
 import { db } from '../../lib/firebaseAdmin.js';
 
 export default async function handler(req, res) {
   const { id, limit = 100 } = req.query;
 
   try {
+    // Handle request for a single specific order
     if (id) {
       const doc = await db.collection('orders').doc(id).get();
       if (!doc.exists) {
         return res.status(404).json({ message: 'Order not found' });
       }
+      // Return the single document's data
       return res.status(200).json({ id: doc.id, ...doc.data() });
     }
 
-    // The query now explicitly excludes statuses that should not appear on the main dashboard.
-    // This is the initial data load before the real-time listener takes over.
+    // Handle request for a list of orders
+    // BUG FIX: Removed the restrictive 'where' clause. The frontend (admin dashboard)
+    // is designed to handle and filter all statuses. This ensures the initial data load
+    // is consistent with the subsequent real-time snapshot listener.
     const query = db.collection('orders')
-                  .where('status', 'in', ['pending', 'paid'])
                   .orderBy('created', 'desc')
                   .limit(Number(limit));
 
     const snapshot = await query.get();
-    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const orders = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+            id: doc.id, 
+            ...data,
+            // Ensure timestamp is consistently formatted as an ISO string for serialization
+            created: data.created?.toDate ? data.created.toDate().toISOString() : data.created
+        };
+    });
 
     return res.status(200).json(orders);
   } catch (err) {

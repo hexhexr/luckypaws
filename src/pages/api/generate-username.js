@@ -1,4 +1,6 @@
+// pages/api/generate-username.js
 import { db } from '../../lib/firebaseAdmin';
+import { withAgentAuth } from '../../lib/authMiddleware';
 
 function sanitizeName(name) {
   return name.toLowerCase().replace(/[^a-z]/g, '').replace(/[il]/g, '');
@@ -22,31 +24,33 @@ async function checkIfUsernameExists(username) {
   return !snapshot.empty;
 }
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
+  // Logic restored to require facebookName and pageCode
   const { facebookName, pageCode } = req.body;
+  const agent = req.decodedToken; // Agent is verified by middleware
 
-  if (!facebookName || typeof facebookName !== 'string' || facebookName.trim() === '') {
-    return res.status(400).json({ message: 'Facebook name is required.' });
+  if (!facebookName || !pageCode) {
+    return res.status(400).json({ message: 'Facebook name and Page Code are required.' });
   }
-  if (!pageCode || typeof pageCode !== 'string' || !/^\d{4}$/.test(pageCode)) {
-    return res.status(400).json({ message: 'Page Code must be a 4-digit number.' });
+  if (typeof pageCode !== 'string' || !/^\d{4}$/.test(pageCode)) {
+    return res.status(400).json({ message: 'Page Code must be a 4-digit string.' });
   }
 
   try {
     const sanitizedName = sanitizeName(facebookName);
     if (!sanitizedName) {
-      return res.status(400).json({ message: 'Invalid Facebook name: no usable characters left after sanitizing.' });
+      return res.status(400).json({ message: 'Invalid Facebook name provided.' });
     }
 
-    const originalPrefix = sanitizedName.substring(0, Math.min(sanitizedName.length, 5));
     const namePrefixes = getPossibleNamePrefixes(sanitizedName);
-    const suffix = pageCode.toLowerCase();
+    const suffix = pageCode; // Suffix is the agent's page code
     let finalUsername = null;
 
+    // First-pass attempt with available prefixes
     for (const prefix of namePrefixes) {
       const proposed = `${prefix}${suffix}`;
       if (!(await checkIfUsernameExists(proposed))) {
@@ -55,21 +59,20 @@ export default async function handler(req, res) {
       }
     }
 
+    // Fallback logic if simple prefixes are already taken
     if (!finalUsername) {
+      const originalPrefix = sanitizedName.substring(0, Math.min(sanitizedName.length, 5));
       const availableChars = 'abcdefghjkmnopqrstuvwxyz';
       const base = originalPrefix.padEnd(5, 'a');
-      const maxAttempts = 10000;
 
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      for (let attempt = 0; attempt < 1000; attempt++) { // Limit attempts
         let chars = base.split('');
         let temp = attempt;
         for (let i = chars.length - 1; i >= 0; i--) {
-          if (attempt === 0 && i === chars.length - 1) continue;
-          const index = temp % availableChars.length;
-          chars[i] = availableChars[index];
+          chars[i] = availableChars[(availableChars.indexOf(chars[i]) + temp) % availableChars.length];
           temp = Math.floor(temp / availableChars.length);
+          if (temp === 0) break;
         }
-
         const mutated = `${chars.join('')}${suffix}`;
         if (!(await checkIfUsernameExists(mutated))) {
           finalUsername = mutated;
@@ -81,27 +84,30 @@ export default async function handler(req, res) {
     if (!finalUsername) {
       return res.status(500).json({
         success: false,
-        message: 'Could not generate unique username after multiple attempts. Try a different name or contact support.',
+        message: 'Could not generate a unique username. Try a different name.',
       });
     }
 
+    // Save the generated username to the database
     const newRef = db.collection('usernames').doc();
     await newRef.set({
       id: newRef.id,
       username: finalUsername,
       facebookName,
-      pageCode,
-      createdAt: new Date().toISOString(),
+      pageCodeUsed: pageCode,
+      generatedByAgentUid: agent.uid,
+      generatedAt: new Date().toISOString(),
     });
 
     res.status(200).json({
       success: true,
       message: 'Username successfully generated.',
       username: finalUsername,
-      facebookName,
     });
   } catch (err) {
     console.error('Error in username generation:', err);
     res.status(500).json({ message: 'Server error during username generation.' });
   }
-}
+};
+
+export default withAgentAuth(handler);

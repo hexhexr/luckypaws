@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { doc, getDoc, onSnapshot, collection, query, orderBy, addDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
@@ -24,59 +24,81 @@ export default function AdminProfitLoss() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
+    
+    // State for combined, consistent data
     const [allTransactions, setAllTransactions] = useState([]);
-    const [manualTx, setManualTx] = useState({ username: '', amount: '', description: '', type: 'cashout' });
+
+    const [manualTx, setManualTx] = useState({ username: '', amount: '', description: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Corrected Authentication Check
+    // Authentication Check
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                // User is signed in, check if they are an admin.
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    // User is an admin, allow them to stay.
                     setIsAdmin(true);
-                    setAuthLoading(false);
                 } else {
-                    // User is not an admin, redirect.
                     router.replace('/admin');
                 }
             } else {
-                // No user is signed in, redirect to login.
                 router.replace('/admin');
             }
+            setAuthLoading(false);
         });
-
-        return () => unsubscribe(); // Cleanup listener on unmount
+        return () => unsubscribe();
     }, [router]);
 
-
-    // Data Fetching
+    // BUG FIX: Rewritten data fetching logic to use the correct collections ('orders' and 'cashouts')
     useEffect(() => {
         if (!isAdmin) return;
         setDataLoading(true);
-        const q = query(collection(db, "profitLoss"), orderBy("time", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setAllTransactions(data);
+
+        const depositsQuery = query(collection(db, "orders"), where("status", "==", "paid"));
+        const cashoutsQuery = query(collection(db, "cashouts"), where("status", "==", "completed"));
+
+        let depositsData = [];
+        let cashoutsData = [];
+
+        const combineData = () => {
+            const transformedDeposits = depositsData.map(d => ({ ...d, type: 'deposit', time: d.created?.toDate ? d.created.toDate().toISOString() : d.created }));
+            const transformedCashouts = cashoutsData.map(c => ({ ...c, type: 'cashout', amount: c.amountUSD, time: c.time?.toDate ? c.time.toDate().toISOString() : c.time }));
+            setAllTransactions([...transformedDeposits, ...transformedCashouts]);
             setDataLoading(false);
+        };
+
+        const depositsListener = onSnapshot(depositsQuery, (snapshot) => {
+            depositsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            combineData();
         }, (err) => {
-            setError("Failed to load profit/loss data.");
+            setError("Failed to load deposit data.");
             setDataLoading(false);
         });
-        return () => unsubscribe();
+
+        const cashoutsListener = onSnapshot(cashoutsQuery, (snapshot) => {
+            cashoutsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            combineData();
+        }, (err) => {
+            setError("Failed to load cashout data.");
+            setDataLoading(false);
+        });
+
+        return () => {
+            depositsListener();
+            cashoutsListener();
+        };
     }, [isAdmin]);
 
+    // Memoized calculation for performance
     const userProfitLossData = useMemo(() => {
         const userMap = {};
         allTransactions.forEach(t => {
-            const username = t.username || 'Unknown';
+            const username = t.username?.toLowerCase() || 'unknown';
             if (!userMap[username]) {
-                userMap[username] = { username, totalDeposits: 0, totalCashout: 0, net: 0 };
+                userMap[username] = { username, totalDeposits: 0, totalCashout: 0 };
             }
-            const amount = parseFloat(t.amountUSD || t.amount || 0);
+            const amount = parseFloat(t.amount || 0);
             if (t.type.includes('deposit')) {
                 userMap[username].totalDeposits += amount;
             } else if (t.type.includes('cashout')) {
@@ -86,7 +108,7 @@ export default function AdminProfitLoss() {
         return Object.values(userMap).map(u => ({
             ...u,
             net: u.totalDeposits - u.totalCashout,
-            profitMargin: u.totalDeposits > 0 ? (((u.totalDeposits - u.totalCashout) / u.totalDeposits) * 100).toFixed(2) : 0,
+            profitMargin: u.totalDeposits > 0 ? (((u.totalDeposits - u.totalCashout) / u.totalDeposits) * 100) : 0,
         }));
     }, [allTransactions]);
 
@@ -95,22 +117,21 @@ export default function AdminProfitLoss() {
         setIsSubmitting(true);
         setError('');
         try {
-            const adminIdToken = await firebaseAuth.currentUser.getIdToken();
+            const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
+            // This API endpoint has been fixed to write to the 'cashouts' collection
             const res = await fetch('/api/admin/cashouts/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
                 body: JSON.stringify({
                     username: manualTx.username,
                     amount: manualTx.amount,
-                    description: `Manual ${manualTx.type}: ${manualTx.description}`
+                    description: `Manual Cashout: ${manualTx.description}`
                 })
             });
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Failed to add transaction.');
-            }
-            setManualTx({ username: '', amount: '', description: '', type: 'cashout' });
-            alert('Transaction added successfully!');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Failed to add transaction.');
+            setManualTx({ username: '', amount: '', description: '' });
+            alert('Manual cashout added successfully!');
         } catch (err) {
             setError(err.message);
         } finally {
@@ -127,12 +148,12 @@ export default function AdminProfitLoss() {
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Total Deposits', accessor: 'totalDeposits', sortable: true, cell: (row) => formatCurrency(row.totalDeposits) },
         { header: 'Total Cashouts', accessor: 'totalCashout', sortable: true, cell: (row) => formatCurrency(row.totalCashout) },
-        { header: 'Net P/L', accessor: 'net', sortable: true, cell: (row) => <span className={row.net >= 0 ? 'text-success' : 'text-danger'}>{formatCurrency(row.net)}</span> },
-        { header: 'Profit Margin (%)', accessor: 'profitMargin', sortable: true, cell: (row) => `${row.profitMargin}%` },
-        { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => <button className="btn btn-link" onClick={() => router.push(`/admin/customer/${row.username}`)}>View</button>}
+        { header: 'Net P/L', accessor: 'net', sortable: true, cell: (row) => <span style={{ color: row.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)', fontWeight: 'bold' }}>{formatCurrency(row.net)}</span> },
+        { header: 'Profit Margin', accessor: 'profitMargin', sortable: true, cell: (row) => `${row.profitMargin.toFixed(2)}%` },
+        { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => <button className="btn btn-info btn-xsmall" onClick={() => router.push(`/admin/customer/${row.username}`)}>View History</button>}
     ], [router]);
     
-    if (authLoading) return <div className="loading-screen">Checking authentication...</div>
+    if (authLoading) return <div className="loading-screen">Checking authentication...</div>;
     if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
     return (
@@ -155,23 +176,23 @@ export default function AdminProfitLoss() {
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
 
                 <section className="card mb-lg">
-                    <h2 className="card-header">Add Manual Transaction</h2>
+                    <h2 className="card-header">Add Manual Cashout</h2>
                     <div className="card-body">
                         <form onSubmit={handleManualTxSubmit} className="form-grid">
                             <div className="form-group">
                                 <label>Username</label>
-                                <input type="text" className="input" value={manualTx.username} onChange={e => setManualTx({...manualTx, username: e.target.value})} required />
+                                <input type="text" className="input" value={manualTx.username} onChange={e => setManualTx({...manualTx, username: e.target.value})} required placeholder="Enter exact username" />
                             </div>
                             <div className="form-group">
                                 <label>Amount (USD)</label>
-                                <input type="number" step="0.01" className="input" value={manualTx.amount} onChange={e => setManualTx({...manualTx, amount: e.target.value})} required />
+                                <input type="number" step="0.01" className="input" value={manualTx.amount} onChange={e => setManualTx({...manualTx, amount: e.target.value})} required placeholder="e.g., 50.00"/>
                             </div>
                              <div className="form-group">
-                                <label>Description</label>
-                                <input type="text" className="input" value={manualTx.description} onChange={e => setManualTx({...manualTx, description: e.target.value})} />
+                                <label>Description / Reason</label>
+                                <input type="text" className="input" value={manualTx.description} onChange={e => setManualTx({...manualTx, description: e.target.value})} required placeholder="e.g., Refund for issue #123"/>
                             </div>
                             <div className="form-group form-full-width">
-                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add Transaction'}</button>
+                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add Manual Cashout'}</button>
                             </div>
                         </form>
                     </div>

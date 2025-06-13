@@ -1,6 +1,7 @@
 // pages/api/decode.js
+import { withAuth } from '../../lib/authMiddleware'; // BUG FIX: Import and apply admin authentication
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
@@ -11,27 +12,39 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: "Missing invoice" });
   }
 
-  const SPEED_SECRET_KEY = process.env.SPEED_SECRET_KEY;
+  // This endpoint is now protected, so we can be confident the caller is an admin.
+  const SPEED_API_KEY = process.env.SPEED_SECRET_KEY;
+  const SPEED_API_URL = process.env.SPEED_API_BASE_URL || 'https://api.tryspeed.com';
+
 
   try {
-    const response = await fetch("https://api.tryspeed.com/v1/invoices/decode", {
+    // Using the v1 endpoint for decoding, which uses Basic Auth with the secret key.
+    const authHeader = Buffer.from(`${SPEED_API_KEY}:`).toString('base64');
+    const response = await fetch(`${SPEED_API_URL}/invoices/decode`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${SPEED_SECRET_KEY}`,
+        Authorization: `Basic ${authHeader}`,
         "Content-Type": "application/json",
+        Accept: 'application/json',
+        'speed-version': '2022-10-15',
       },
-      body: JSON.stringify({ invoice: bolt11 }),
+      body: JSON.stringify({ payment_request: bolt11 }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(400).json({ message: data.message || "Decode failed" });
+      // Forward the error message from the Speed API for better debugging
+      return res.status(response.status).json({ message: data.message || "Failed to decode invoice" });
     }
 
-    res.status(200).json({ amount: data.amount });
+    // The decoded amount is in satoshis
+    res.status(200).json({ amount: data.amount_in_satoshis });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error decoding invoice" });
+    console.error("Error decoding invoice:", error);
+    res.status(500).json({ message: "Internal server error while decoding invoice" });
   }
 }
+
+// BUG FIX: Secure the endpoint by wrapping it with admin authentication.
+export default withAuth(handler);
