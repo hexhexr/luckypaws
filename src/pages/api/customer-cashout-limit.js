@@ -1,7 +1,7 @@
 // pages/api/customer-cashout-limit.js
 import { db } from '../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { withAgentAuth } from '../../lib/authMiddleware'; // BUG FIX: Import and apply agent authentication
+import { withAgentAuth } from '../../lib/authMiddleware';
 
 const MAX_LIMIT = 300;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -15,7 +15,7 @@ export async function checkCashoutLimit(username) {
     .where('username', '==', username)
     .where('status', '==', 'completed')
     .where('time', '>=', twentyFourHoursAgo)
-    .orderBy('time', 'asc');
+    .orderBy('time', 'asc'); // Order by time ascending to easily find the first one
 
   const snapshot = await q.get();
 
@@ -24,30 +24,27 @@ export async function checkCashoutLimit(username) {
       totalCashoutsInWindow: 0,
       remainingLimit: MAX_LIMIT,
       windowResetsAt: null,
+      firstCashoutTimeInWindow: null, // No cashouts in window
     };
   }
 
   const cashoutsInWindow = snapshot.docs.map(doc => doc.data());
-  
-  // The start of the 24-hour rolling window is the timestamp of the first cashout within the last 24 hours.
-  const windowStartTime = cashoutsInWindow[0].time;
+  const firstCashout = cashoutsInWindow[0];
+  const windowStartTime = firstCashout.time;
   const windowResetsAt = Timestamp.fromMillis(windowStartTime.toMillis() + TWENTY_FOUR_HOURS_MS);
 
-  // If the window has already reset, return the full limit.
+  // If the reset time has passed, the window is clear
   if (windowResetsAt.toMillis() < now.toMillis()) {
       return {
           totalCashoutsInWindow: 0,
           remainingLimit: MAX_LIMIT,
           windowResetsAt: null,
+          firstCashoutTimeInWindow: null,
       };
   }
   
   const totalCashoutsInWindow = cashoutsInWindow.reduce((sum, cashout) => {
-    // Ensure we only sum cashouts that fall within the current active window
-    if (cashout.time.toMillis() < windowResetsAt.toMillis()) {
-        return sum + parseFloat(cashout.amountUSD || 0);
-    }
-    return sum;
+    return sum + parseFloat(cashout.amountUSD || 0);
   }, 0);
 
   const remainingLimit = Math.max(0, MAX_LIMIT - totalCashoutsInWindow);
@@ -56,13 +53,13 @@ export async function checkCashoutLimit(username) {
     totalCashoutsInWindow,
     remainingLimit,
     windowResetsAt: windowResetsAt.toDate().toISOString(),
+    // Include the time of the first cashout
+    firstCashoutTimeInWindow: windowStartTime.toDate().toISOString(),
   };
 }
 
 const handler = async (req, res) => {
-  // This endpoint is now protected and req.decodedToken is available.
   const { username } = req.query;
-
   if (!username || typeof username !== 'string' || username.trim() === '') {
     return res.status(400).json({ message: 'Username is required.' });
   }
@@ -80,5 +77,4 @@ const handler = async (req, res) => {
   }
 };
 
-// BUG FIX: This handler is now wrapped with agent authentication for security.
 export default withAgentAuth(handler);
