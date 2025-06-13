@@ -16,11 +16,15 @@ export default async function handler(req, res) {
   const authHeader = Buffer.from(`${process.env.SPEED_SECRET_KEY}:`).toString('base64');
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
+  // **THE FIX IS HERE**: Add a unique reference to the payload
+  const uniqueReference = `${username.replace(/\s+/g, '_')}-${Date.now()}`;
+
   const payload = {
     amount: Number(amount),
     currency: 'USD',
     success_url: `${baseUrl}/receipt`,
     cancel_url: `${baseUrl}/`,
+    reference: uniqueReference, // Ensures a new payment is created every time
   };
 
   try {
@@ -70,7 +74,8 @@ export default async function handler(req, res) {
       invoice,
       created: new Date().toISOString(),
       expiresAt,
-      read: false, // Add a 'read' flag for the admin dashboard
+      read: false,
+      reference: uniqueReference, // Save the reference for tracking
     });
 
     return res.status(200).json({ orderId: payment.id, invoice, btc, expiresAt });
