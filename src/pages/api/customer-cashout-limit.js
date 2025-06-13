@@ -1,6 +1,6 @@
 // pages/api/customer-cashout-limit.js
 import { db } from '../../lib/firebaseAdmin';
-import { query, collection, where, orderBy, getDocs, Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const MAX_LIMIT = 300;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -9,16 +9,15 @@ export async function checkCashoutLimit(username) {
   const now = Timestamp.now();
   const twentyFourHoursAgo = Timestamp.fromMillis(now.toMillis() - TWENTY_FOUR_HOURS_MS);
 
-  const cashoutsRef = collection(db, 'cashouts');
-  const q = query(
-    cashoutsRef,
-    where('username', '==', username),
-    where('status', '==', 'completed'),
-    where('time', '>=', twentyFourHoursAgo),
-    orderBy('time', 'asc') // Order ascending to find the first cashout in the window
-  );
+  // CORRECTED: Using Admin SDK syntax
+  const cashoutsRef = db.collection('cashouts');
+  const q = cashoutsRef
+    .where('username', '==', username)
+    .where('status', '==', 'completed')
+    .where('time', '>=', twentyFourHoursAgo)
+    .orderBy('time', 'asc');
 
-  const snapshot = await getDocs(q);
+  const snapshot = await q.get();
 
   if (snapshot.empty) {
     return {
@@ -30,11 +29,9 @@ export async function checkCashoutLimit(username) {
 
   const cashoutsInWindow = snapshot.docs.map(doc => doc.data());
   
-  // The first document is the start of the 24-hour window
   const windowStartTime = cashoutsInWindow[0].time;
   const windowResetsAt = Timestamp.fromMillis(windowStartTime.toMillis() + TWENTY_FOUR_HOURS_MS);
 
-  // If the reset time is in the past, this window is over.
   if (windowResetsAt.toMillis() < now.toMillis()) {
       return {
           totalCashoutsInWindow: 0,
@@ -44,7 +41,6 @@ export async function checkCashoutLimit(username) {
   }
   
   const totalCashoutsInWindow = cashoutsInWindow.reduce((sum, cashout) => {
-    // Only sum up transactions that are within the specific window
     if (cashout.time.toMillis() < windowResetsAt.toMillis()) {
         return sum + parseFloat(cashout.amountUSD || 0);
     }
@@ -84,4 +80,4 @@ const handler = async (req, res) => {
   }
 };
 
-export default handler; // This endpoint can be public for agents to check, but should be rate-limited in production
+export default handler;
