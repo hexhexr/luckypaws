@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { doc, getDoc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, orderBy, addDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
@@ -28,20 +28,30 @@ export default function AdminProfitLoss() {
     const [manualTx, setManualTx] = useState({ username: '', amount: '', description: '', type: 'cashout' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Auth check
+    // Corrected Authentication Check
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                setIsAdmin(userDoc.exists() && userDoc.data().isAdmin);
+                // User is signed in, check if they are an admin.
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
+                    // User is an admin, allow them to stay.
+                    setIsAdmin(true);
+                    setAuthLoading(false);
+                } else {
+                    // User is not an admin, redirect.
+                    router.replace('/admin');
+                }
             } else {
-                setIsAdmin(false);
+                // No user is signed in, redirect to login.
+                router.replace('/admin');
             }
-            if (!isAdmin) router.replace('/admin');
-            setAuthLoading(false);
         });
-        return () => unsubscribe();
-    }, [isAdmin, router]);
+
+        return () => unsubscribe(); // Cleanup listener on unmount
+    }, [router]);
+
 
     // Data Fetching
     useEffect(() => {
@@ -95,7 +105,10 @@ export default function AdminProfitLoss() {
                     description: `Manual ${manualTx.type}: ${manualTx.description}`
                 })
             });
-            if (!res.ok) throw new Error('Failed to add transaction.');
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Failed to add transaction.');
+            }
             setManualTx({ username: '', amount: '', description: '', type: 'cashout' });
             alert('Transaction added successfully!');
         } catch (err) {
@@ -119,8 +132,8 @@ export default function AdminProfitLoss() {
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => <button className="btn btn-link" onClick={() => router.push(`/admin/customer/${row.username}`)}>View</button>}
     ], [router]);
     
-    if (authLoading) return <div className="loading-screen">Authenticating...</div>
-    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>
+    if (authLoading) return <div className="loading-screen">Checking authentication...</div>
+    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
     return (
         <div className="admin-dashboard-container">
