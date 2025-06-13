@@ -1,11 +1,10 @@
 // src/pages/agent/index.js
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { db, auth } from '../../lib/firebaseClient';
 import { onSnapshot, query, collection, where, orderBy, getDoc, doc, limit } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
-import DataTable from '../../components/DataTable';
 
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
@@ -20,7 +19,6 @@ export default function AgentPage() {
   const [loading, setLoading] = useState(true);
 
   const [pageCode, setPageCode] = useState('');
-  const [lockPageCode, setLockPageCode] = useState(false);
   const [facebookName, setFacebookName] = useState('');
   const [generatedUsername, setGeneratedUsername] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -28,6 +26,11 @@ export default function AgentPage() {
   const [last10AllDeposits, setLast10AllDeposits] = useState([]);
   const [depositsLoading, setDepositsLoading] = useState(true);
 
+  const [customerUsername, setCustomerUsername] = useState('');
+  const [limitCheckResult, setLimitCheckResult] = useState(null);
+  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
+
+  // Authentication & Profile Fetch
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -52,28 +55,17 @@ export default function AgentPage() {
     });
     return () => unsubscribeAuth();
   }, [router]);
-  
-  useEffect(() => {
-    if (!user) return;
-    const agentSettingsRef = doc(db, 'agentSettings', 'pageCodeConfig');
-    const unsubscribe = onSnapshot(agentSettingsRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setPageCode(data.pageCode || '');
-        setLockPageCode(data.locked || false);
-      }
-    }, (error) => {
-      setMessage({ text: 'Error fetching page code settings.', type: 'error' });
-    });
-    return () => unsubscribe();
-  }, [user]);
 
+  // Live Deposit Checker
   useEffect(() => {
     if (!user) return;
     setDepositsLoading(true);
     const depositsQuery = query(collection(db, 'orders'), where('status', '==', 'paid'), orderBy('created', 'desc'), limit(10));
     const unsubscribe = onSnapshot(depositsQuery, (snapshot) => {
-      const deposits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const deposits = snapshot.docs.map(doc => ({ 
+          id: doc.id,
+          ...doc.data() 
+      }));
       setLast10AllDeposits(deposits);
       setDepositsLoading(false);
     }, (error) => {
@@ -88,6 +80,7 @@ export default function AgentPage() {
     e.preventDefault();
     setGeneratedUsername('');
     setMessage({ text: '', type: '' });
+
     try {
       const response = await fetch('/api/generate-username', {
         method: 'POST',
@@ -106,21 +99,31 @@ export default function AgentPage() {
     }
   };
 
+  const handleCheckLimit = async (e) => {
+    e.preventDefault();
+    if (!customerUsername.trim()) {
+        setMessage({text: "Please enter a customer username.", type: "error"});
+        return;
+    }
+    setIsCheckingLimit(true);
+    setLimitCheckResult(null);
+    setMessage({ text: '', type: '' });
+    try {
+        const res = await fetch(`/api/customer-cashout-limit?username=${customerUsername.trim()}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        setLimitCheckResult(data);
+    } catch(err) {
+        setMessage({text: err.message, type: 'error'});
+    } finally {
+        setIsCheckingLimit(false);
+    }
+  };
+
   const handleLogout = async () => {
     await auth.signOut();
     router.replace('/agent/login');
   };
-
-  const depositColumns = useMemo(() => [
-    { 
-      header: 'Time', 
-      accessor: 'created', 
-      // THE FIX IS HERE: Check for the toDate method before calling it.
-      cell: (row) => row.created?.toDate ? row.created.toDate().toLocaleString() : 'N/A' 
-    },
-    { header: 'Username', accessor: 'username' },
-    { header: 'Amount (USD)', accessor: 'amount', cell: (row) => `$${parseFloat(row.amount).toFixed(2)}` }
-  ], []);
 
   if (loading) {
     return <div className="loading-screen">Loading Agent Dashboard...</div>;
@@ -145,12 +148,8 @@ export default function AgentPage() {
             <section className="card">
                 <h2 className="card-header">Username Generator</h2>
                 <div className="card-body">
-                    <form onSubmit={handleGenerateUsername} className="space-y-md">
+                    <form onSubmit={handleGenerateUsername}>
                         <div className="form-group">
-                            <label>Page Code</label>
-                            <input type="text" className="input" value={pageCode} readOnly disabled />
-                        </div>
-                         <div className="form-group">
                             <label htmlFor="facebookName">Customer Facebook Name</label>
                             <input
                               type="text"
@@ -172,12 +171,68 @@ export default function AgentPage() {
             </section>
             
             <section className="card">
-                <h2 className="card-header">Live Deposit Checker</h2>
+                <h2 className="card-header">Check Customer Cashout Limit</h2>
                 <div className="card-body">
-                   {depositsLoading ? <LoadingSkeleton /> : <DataTable columns={depositColumns} data={last10AllDeposits} defaultSortField="created" />}
+                    <form onSubmit={handleCheckLimit}>
+                        <div className="form-group">
+                            <label htmlFor="customerUsername">Customer Username</label>
+                            <input
+                              type="text"
+                              id="customerUsername"
+                              className="input"
+                              value={customerUsername}
+                              onChange={(e) => setCustomerUsername(e.target.value)}
+                              required
+                              placeholder="Enter username to check limit"
+                            />
+                        </div>
+                        <button type="submit" className="btn btn-info" disabled={isCheckingLimit}>
+                            {isCheckingLimit ? 'Checking...' : 'Check Limit'}
+                        </button>
+                    </form>
+                    {limitCheckResult && (
+                        <div className="alert alert-success mt-md">
+                            <p>User: <strong>{limitCheckResult.username}</strong></p>
+                            <p>Remaining Limit: <strong>${limitCheckResult.remainingLimit.toFixed(2)}</strong></p>
+                            <small>Total cashed out in current window: ${limitCheckResult.totalCashoutsInWindow.toFixed(2)}</small>
+                            {limitCheckResult.windowResetsAt && <small><br/>Window resets at: {new Date(limitCheckResult.windowResetsAt).toLocaleString()}</small>}
+                        </div>
+                    )}
                 </div>
             </section>
         </div>
+
+        <section className="card mt-xl">
+            <h2 className="card-header">Live Deposit Checker</h2>
+            <div className="card-body">
+               {depositsLoading ? <LoadingSkeleton /> : (
+                   <div className="table-responsive">
+                       <table>
+                           <thead>
+                               <tr>
+                                   <th>Time</th>
+                                   <th>Username</th>
+                                   <th>Amount (USD)</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               {last10AllDeposits.length > 0 ? last10AllDeposits.map(deposit => (
+                                   <tr key={deposit.id}>
+                                       <td>{deposit.created?.toDate ? deposit.created.toDate().toLocaleString() : 'N/A'}</td>
+                                       <td>{deposit.username}</td>
+                                       <td>${parseFloat(deposit.amount).toFixed(2)}</td>
+                                   </tr>
+                               )) : (
+                                   <tr>
+                                       <td colSpan="3" className="text-center">No recent deposits found.</td>
+                                   </tr>
+                               )}
+                           </tbody>
+                       </table>
+                   </div>
+               )}
+            </div>
+        </section>
       </main>
     </div>
   );
