@@ -1,6 +1,6 @@
 // pages/api/orders/index.js
-import { db } from '../../lib/firebaseAdmin.js';
-import { withAuth } from '../../lib/authMiddleware.js';
+import { db } from '../../../lib/firebaseAdmin.js';
+import { withAuth } from '../../../lib/authMiddleware.js';
 
 const handler = async (req, res) => {
   const { id, limit = 100 } = req.query;
@@ -28,6 +28,4 @@ const handler = async (req, res) => {
   }
 };
 
-// Public facing order details might not need auth, but listing all orders should.
-// Let's assume this is for an admin, so we protect it.
 export default withAuth(handler);
