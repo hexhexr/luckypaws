@@ -62,7 +62,7 @@ export default function AgentDashboard() {
         return () => unsubscribeAuth();
     }, [router]);
 
-    // --- Real-time Data Listeners ---
+    // --- Real-time Data Listeners for All Sections ---
     useEffect(() => {
         if (!user) return;
         const unsubscribes = [
@@ -79,7 +79,7 @@ export default function AgentDashboard() {
         return () => unsubscribes.forEach(unsub => unsub());
     }, [user]);
 
-    // --- Efficient Client-Side Data Enrichment using useMemo ---
+    // --- Client-Side Data Enrichment for Deposits ---
     const enrichedDeposits = useMemo(() => {
         const customerMap = new Map(customers.map(c => [c.username, c.facebookName]));
         return recentDeposits.map(dep => ({
@@ -88,16 +88,50 @@ export default function AgentDashboard() {
         }));
     }, [customers, recentDeposits]);
     
-    // --- All UI Handlers and Business Logic ---
+    // --- UI and Feature Handlers ---
     const handleMouseDown = useCallback(() => setIsResizing(true), []);
     const handleMouseUp = useCallback(() => setIsResizing(false), []);
     const handleMouseMove = useCallback((e) => { if (isResizing) setPanelWidth(Math.min(Math.max(e.clientX, 400), window.innerWidth - 300)); }, [isResizing]);
     useEffect(() => { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); }; }, [handleMouseMove, handleMouseUp]);
-    const handleApiRequest = async (endpoint, body, successMessage) => { setMessage({ text: '', type: '' }); try { const token = await user.getIdToken(); const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body), }); const data = await res.json(); if (!res.ok) throw new Error(data.message); setMessage({ text: successMessage || data.message, type: 'success' }); return data; } catch (err) { setMessage({ text: err.message, type: 'error' }); return null; }};
+    
+    const handleApiRequest = async (endpoint, body, successMessage) => {
+        setMessage({ text: '', type: '' });
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body), });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            setMessage({ text: successMessage || data.message, type: 'success' });
+            return data;
+        } catch (err) {
+            setMessage({ text: err.message, type: 'error' });
+            return null;
+        }
+    };
+    
     const handleGenerateUsername = async (e) => { e.preventDefault(); const data = await handleApiRequest('/api/generate-username', { facebookName, pageCode: manualPageCode }); if (data) setGeneratedUsername(data.username); };
     const handleAddCustomer = async (e) => { e.preventDefault(); const { username, facebookName, facebookProfileLink } = e.target.elements; await handleApiRequest('/api/agent/customers/create', { username: username.value, facebookName: facebookName.value, facebookProfileLink: facebookProfileLink.value }, 'Customer added!'); e.target.reset(); };
     const handleCheckLimit = async (e) => { e.preventDefault(); const { customerUsername } = e.target.elements; const token = await user.getIdToken(); const res = await fetch(`/api/customer-cashout-limit?username=${customerUsername.value.trim()}`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); if (!res.ok) { setMessage({ text: data.message, type: 'error' }); } else { setLimitCheckResult(data); } };
-    useEffect(() => { clearInterval(countdownIntervalRef.current); if (limitCheckResult?.windowResetsAt) { countdownIntervalRef.current = setInterval(() => { const diff = new Date(limitCheckResult.windowResetsAt) - new Date(); if (diff <= 0) { setTimeRemaining('Limit Reset!'); clearInterval(countdownIntervalRef.current); } else { const h = Math.floor(diff / 36e5).toString().padStart(2, '0'); const m = Math.floor((diff % 36e5) / 6e4).toString().padStart(2, '0'); const s = Math.floor((diff % 6e4) / 1000).toString().padStart(2, '0'); setTimeRemaining(`${h}:${m}:${s}`); } }, 1000); } return () => clearInterval(countdownIntervalRef.current); }, [limitCheckResult]);
+    
+    useEffect(() => {
+        clearInterval(countdownIntervalRef.current);
+        if (limitCheckResult?.windowResetsAt) {
+            countdownIntervalRef.current = setInterval(() => {
+                const diff = new Date(limitCheckResult.windowResetsAt) - new Date();
+                if (diff <= 0) {
+                    setTimeRemaining('Limit Reset!');
+                    setLimitCheckResult(prev => ({...prev, remainingLimit: 300}));
+                    clearInterval(countdownIntervalRef.current);
+                } else {
+                    const h = Math.floor(diff / 36e5).toString().padStart(2, '0');
+                    const m = Math.floor((diff % 36e5) / 6e4).toString().padStart(2, '0');
+                    const s = Math.floor((diff % 6e4) / 1000).toString().padStart(2, '0');
+                    setTimeRemaining(`${h}:${m}:${s}`);
+                }
+            }, 1000);
+        }
+        return () => clearInterval(countdownIntervalRef.current);
+    }, [limitCheckResult]);
 
     if (loading) return <div className="loading-screen"><LoadingSpinner /></div>;
 
@@ -110,7 +144,9 @@ export default function AgentDashboard() {
                         <div><h2 className="agent-name">{agentProfile?.name}</h2><p className="page-code-display">Default Page Code: {agentProfile?.pageCode}</p></div>
                         <button onClick={() => auth.signOut()} className="btn btn-danger">Logout</button>
                     </header>
+                    
                     {message.text && <div className={`message-bar message-${message.type}`}>{message.text}</div>}
+                    
                     <div className="panel-content">
                         <SectionCard title="Browser Control"><form onSubmit={(e) => { e.preventDefault(); setIframeUrl(urlInput); }} className="form-row"><input type="url" value={urlInput} onChange={e => setUrlInput(e.target.value)} className="input-field" placeholder="https://example.com" /><button type="submit" className="btn btn-secondary">Go</button></form></SectionCard>
                         <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input-field" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input-field" /></div><button type="submit" className="btn btn-primary">Generate</button>{generatedUsername && <p className="alert alert-success">Generated: <strong>{generatedUsername}</strong></p>}</form></SectionCard>
@@ -145,10 +181,8 @@ export default function AgentDashboard() {
                 .input-field { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; font-size: 0.875rem; }
                 .input-field:focus { outline: 2px solid #3b82f6; border-color: transparent; }
                 .btn { padding: 0.5rem 0.75rem; border-radius: 0.25rem; color: white; border: none; cursor: pointer; font-weight: 500; }
-                .btn-xsmall { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
                 .btn-primary { background-color: #3b82f6; } .btn-secondary { background-color: #6b7280; }
                 .btn-info { background-color: #06b6d4; } .btn-success { background-color: #10b981; } .btn-danger { background-color: #ef4444; }
-                .btn:disabled { opacity: 0.5; cursor: not-allowed; }
                 .list-container { max-height: 12rem; overflow-y: auto; font-size: 0.875rem; }
                 .list-item { padding: 0.5rem; border-bottom: 1px solid #e5e7eb; }
                 .list-item:last-child { border-bottom: none; }
