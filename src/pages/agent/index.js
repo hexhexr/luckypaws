@@ -8,9 +8,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 // --- Reusable Helper Components ---
 const LoadingSpinner = () => <div className="loading-spinner">Loading...</div>;
 const SectionCard = ({ title, children }) => (
-    <section className="section-card">
-        <div className="section-header"><h3>{title}</h3></div>
-        <div className="section-content">{children}</div>
+    <section className="card">
+        <div className="card-header"><h3>{title}</h3></div>
+        <div className="card-body">{children}</div>
     </section>
 );
 
@@ -132,76 +132,75 @@ export default function AgentDashboard() {
     return (
         <>
             <Head><title>Agent Dashboard | Lucky Paws</title></Head>
-            <div className="agent-dashboard-full"> 
-                <header className="panel-header">
-                    <div><h2 className="agent-name">{agentProfile?.name}</h2><p className="page-code-display">Default Page Code: {agentProfile?.pageCode}</p></div>
+            <div className="agent-dashboard-full admin-dashboard-container"> 
+                <header className="panel-header admin-header">
+                    <div>
+                        <h1 className="agent-name">{agentProfile?.name}</h1>
+                        <p className="page-code-display">Default Page Code: {agentProfile?.pageCode}</p>
+                    </div>
                     <button onClick={() => auth.signOut()} className="btn btn-danger">Logout</button>
                 </header>
                 
-                {message.text && <div className={`message-bar message-${message.type}`}>{message.text}</div>}
+                {message.text && <div className={`alert alert-${message.type}`}>{message.text}</div>}
                 
-                <div className="panel-content">
-                    <div className="card-group">
-                        <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input-field" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input-field" /></div><button type="submit" className="btn btn-primary">Generate</button>{generatedUsername && <p className="alert alert-success">Generated: <strong>{generatedUsername}</strong></p>}</form></SectionCard>
-                        <SectionCard title="Add New Customer"><form onSubmit={handleAddCustomer} className="form-stack"><input name="username" required className="input-field" placeholder="Game Username"/><input name="facebookName" required className="input-field" placeholder="Facebook Name"/><input name="facebookProfileLink" type="url" required className="input-field" placeholder="Facebook Profile URL"/><button type="submit" className="btn btn-success">Add Customer</button></form></SectionCard>
-                        <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-row"><input name="customerUsername" required className="input-field" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
+                <main className="panel-content admin-main-content">
+                    <div className="stats-grid">
+                        <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input" /></div><button type="submit" className="btn btn-primary">Generate</button>{generatedUsername && <p className="alert alert-success">Generated: <strong>{generatedUsername}</strong></p>}</form></SectionCard>
+                        <SectionCard title="Add New Customer"><form onSubmit={handleAddCustomer} className="form-stack"><input name="username" required className="input" placeholder="Game Username"/><input name="facebookName" required className="input" placeholder="Facebook Name"/><input name="facebookProfileLink" type="url" required className="input" placeholder="Facebook Profile URL"/><button type="submit" className="btn btn-success">Add Customer</button></form></SectionCard>
+                        <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-grid" style={{gridTemplateColumns: '2fr 1fr'}}><input name="customerUsername" required className="input" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info mt-md"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                     </div>
-                    <div className="card-group">
+                    <div className="stats-grid mt-lg">
                         <SectionCard title="Recent Deposits"><div className="list-container">{enrichedDeposits.map(dep => (<div key={dep.id} className="list-item"><p><strong>{dep.facebookName}</strong> ({dep.username})</p><p>Deposited ${dep.amount.toFixed(2)} for {dep.game}</p><p className="list-item-footer">{dep.created?.toDate ? dep.created.toDate().toLocaleString() : 'N/A'}</p></div>))}</div></SectionCard>
                         <SectionCard title="My Customers"><div className="list-container">{customers.map(c => (<div key={c.id} className="list-item"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="link">View Profile</a></div>))}</div></SectionCard>
-                        <SectionCard title="My Cashout Requests"><div className="list-container">{agentRequests.map(r => (<div key={r.id} className="list-item"><p>${parseFloat(r.amount || 0).toFixed(2)} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p><p>Status: <span className={`status-${r.status}`}>{r.status}</span></p></div>))}</div></SectionCard>
+                        <SectionCard title="My Cashout Requests"><div className="list-container">{agentRequests.map(r => (<div key={r.id} className="list-item"><p>${parseFloat(r.amount || 0).toFixed(2)} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p><p>Status: <span className={`status-badge status-${r.status}`}>{r.status}</span></p></div>))}</div></SectionCard>
                     </div>
-                </div>
+                </main>
             </div>
             <style jsx>{`
-                .agent-dashboard-full { 
+                .agent-name { 
+                    font-size: 1.25rem; 
+                    font-weight: bold; 
+                    color: white; /* Ensure text is white like admin header */
+                }
+                .page-code-display { 
+                    font-size: 0.875rem; 
+                    color: #93c5fd; /* Light blue, good contrast on dark */
+                    margin: 0;
+                }
+                .form-stack { 
                     display: flex; 
-                    flex-direction: column;
-                    min-height: 100vh; 
-                    width: 100vw; 
-                    background-color: #e5e7eb; 
+                    flex-direction: column; 
+                    gap: 0.75rem; 
                 }
-                .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background-color: #1f2937; color: white; flex-shrink: 0; }
-                .agent-name { font-size: 1.25rem; font-weight: bold; }
-                .page-code-display { font-size: 0.875rem; color: #93c5fd; }
-                .panel-content { 
-                    padding: 1rem; 
-                    flex-grow: 1; 
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-                    gap: 1rem;
+                .list-container { 
+                    max-height: 20rem; /* Increased height */
+                    overflow-y: auto; 
+                    font-size: 0.875rem; 
                 }
-                .card-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
+                .list-item { 
+                    padding: 0.75rem; 
+                    border-bottom: 1px solid var(--border-subtle); 
                 }
-                .section-card { background-color: white; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); border-radius: 0.5rem; overflow: hidden; }
-                .section-header { display: flex; justify-content: space-between; align-items: center; background-color: #f3f4f6; padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; }
-                .section-header h3 { font-size: 1.125rem; font-weight: 600; color: #111827; }
-                .section-content { padding: 1rem; }
-                .form-row { display: flex; gap: 0.5rem; align-items: flex-end; }
-                .form-stack { display: flex; flex-direction: column; gap: 0.75rem; }
-                .form-stack label { font-size: 0.875rem; font-weight: 500; color: #374151; }
-                .input-field { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; font-size: 0.875rem; }
-                .input-field:focus { outline: 2px solid #3b82f6; border-color: transparent; }
-                .btn { padding: 0.5rem 0.75rem; border-radius: 0.25rem; color: white; border: none; cursor: pointer; font-weight: 500; }
-                .btn-primary { background-color: #3b82f6; } .btn-secondary { background-color: #6b7280; }
-                .btn-info { background-color: #06b6d4; } .btn-success { background-color: #10b981; } .btn-danger { background-color: #ef4444; }
-                .list-container { max-height: 12rem; overflow-y: auto; font-size: 0.875rem; }
-                .list-item { padding: 0.5rem; border-bottom: 1px solid #e5e7eb; }
-                .list-item:last-child { border-bottom: none; }
-                .list-item p { margin: 0; line-height: 1.4; }
-                .list-item-footer { font-size: 0.75rem; color: #6b7280; }
-                .link { color: #3b82f6; text-decoration: none; font-size: 0.75rem; }
-                .link:hover { text-decoration: underline; }
-                .message-bar { padding: 0.5rem; text-align: center; font-size: 0.875rem; }
-                .message-success { background-color: #d1fae5; color: #065f46; }
-                .message-error { background-color: #fee2e2; color: #991b1b; }
-                .alert { padding: 0.75rem; margin-top: 0.5rem; border-radius: 0.25rem; font-size: 0.9em; }
-                .alert-success { background-color: #d1fae5; color: #065f46; } .alert-info { background-color: #cffafe; color: #0e7490; }
-                .status-pending { color: #f59e0b; font-weight: bold; } .status-approved { color: #10b981; font-weight: bold; } .status-rejected { color: #ef4444; font-weight: bold; }
-                .loading-screen, .loading-spinner { text-align: center; padding: 2rem; font-size: 1.25rem; color: #4b5563; }
+                .list-item:last-child { 
+                    border-bottom: none; 
+                }
+                .list-item p { 
+                    margin: 0; 
+                    line-height: 1.4; 
+                }
+                .list-item-footer { 
+                    font-size: 0.75rem; 
+                    color: var(--text-light); 
+                }
+                .link { 
+                    color: var(--primary-blue); 
+                    text-decoration: none; 
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                }
+                .link:hover { 
+                    text-decoration: underline; 
+                }
             `}</style>
         </>
     );
