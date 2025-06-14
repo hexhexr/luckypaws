@@ -9,6 +9,9 @@ const formatSats = (sats) => new Intl.NumberFormat().format(sats);
 export default function AdminCashouts() {
   const router = useRouter();
 
+  // FIX: State to manage client-side readiness to prevent hydration errors.
+  const [isClientReady, setIsClientReady] = useState(false);
+
   // --- FORM STATES ---
   const [username, setUsername] = useState('');
   const [destination, setDestination] = useState('');
@@ -25,10 +28,15 @@ export default function AdminCashouts() {
 
   // --- Auth & Logout ---
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
+    // FIX: This check now runs only on the client after hydration.
+    if (localStorage.getItem('admin_auth') !== '1') {
       router.replace('/admin');
+    } else {
+      // If authenticated, we can safely render the component.
+      setIsClientReady(true);
     }
   }, [router]);
+
 
   const logout = useCallback(async () => {
     localStorage.removeItem('admin_auth');
@@ -54,10 +62,13 @@ export default function AdminCashouts() {
   }, []);
 
   useEffect(() => {
-    loadHistory();
-    const interval = setInterval(loadHistory, 15000); // Refresh every 15s
-    return () => clearInterval(interval);
-  }, [loadHistory]);
+    // FIX: Only run data-loading effects if the client is ready.
+    if (isClientReady) {
+      loadHistory();
+      const interval = setInterval(loadHistory, 15000); // Refresh every 15s
+      return () => clearInterval(interval);
+    }
+  }, [isClientReady, loadHistory]);
 
   // --- Real-time Price Quote ---
   const fetchQuote = useCallback(async (amount) => {
@@ -196,9 +207,11 @@ export default function AdminCashouts() {
   };
 
   // --- Render component ---
-  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== '1') {
-    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Redirecting to admin login...</div>;
+  // FIX: This ensures the server-render and initial client-render are identical, preventing hydration errors.
+  if (!isClientReady) {
+    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Authenticating...</div>;
   }
+
 
   return (
     <div className="admin-dashboard">
@@ -247,9 +260,9 @@ export default function AdminCashouts() {
               {isSending ? 'Processing...' : '⚡ Send Cashout'}
             </button>
             {status.message && (
-                <div className={`alert mt-md alert-${status.type}`}>
-                    {status.message}
-                </div>
+              <p className={`status-message ${status.type}`}>
+                {status.message}
+              </p>
             )}
           </form>
         </div>
@@ -275,7 +288,7 @@ export default function AdminCashouts() {
                       <td>{tx.username}</td>
                       <td title={tx.destination}>{tx.destination ? tx.destination.substring(0, 25) + '...' : 'N/A'}</td>
                       <td>{tx.amountUSD ? `$${tx.amountUSD.toFixed(2)}` : ''} ({tx.amountSats ? formatSats(tx.amountSats) + ' sats' : 'N/A'})</td>
-                      <td><span className={`status-badge status-${tx.status}`}>{tx.status}</span></td>
+                      <td className={`status-${tx.status}`}>{tx.status}</td>
                       <td>{new Date(tx.time).toLocaleString()}</td>
                       <td>
                         {tx.paymentGatewayId ? (
@@ -293,14 +306,26 @@ export default function AdminCashouts() {
         </div>
       </div>
       <style jsx>{`
+        /* Add some basic styling for the new elements */
         .quote-display {
             padding: 10px;
             margin: 10px 0;
             background: #e9f7ef;
-            border-left: 4px solid var(--primary-green);
+            border-left: 4px solid #2ecc71;
             font-size: 0.95rem;
-            border-radius: var(--border-radius-sm);
         }
+        .status-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+            word-break: break-word;
+        }
+        .status-message.info { background-color: #e0f7fa; border-left: 4px solid #00bcd4; }
+        .status-message.success { background-color: #e8f5e9; border-left: 4px solid #4caf50; }
+        .status-message.error { background-color: #ffebee; border-left: 4px solid #f44336; }
+        .status-completed { color: #2e7d32; font-weight: bold; }
+        .status-pending, .status-initializing { color: #f57c00; font-weight: bold; }
+        .status-failed { color: #c62828; font-weight: bold; }
       `}</style>
     </div>
   );

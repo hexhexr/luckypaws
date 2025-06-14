@@ -7,6 +7,26 @@ import { onAuthStateChanged } from 'firebase/auth';
 import Head from 'next/head';
 import DataTable from '../../../components/DataTable';
 
+// FIX: Add the robust timestamp formatting function to prevent crashes.
+const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    // Handle Firestore Timestamp objects
+    if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate().toLocaleString();
+    }
+    // Handle ISO strings or other date formats
+    try {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
+        return date.toLocaleString();
+    } catch (e) {
+        return 'Formatting Error';
+    }
+};
+
+
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
         <div className="skeleton-line" style={{ width: '90%' }}></div>
@@ -98,7 +118,8 @@ export default function CustomerProfile() {
     };
     
     const columns = useMemo(() => [
-        { header: 'Time', accessor: 'time', sortable: true, cell: (row) => new Date(row.time).toLocaleString() },
+        // FIX: Use the safe timestamp function in the data table cell.
+        { header: 'Time', accessor: 'time', sortable: true, cell: (row) => formatTimestamp(row.time) },
         { header: 'Type', accessor: 'type', sortable: true, cell: (row) => (
             <span className={row.type === 'Deposit' ? 'text-success' : 'text-danger'}>{row.type}</span>
         )},

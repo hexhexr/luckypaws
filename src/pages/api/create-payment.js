@@ -2,7 +2,36 @@
 import { db } from '../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 
+// FIX: Simple in-memory store for rate limiting. For a scaled production environment, a solution like Redis would be more robust.
+const rateLimitStore = {};
+const RATE_LIMIT_COUNT = 10; // Max 10 requests per IP
+const RATE_LIMIT_WINDOW = 60 * 1000; // per 1 minute window
+
 export default async function handler(req, res) {
+  // FIX: Implement IP-based rate limiting to prevent abuse.
+  try {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const now = Date.now();
+
+    if (!rateLimitStore[ip]) {
+      rateLimitStore[ip] = [];
+    }
+
+    // Clear old request timestamps from memory
+    rateLimitStore[ip] = rateLimitStore[ip].filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW);
+
+    if (rateLimitStore[ip].length >= RATE_LIMIT_COUNT) {
+      console.warn(`Rate limit exceeded for IP: ${ip}`);
+      return res.status(429).json({ message: 'Too many requests. Please try again in a minute.' });
+    }
+
+    rateLimitStore[ip].push(now);
+  } catch (e) {
+      console.error("Rate limiting error:", e)
+      // If rate limiting fails, proceed with the request but log the error.
+  }
+
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }

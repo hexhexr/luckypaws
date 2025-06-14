@@ -7,6 +7,25 @@ import { collection, query, where, onSnapshot, orderBy, getDocs, doc, getDoc } f
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
+// FIX: Add the robust timestamp formatting function here as well.
+const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    // Handle Firestore Timestamp objects
+    if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate().toLocaleString();
+    }
+    // Handle ISO strings or other date formats
+    try {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
+        return date.toLocaleString();
+    } catch (e) {
+        return 'Formatting Error';
+    }
+};
+
 const LoadingSkeleton = () => (
     <div className="loading-skeleton">
         <div className="skeleton-line" style={{ width: '95%' }}></div>
@@ -150,7 +169,8 @@ export default function AdminDashboard() {
     };
 
     const columns = useMemo(() => [
-        { header: 'Created', accessor: 'created', sortable: true, cell: (row) => new Date(row.created).toLocaleString() },
+        // FIX: Use the safe timestamp function for the 'Created' column.
+        { header: 'Created', accessor: 'created', sortable: true, cell: (row) => formatTimestamp(row.created) },
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => `$${parseFloat(row.amount || 0).toFixed(2)}` },
         { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status} ${row.read ? '' : 'unread-badge'}`}>{row.status}</span> },
