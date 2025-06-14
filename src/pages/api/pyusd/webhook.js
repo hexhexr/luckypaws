@@ -3,64 +3,56 @@ import { db } from '../../../lib/firebaseAdmin';
 import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/spl-token';
 import { Timestamp } from 'firebase-admin/firestore';
-import crypto from 'crypto';
 
 // --- CONFIGURATION ---
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
 const PYUSD_MINT_ADDRESS = new PublicKey("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo");
-const HELIUS_WEBHOOK_SECRET = process.env.HELIUS_WEBHOOK_SECRET;
+const HELIUS_AUTH_SECRET = process.env.HELIUS_AUTH_SECRET; // Our new secret
 
 const connection = new Connection(SOLANA_RPC_URL);
 
 // --- HELPER FUNCTIONS ---
 
-// Function to verify the webhook signature from Helius
-function verifySignature(signature, timestamp, body) {
-    if (!HELIUS_WEBHOOK_SECRET) {
-        throw new Error("Webhook secret is not configured.");
-    }
-    const secretBuffer = Buffer.from(HELIUS_WEBHOOK_SECRET.replace(/^wsec_/, ''), 'base64');
-    const signedPayload = `${timestamp}.${body}`;
-    const computedSignature = crypto.createHmac('sha256', secretBuffer).update(signedPayload).digest('base64');
-    return crypto.timingSafeEqual(Buffer.from(signature, 'base64'), Buffer.from(computedSignature, 'base64'));
+async function sweepTokens(depositWallet, amount) {
+    const mainWalletKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(process.env.MAIN_WALLET_PRIVATE_KEY)));
+    const lamportsToSend = 20000;
+    const fundingTransaction = new Transaction().add(
+        SystemProgram.transfer({
+            fromPubkey: mainWalletKeypair.publicKey,
+            toPubkey: depositWallet.publicKey,
+            lamports: lamportsToSend,
+        })
+    );
+    await sendAndConfirmTransaction(connection, fundingTransaction, [mainWalletKeypair]);
+    const fromAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, depositWallet.publicKey);
+    const toAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, MAIN_WALLET_PUBLIC_KEY);
+    const { blockhash } = await connection.getLatestBlockhash();
+    const transaction = new Transaction({ feePayer: depositWallet.publicKey, recentBlockhash: blockhash }).add(
+        createTransferInstruction(fromAta, toAta, depositWallet.publicKey, amount)
+    );
+    transaction.sign(depositWallet);
+    const signature = await connection.sendRawTransaction(transaction.serialize());
+    await connection.confirmTransaction(signature, 'confirmed');
+    return signature;
 }
 
-async function sweepTokens(depositWallet, amount) {
-    // ... (This function remains the same as in the previous guide)
-}
 
 // --- MAIN HANDLER ---
-
-export const config = {
-    api: {
-        bodyParser: false, // We need the raw body to verify the signature
-    },
-};
-
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
     try {
-        // 1. Verify the webhook signature
-        const signature = req.headers['x-helius-signature'];
-        const timestamp = req.headers['webhook-timestamp'];
-        
-        const rawBody = await new Promise((resolve, reject) => {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => resolve(body));
-            req.on('error', err => reject(err));
-        });
-
-        if (!verifySignature(signature, timestamp, rawBody)) {
-            return res.status(401).json({ success: false, message: "Invalid signature." });
+        // 1. Verify the Authentication Header
+        const providedSecret = req.headers['authorization'];
+        if (providedSecret !== HELIUS_AUTH_SECRET) {
+            return res.status(401).json({ success: false, message: "Unauthorized." });
         }
 
         // 2. Process the verified data
-        const transactions = JSON.parse(rawBody);
+        const transactions = req.body;
 
         for (const tx of transactions) {
             if (tx.type === "TOKEN_TRANSFER" && !tx.transaction.error) {
@@ -74,7 +66,6 @@ export default async function handler(req, res) {
                 const depositDoc = snapshot.docs[0];
                 const depositData = depositDoc.data();
                 
-                // PYUSD has 6 decimal places
                 const amountTransferred = tx.tokenTransfers[0].tokenAmount * (10 ** 6);
 
                 await depositDoc.ref.update({
@@ -82,9 +73,7 @@ export default async function handler(req, res) {
                     paidAt: Timestamp.now(),
                     transactionSignature: tx.signature
                 });
-                console.log(`Deposit ${depositDoc.id} marked as paid.`);
 
-                // --- Sweep the Funds ---
                 const secretKeyArray = new Uint8Array(JSON.parse(depositData._privateKey));
                 const depositWalletKeypair = Keypair.fromSecretKey(secretKeyArray);
                 
