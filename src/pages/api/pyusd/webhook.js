@@ -16,11 +16,8 @@ const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet'
     ? process.env.HELIUS_DEVNET_AUTH_SECRET
     : process.env.HELIUS_MAINNET_AUTH_SECRET;
 
-const PYUSD_MINT_ADDRESS = new PublicKey(
-    SOLANA_NETWORK === 'devnet'
-        ? 'CpMah17kQEL2wqyMKt3mZBdWrNFV4SjXMYKleg9gOa2n' // Devnet PYUSD Mint
-        : '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo' // Mainnet PYUSD Mint
-);
+// --- CORRECTED MINT ADDRESS ---
+const PYUSD_MINT_ADDRESS = new PublicKey('CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM');
 
 if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY || !ENCRYPTION_KEY) {
     throw new Error("Missing critical environment variables for PYUSD webhook.");
@@ -76,17 +73,25 @@ export default async function handler(req, res) {
                 continue;
             }
 
+            // --- This is the new verification step ---
+            const receivedMintAddress = tx.tokenTransfers[0]?.mint;
+            if (receivedMintAddress !== PYUSD_MINT_ADDRESS.toBase58()) {
+                console.log(`WEBHOOK: Ignoring transfer of incorrect token. Expected ${PYUSD_MINT_ADDRESS.toBase58()}, got ${receivedMintAddress}`);
+                continue;
+            }
+            // --- End verification ---
+
             const depositAddress = tx.tokenTransfers[0].toUserAccount;
-            
+
             let orderDoc = null;
             let attempt = 0;
-            
+
             while (!orderDoc && attempt < 3) {
                 attempt++;
                 const snapshot = await db.collection('orders')
                     .where('depositAddress', '==', depositAddress)
                     .where('status', '==', 'pending').get();
-                
+
                 if (!snapshot.empty) {
                     orderDoc = snapshot.docs[0];
                     console.log(`WEBHOOK: Found matching PENDING order! Doc ID: ${orderDoc.id}`);
@@ -117,17 +122,17 @@ export default async function handler(req, res) {
             console.log(`WEBHOOK: Order ${orderDoc.id} status updated to 'paid'.`);
 
             const orderData = orderDoc.data();
-            
+
             try {
                 console.log(`WEBHOOK: Decrypting private key for order ${orderDoc.id}...`);
                 const decryptedSecret = decrypt(orderData._privateKey);
                 const secretKeyArray = new Uint8Array(JSON.parse(decryptedSecret));
                 const depositWalletKeypair = Keypair.fromSecretKey(secretKeyArray);
-                
+
                 console.log(`WEBHOOK: Attempting to sweep funds from ${depositAddress}...`);
                 await orderDoc.ref.update({ status: 'sweeping' });
                 const sweepSignature = await sweepTokens(depositWalletKeypair, amountTransferred);
-                
+
                 await orderDoc.ref.update({
                     sweepSignature: sweepSignature,
                     status: 'completed'
