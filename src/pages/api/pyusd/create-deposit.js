@@ -20,8 +20,7 @@ const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 // --- HELPER FUNCTIONS ---
 
 /**
- * Adds a new address to an existing Helius webhook by fetching the current list,
- * appending the new address, and updating the webhook.
+ * Adds a new address to an existing Helius webhook by constructing a clean update payload.
  * @param {string} newAddress - The new Solana address to add.
  */
 async function addAddressToWebhook(newAddress) {
@@ -43,12 +42,13 @@ async function addAddressToWebhook(newAddress) {
             existingAddresses.push(newAddress);
         }
 
-        const updatePayload = { ...webhookData, accountAddresses: existingAddresses };
-
-        // ** THE FINAL FIX IS HERE **
-        // The Helius API returns a 'webhookID' field but does not accept it back in the PUT request.
-        // We must delete it from the payload before sending the update.
-        delete updatePayload.webhookID;
+        const updatePayload = {
+            webhookURL: webhookData.webhookURL,
+            transactionTypes: webhookData.transactionTypes,
+            accountAddresses: existingAddresses,
+            webhookType: webhookData.webhookType,
+            authHeader: webhookData.authHeader // Also preserve the auth header
+        };
         
         const updateResponse = await fetch(url, {
             method: 'PUT',
@@ -134,7 +134,6 @@ export default async function handler(req, res) {
             network: SOLANA_NETWORK
         });
 
-        // Corrected typo here from depositId.id to depositRef.id
         res.status(200).json({
             depositId: depositRef.id,
             depositAddress: publicKey,
