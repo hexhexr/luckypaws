@@ -2,20 +2,27 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
-import bs58 from 'bs58'; // <-- Import the new library
+import bs58 from 'bs58';
 
 // --- CONFIGURATION ---
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta'; // Default to mainnet if not set
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-const HELIUS_WEBHOOK_ID = process.env.HELIUS_WEBHOOK_ID;
-// This is your private key as a long string (base58 format)
+
+// Use different webhook IDs for devnet and mainnet for better separation
+const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' 
+    ? process.env.HELIUS_DEVNET_WEBHOOK_ID 
+    : process.env.HELIUS_MAINNET_WEBHOOK_ID;
+
 const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
+
+const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 // --- HELPER FUNCTIONS ---
 
 async function addAddressToWebhook(address) {
     if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) {
-        throw new Error("Helius webhook or API key is not configured.");
+        throw new Error("Helius webhook or API key is not configured for the current network.");
     }
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/append?api-key=${HELIUS_API_KEY}`;
     const response = await fetch(url, {
@@ -28,7 +35,7 @@ async function addAddressToWebhook(address) {
         console.error("Helius API Error:", errorData);
         throw new Error(`Helius API Error: ${errorData.error || 'Failed to update webhook'}`);
     } else {
-        console.log("Successfully added address to webhook:", address);
+        console.log(`Successfully added address to ${SOLANA_NETWORK} webhook:`, address);
     }
 }
 
@@ -39,17 +46,16 @@ async function fundAddressForGas(connection, depositAddressPublicKey) {
 
     let mainWalletKeypair;
     try {
-        // --- THIS IS THE KEY CHANGE ---
-        // We now use bs58.decode() to convert the string key into the format web3.js needs.
         const decodedKey = bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58);
         mainWalletKeypair = Keypair.fromSecretKey(decodedKey);
-
     } catch (e) {
-        console.error("Failed to decode MAIN_WALLET_PRIVATE_KEY. Make sure it is the correct base58 string from your wallet.", e);
+        console.error("Failed to decode MAIN_WALLET_PRIVATE_KEY.", e);
         throw new Error("Invalid format for main wallet private key.");
     }
     
+    // 0.00002 SOL is enough for several transactions.
     const lamportsToSend = 20000;
+
     const transaction = new Transaction().add(
         SystemProgram.transfer({
             fromPubkey: mainWalletKeypair.publicKey,
@@ -70,11 +76,10 @@ export default async function handler(req, res) {
 
     try {
         if (!SOLANA_RPC_URL || !MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID) {
-            console.error("One or more environment variables are missing.");
+            console.error("One or more critical environment variables are missing.");
             return res.status(500).json({ message: "Server configuration error." });
         }
 
-        const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
         const { username, game, amount } = req.body;
         if (!username || !game || !amount || isNaN(parseFloat(amount))) {
             return res.status(400).json({ message: 'Missing or invalid required fields.' });
@@ -97,6 +102,7 @@ export default async function handler(req, res) {
             depositAddress: publicKey,
             _privateKey: serializedSecretKey,
             createdAt: Timestamp.now(),
+            network: SOLANA_NETWORK // Track which network the deposit was made on
         });
 
         res.status(200).json({

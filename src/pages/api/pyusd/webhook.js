@@ -1,42 +1,50 @@
 // src/pages/api/pyusd/webhook.js
 import { db } from '../../../lib/firebaseAdmin';
-import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/spl-token';
 import { Timestamp } from 'firebase-admin/firestore';
+import bs58 from 'bs58';
 
 // --- CONFIGURATION ---
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
-const PYUSD_MINT_ADDRESS = new PublicKey("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo");
-const HELIUS_AUTH_SECRET = process.env.HELIUS_AUTH_SECRET; // Our new secret
 
-const connection = new Connection(SOLANA_RPC_URL);
+// Use a different Auth Secret for devnet and mainnet webhooks
+const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet'
+    ? process.env.HELIUS_DEVNET_AUTH_SECRET
+    : process.env.HELIUS_MAINNET_AUTH_SECRET;
+
+// Use the correct PYUSD Mint Address based on the network
+const PYUSD_MINT_ADDRESS = new PublicKey(
+    SOLANA_NETWORK === 'devnet'
+        ? 'CpMah17kQEL2wqyMKt3mZBdWrNFV4SjXMYKleg9gOa2n' // Devnet PYUSD
+        : '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo'  // Mainnet PYUSD
+);
+
+const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 // --- HELPER FUNCTIONS ---
 
 async function sweepTokens(depositWallet, amount) {
-    const mainWalletKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(process.env.MAIN_WALLET_PRIVATE_KEY)));
-    const lamportsToSend = 20000;
-    const fundingTransaction = new Transaction().add(
-        SystemProgram.transfer({
-            fromPubkey: mainWalletKeypair.publicKey,
-            toPubkey: depositWallet.publicKey,
-            lamports: lamportsToSend,
-        })
-    );
-    await sendAndConfirmTransaction(connection, fundingTransaction, [mainWalletKeypair]);
-    const fromAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, depositWallet.publicKey);
-    const toAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, MAIN_WALLET_PUBLIC_KEY);
-    const { blockhash } = await connection.getLatestBlockhash();
-    const transaction = new Transaction({ feePayer: depositWallet.publicKey, recentBlockhash: blockhash }).add(
-        createTransferInstruction(fromAta, toAta, depositWallet.publicKey, amount)
-    );
-    transaction.sign(depositWallet);
-    const signature = await connection.sendRawTransaction(transaction.serialize());
-    await connection.confirmTransaction(signature, 'confirmed');
-    return signature;
-}
+    try {
+        const fromAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, depositWallet.publicKey);
+        const toAta = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, MAIN_WALLET_PUBLIC_KEY);
 
+        const { blockhash } = await connection.getLatestBlockhash();
+        const transaction = new Transaction({ feePayer: depositWallet.publicKey, recentBlockhash: blockhash }).add(
+            createTransferInstruction(fromAta, toAta, depositWallet.publicKey, amount)
+        );
+        transaction.sign(depositWallet);
+        const signature = await connection.sendRawTransaction(transaction.serialize());
+        await connection.confirmTransaction(signature, 'confirmed');
+        console.log(`Sweep successful! Signature: ${signature}`);
+        return signature;
+    } catch (error) {
+        console.error('Error sweeping funds:', error);
+        throw new Error('Failed to sweep funds from deposit address.');
+    }
+}
 
 // --- MAIN HANDLER ---
 export default async function handler(req, res) {
@@ -45,13 +53,11 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. Verify the Authentication Header
         const providedSecret = req.headers['authorization'];
         if (providedSecret !== HELIUS_AUTH_SECRET) {
             return res.status(401).json({ success: false, message: "Unauthorized." });
         }
 
-        // 2. Process the verified data
         const transactions = req.body;
 
         for (const tx of transactions) {
@@ -60,7 +66,6 @@ export default async function handler(req, res) {
                 
                 const depositsRef = db.collection('pyusd_deposits');
                 const snapshot = await depositsRef.where('depositAddress', '==', depositAddress).where('status', '==', 'pending').get();
-
                 if (snapshot.empty) continue;
 
                 const depositDoc = snapshot.docs[0];
