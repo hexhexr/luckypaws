@@ -19,24 +19,52 @@ const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 // --- HELPER FUNCTIONS ---
 
-async function addAddressToWebhook(address) {
+/**
+ * Adds a new address to an existing Helius webhook by fetching the current list,
+ * appending the new address, and updating the webhook.
+ * @param {string} newAddress - The new Solana address to add.
+ */
+async function addAddressToWebhook(newAddress) {
     if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) {
         throw new Error("Helius webhook or API key is not configured for the current network.");
     }
-    const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/append?api-key=${HELIUS_API_KEY}`;
-    const response = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountAddresses: [address] }),
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Helius API Error:", errorData);
-        throw new Error(`Helius API Error: ${errorData.error || 'Failed to update webhook'}`);
-    } else {
-        console.log(`Successfully added address to ${SOLANA_NETWORK} webhook:`, address);
+    
+    const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
+
+    try {
+        // 1. Fetch the current webhook configuration to get the existing address list.
+        const getResponse = await fetch(url);
+        if (!getResponse.ok) {
+            throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
+        }
+        const webhookData = await getResponse.json();
+        let existingAddresses = webhookData.accountAddresses || [];
+
+        // 2. Add the new address to the list if it's not already there.
+        if (!existingAddresses.includes(newAddress)) {
+            existingAddresses.push(newAddress);
+        }
+
+        // 3. Update the webhook with the new, complete list of addresses.
+        const updateResponse = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountAddresses: existingAddresses }),
+        });
+
+        if (!updateResponse.ok) {
+            const errorData = await updateResponse.json();
+            console.error("Helius API Error (Update):", errorData);
+            throw new Error(`Helius API Error: ${errorData.error || 'Failed to update webhook'}`);
+        } else {
+            console.log(`Successfully updated webhook with address: ${newAddress}`);
+        }
+    } catch (error) {
+        console.error("Error in addAddressToWebhook:", error.message);
+        throw error;
     }
 }
+
 
 /**
  * Creates a new Solana account and funds it with the minimum amount for rent exemption plus extra for transaction fees.
@@ -45,26 +73,20 @@ async function addAddressToWebhook(address) {
  * @param {Keypair} newAccount The keypair for the new account being created.
  */
 async function createAndFundAccountForRent(connection, payer, newAccount) {
-    // 1. Calculate the minimum balance required to make the new account rent-exempt.
-    // The `0` indicates we are creating a base system account with no data.
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
-    
-    // 2. Add a small buffer for future transaction fees (e.g., for the sweep).
-    const amountForFees = 50000; // 0.00005 SOL, enough for ~10 transactions
+    const amountForFees = 50000;
     const totalLamports = rentExemptionAmount + amountForFees;
 
-    // 3. Create the transaction with the correct `createAccount` instruction.
     const transaction = new Transaction().add(
         SystemProgram.createAccount({
             fromPubkey: payer.publicKey,
             newAccountPubkey: newAccount.publicKey,
             lamports: totalLamports,
-            space: 0, // A base account has 0 space
+            space: 0,
             programId: SystemProgram.programId,
         })
     );
     
-    // 4. Send the transaction, signing with both the payer and the new account's keypair.
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
     console.log(`Created and funded new address ${newAccount.publicKey.toBase58()} with ${totalLamports} lamports.`);
 }
@@ -94,7 +116,6 @@ export default async function handler(req, res) {
         
         const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
 
-        // Use the new, corrected function to create and fund the account
         await createAndFundAccountForRent(connection, mainWalletKeypair, newDepositWallet);
         
         await addAddressToWebhook(publicKey);
