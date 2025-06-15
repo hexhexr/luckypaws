@@ -45,6 +45,9 @@ async function sweepTokens(depositWallet, amount) {
     }
 }
 
+// Function to introduce a delay
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // --- MAIN HANDLER ---
 export default async function handler(req, res) {
     console.log("WEBHOOK: Received a new request.");
@@ -64,30 +67,38 @@ export default async function handler(req, res) {
         const transactions = req.body;
         console.log(`WEBHOOK: Payload contains ${transactions.length} events.`);
 
-        // Log the entire first transaction payload for deep inspection
-        if(transactions.length > 0) {
-            console.log("WEBHOOK: Full Helius Payload (first event):", JSON.stringify(transactions[0], null, 2));
-        }
-
         for (const tx of transactions) {
             if (tx.type === "TOKEN_TRANSFER" && !tx.transaction.error) {
                 console.log("WEBHOOK: Processing TOKEN_TRANSFER event...");
 
                 const depositAddress = tx.tokenTransfers[0].toUserAccount;
-                console.log(`WEBHOOK: Looking for pending deposit to address: ${depositAddress}`);
                 
-                const depositsRef = db.collection('pyusd_deposits');
-                const snapshot = await depositsRef.where('depositAddress', '==', depositAddress).where('status', '==', 'pending').get();
+                let depositDoc = null;
+                let attempt = 0;
                 
-                if (snapshot.empty) {
-                    console.log(`WEBHOOK: No PENDING deposit found for address: ${depositAddress}. Skipping...`);
-                    continue;
+                // ** THE FINAL FIX IS HERE: Retry Logic **
+                // Try to find the document up to 3 times to account for database lag.
+                while (!depositDoc && attempt < 3) {
+                    attempt++;
+                    console.log(`WEBHOOK: Attempt ${attempt}: Looking for pending deposit to address: ${depositAddress}`);
+                    const depositsRef = db.collection('pyusd_deposits');
+                    const snapshot = await depositsRef.where('depositAddress', '==', depositAddress).where('status', '==', 'pending').get();
+                    
+                    if (!snapshot.empty) {
+                        depositDoc = snapshot.docs[0];
+                        console.log(`WEBHOOK: Found matching PENDING deposit! Doc ID: ${depositDoc.id}`);
+                    } else {
+                        console.log(`WEBHOOK: Attempt ${attempt}: No PENDING deposit found. Waiting 2 seconds...`);
+                        await sleep(2000); // Wait for 2 seconds before retrying
+                    }
                 }
 
-                console.log(`WEBHOOK: Found matching PENDING deposit! Doc ID: ${snapshot.docs[0].id}`);
-                const depositDoc = snapshot.docs[0];
+                if (!depositDoc) {
+                    console.log(`WEBHOOK: After all attempts, no PENDING deposit found for address: ${depositAddress}. Skipping...`);
+                    continue; // Skip to the next event in the payload
+                }
+
                 const depositData = depositDoc.data();
-                
                 const amountTransferred = tx.tokenTransfers[0].tokenAmount * (10 ** 6);
                 console.log(`WEBHOOK: Amount transferred: ${amountTransferred}`);
 
