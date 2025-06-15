@@ -1,15 +1,14 @@
 // src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 
 // --- CONFIGURATION ---
-const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta'; // Default to mainnet if not set
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
 
-// Use different webhook IDs for devnet and mainnet for better separation
 const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' 
     ? process.env.HELIUS_DEVNET_WEBHOOK_ID 
     : process.env.HELIUS_MAINNET_WEBHOOK_ID;
@@ -39,33 +38,37 @@ async function addAddressToWebhook(address) {
     }
 }
 
-async function fundAddressForGas(connection, depositAddressPublicKey) {
-    if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58) {
-        throw new Error("MAIN_WALLET_PRIVATE_KEY is not configured.");
-    }
-
-    let mainWalletKeypair;
-    try {
-        const decodedKey = bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58);
-        mainWalletKeypair = Keypair.fromSecretKey(decodedKey);
-    } catch (e) {
-        console.error("Failed to decode MAIN_WALLET_PRIVATE_KEY.", e);
-        throw new Error("Invalid format for main wallet private key.");
-    }
+/**
+ * Creates a new Solana account and funds it with the minimum amount for rent exemption plus extra for transaction fees.
+ * @param {Connection} connection The Solana connection object.
+ * @param {Keypair} payer The keypair of the account that will pay for the creation.
+ * @param {Keypair} newAccount The keypair for the new account being created.
+ */
+async function createAndFundAccountForRent(connection, payer, newAccount) {
+    // 1. Calculate the minimum balance required to make the new account rent-exempt.
+    // The `0` indicates we are creating a base system account with no data.
+    const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
     
-    // 0.00002 SOL is enough for several transactions.
-    const lamportsToSend = 20000;
+    // 2. Add a small buffer for future transaction fees (e.g., for the sweep).
+    const amountForFees = 50000; // 0.00005 SOL, enough for ~10 transactions
+    const totalLamports = rentExemptionAmount + amountForFees;
 
+    // 3. Create the transaction with the correct `createAccount` instruction.
     const transaction = new Transaction().add(
-        SystemProgram.transfer({
-            fromPubkey: mainWalletKeypair.publicKey,
-            toPubkey: depositAddressPublicKey,
-            lamports: lamportsToSend,
+        SystemProgram.createAccount({
+            fromPubkey: payer.publicKey,
+            newAccountPubkey: newAccount.publicKey,
+            lamports: totalLamports,
+            space: 0, // A base account has 0 space
+            programId: SystemProgram.programId,
         })
     );
-    await sendAndConfirmTransaction(connection, transaction, [mainWalletKeypair]);
-    console.log(`Funded ${depositAddressPublicKey.toBase58()} with ${lamportsToSend} lamports for gas.`);
+    
+    // 4. Send the transaction, signing with both the payer and the new account's keypair.
+    await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
+    console.log(`Created and funded new address ${newAccount.publicKey.toBase58()} with ${totalLamports} lamports.`);
 }
+
 
 // --- MAIN API HANDLER ---
 
@@ -88,8 +91,12 @@ export default async function handler(req, res) {
         const newDepositWallet = Keypair.generate();
         const publicKey = newDepositWallet.publicKey.toBase58();
         const serializedSecretKey = JSON.stringify(Array.from(newDepositWallet.secretKey));
+        
+        const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
 
-        await fundAddressForGas(connection, newDepositWallet.publicKey);
+        // Use the new, corrected function to create and fund the account
+        await createAndFundAccountForRent(connection, mainWalletKeypair, newDepositWallet);
+        
         await addAddressToWebhook(publicKey);
 
         const depositRef = db.collection('pyusd_deposits').doc();
@@ -102,7 +109,7 @@ export default async function handler(req, res) {
             depositAddress: publicKey,
             _privateKey: serializedSecretKey,
             createdAt: Timestamp.now(),
-            network: SOLANA_NETWORK // Track which network the deposit was made on
+            network: SOLANA_NETWORK
         });
 
         res.status(200).json({
