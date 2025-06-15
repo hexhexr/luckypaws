@@ -47,8 +47,14 @@ async function addAddressToWebhook(newAddress) {
             transactionTypes: webhookData.transactionTypes,
             accountAddresses: existingAddresses,
             webhookType: webhookData.webhookType,
-            authHeader: webhookData.authHeader // Also preserve the auth header
+            authHeader: webhookData.authHeader, 
         };
+        
+        // ** THE FINAL FIX IS HERE **
+        // The Helius API returns read-only fields that it does not accept back.
+        // We must manually remove them before sending the update request.
+        delete updatePayload.webhookID;
+        delete updatePayload.wallet;
         
         const updateResponse = await fetch(url, {
             method: 'PUT',
