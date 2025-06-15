@@ -32,7 +32,6 @@ async function addAddressToWebhook(newAddress) {
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
 
     try {
-        // 1. Fetch the current webhook configuration to get the existing address list.
         const getResponse = await fetch(url);
         if (!getResponse.ok) {
             throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
@@ -40,19 +39,17 @@ async function addAddressToWebhook(newAddress) {
         const webhookData = await getResponse.json();
         let existingAddresses = webhookData.accountAddresses || [];
 
-        // 2. Add the new address to the list if it's not already there.
         if (!existingAddresses.includes(newAddress)) {
             existingAddresses.push(newAddress);
         }
 
-        // 3. Update the webhook with the new, complete list of addresses.
-        // FINAL FIX: The Helius API requires the full webhook data structure in the PUT request body,
-        // not just the account addresses. We must include all the original fields.
-        const updatePayload = {
-            ...webhookData, // Start with all the existing data
-            accountAddresses: existingAddresses // Only change the address list
-        };
+        const updatePayload = { ...webhookData, accountAddresses: existingAddresses };
 
+        // ** THE FINAL FIX IS HERE **
+        // The Helius API returns a 'webhookID' field but does not accept it back in the PUT request.
+        // We must delete it from the payload before sending the update.
+        delete updatePayload.webhookID;
+        
         const updateResponse = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -62,7 +59,7 @@ async function addAddressToWebhook(newAddress) {
         if (!updateResponse.ok) {
             const errorData = await updateResponse.json();
             console.error("Helius API Error (Update):", errorData);
-            throw new Error(`Helius API Error: ${errorData.error || 'Failed to update webhook'}`);
+            throw new Error(`Helius API Error: ${errorData.message || 'Failed to update webhook'}`);
         } else {
             console.log(`Successfully updated webhook with address: ${newAddress}`);
         }
@@ -75,9 +72,6 @@ async function addAddressToWebhook(newAddress) {
 
 /**
  * Creates a new Solana account and funds it with the minimum amount for rent exemption plus extra for transaction fees.
- * @param {Connection} connection The Solana connection object.
- * @param {Keypair} payer The keypair of the account that will pay for the creation.
- * @param {Keypair} newAccount The keypair for the new account being created.
  */
 async function createAndFundAccountForRent(connection, payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
@@ -140,8 +134,9 @@ export default async function handler(req, res) {
             network: SOLANA_NETWORK
         });
 
+        // Corrected typo here from depositId.id to depositRef.id
         res.status(200).json({
-            depositId: depositId.id,
+            depositId: depositRef.id,
             depositAddress: publicKey,
         });
 
