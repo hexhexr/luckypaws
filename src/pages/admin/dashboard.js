@@ -7,14 +7,11 @@ import { collection, query, where, onSnapshot, orderBy, getDocs, doc, getDoc } f
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
-// FIX: Add the robust timestamp formatting function here as well.
 const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
-    // Handle Firestore Timestamp objects
     if (typeof timestamp.toDate === 'function') {
         return timestamp.toDate().toLocaleString();
     }
-    // Handle ISO strings or other date formats
     try {
         const date = new Date(timestamp);
         if (isNaN(date.getTime())) {
@@ -50,8 +47,6 @@ export default function AdminDashboard() {
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
-
-    // Dashboard Data
     const [stats, setStats] = useState({
         totalOrders: 0,
         paidOrders: 0,
@@ -63,7 +58,6 @@ export default function AdminDashboard() {
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState('');
 
-    // Authentication and Role Check
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
@@ -88,14 +82,11 @@ export default function AdminDashboard() {
         return () => unsubscribe();
     }, [router]);
 
-    // Data Fetching
     useEffect(() => {
         if (!isAdmin) return;
-
         const listeners = [];
         setDataLoading(true);
 
-        // All orders for stats and table
         const ordersQuery = query(collection(db, 'orders'), orderBy('created', 'desc'));
         const ordersListener = onSnapshot(ordersQuery, (snapshot) => {
             let paidCount = 0, pendingCount = 0, revenue = 0;
@@ -118,13 +109,11 @@ export default function AdminDashboard() {
         }, err => setError('Failed to load orders.'));
         listeners.push(ordersListener);
 
-        // Total users
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => {
             setStats(prev => ({ ...prev, totalUsers: snapshot.size }));
         }, err => setError('Failed to load user count.'));
         listeners.push(usersListener);
 
-        // Total cashouts
         const cashoutsQuery = query(collection(db, 'cashouts'), where('status', '==', 'completed'));
         const cashoutsListener = onSnapshot(cashoutsQuery, (snapshot) => {
             const total = snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0);
@@ -169,9 +158,21 @@ export default function AdminDashboard() {
     };
 
     const columns = useMemo(() => [
-        // FIX: Use the safe timestamp function for the 'Created' column.
         { header: 'Created', accessor: 'created', sortable: true, cell: (row) => formatTimestamp(row.created) },
         { header: 'Username', accessor: 'username', sortable: true },
+        { 
+            header: 'Method', 
+            accessor: 'method', 
+            sortable: true, 
+            cell: (row) => {
+                const method = row.method || 'lightning';
+                return (
+                    <span className={`method-badge method-${method}`}>
+                        {method === 'pyusd' ? 'PYUSD' : 'Lightning'}
+                    </span>
+                );
+            }
+        },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => `$${parseFloat(row.amount || 0).toFixed(2)}` },
         { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status} ${row.read ? '' : 'unread-badge'}`}>{row.status}</span> },
         { header: 'Game', accessor: 'game', sortable: true },
@@ -191,6 +192,27 @@ export default function AdminDashboard() {
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin Dashboard</title></Head>
+            <style jsx>{`
+                .method-badge {
+                    display: inline-block;
+                    padding: 0.3em 0.7em;
+                    border-radius: 4px;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    border: 1px solid;
+                }
+                .method-lightning {
+                    background-color: #fef9c3;
+                    color: #713f12;
+                    border-color: #fde047;
+                }
+                .method-pyusd {
+                    background-color: #dbeafe;
+                    color: #1e40af;
+                    border-color: #93c5fd;
+                }
+            `}</style>
             <header className="admin-header">
                 <h1>Admin Dashboard</h1>
                 <nav>

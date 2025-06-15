@@ -3,23 +3,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
-// Import Modals
+// Import ALL required modals
 import InvoiceModal from './InvoiceModal';
+import PYUSDInvoiceModal from './PYUSDInvoiceModal';
 import ExpiredModal from './ExpiredModal';
 import ReceiptModal from './ReceiptModal';
-import PYUSDInvoiceModal from './PYUSDInvoiceModal'; // New
-import PYUSDReceiptModal from './PYUSDReceiptModal'; // New
+import PYUSDReceiptModal from './PYUSDReceiptModal';
 
 export default function PaymentForm() {
-  // Default payment method is now 'lightning'
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle, pending, paid, expired
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  // Add new modal states for PYUSD
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
 
   const expiresAtRef = useRef(null);
@@ -40,31 +38,35 @@ export default function PaymentForm() {
     loadGames();
   }, []);
 
-  // This polling is for Lightning only, PYUSD polling is in its own modal
+  // This polling logic is ONLY for Lightning payments.
   useEffect(() => {
     if (!order || status !== 'pending' || form.method !== 'lightning') {
       clearInterval(pollingRef.current);
       return;
     }
+
     if (pollingRef.current) {
         clearInterval(pollingRef.current);
     }
+
     pollingRef.current = setInterval(async () => {
       try {
+        // This uses the original check-status for lightning invoices
         const res = await fetch(`/api/check-status?id=${order.orderId}`);
         const data = await res.json();
+        
         if (data?.status === 'paid') {
           setStatus('paid');
           setOrder(prev => ({ ...prev, status: 'paid' }));
-          setModals({ invoice: false, receipt: true, expired: false });
+          setModals({ invoice: false, receipt: true, expired: false, pyusdInvoice: false, pyusdReceipt: false });
           clearInterval(pollingRef.current);
         } else if (data?.status === 'expired') {
           setStatus('expired');
-          setModals({ invoice: false, receipt: false, expired: true });
+          setModals({ invoice: false, receipt: false, expired: true, pyusdInvoice: false, pyusdReceipt: false });
           clearInterval(pollingRef.current);
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('Lightning polling error:', err);
       }
     }, 3000);
 
@@ -91,7 +93,6 @@ export default function PaymentForm() {
     resetAllModals();
 
     if (form.method === 'lightning') {
-      // --- Existing Lightning Logic ---
       try {
         const res = await fetch('/api/create-payment', {
           method: 'POST',
@@ -99,23 +100,21 @@ export default function PaymentForm() {
           body: JSON.stringify(form),
         });
         const data = await res.json();
-        if (!res.ok || !data.invoice) throw new Error(data.message || 'Invoice generation failed.');
-        if (typeof data.invoice !== 'string' || !isValidQRValue(data.invoice)) {
-            throw new Error('Received invalid invoice format from server.');
+        if (!res.ok || !data.invoice) {
+          throw new Error(data.message || 'Invoice generation failed.');
         }
 
         const newOrder = { ...form, invoice: data.invoice, orderId: data.orderId, btc: data.btc, expiresAt: data.expiresAt, status: 'pending' };
         setOrder(newOrder);
         setStatus('pending');
-        expiresAtRef.current = data.expiresAt;
         setModals({ invoice: true });
+
       } catch (err) {
-        setError(err.message || 'An error occurred.');
+        setError(err.message || 'An error occurred generating the Lightning invoice.');
       } finally {
         setLoading(false);
       }
     } else if (form.method === 'pyusd') {
-      // --- New PYUSD Logic ---
       try {
         const res = await fetch('/api/pyusd/create-deposit', {
             method: 'POST',
@@ -127,20 +126,21 @@ export default function PaymentForm() {
             throw new Error(data.message || 'PYUSD deposit address generation failed.');
         }
 
-        const newOrder = { ...form, depositAddress: data.depositAddress, depositId: data.depositId, status: 'pending' };
+        const newOrder = { ...form, depositAddress: data.depositAddress, orderId: data.depositId, status: 'pending' };
         setOrder(newOrder);
         setStatus('pending');
         setModals({ pyusdInvoice: true });
 
       } catch (err) {
-        setError(err.message || 'An error occurred.');
+        setError(err.message || 'An error occurred generating the PYUSD deposit address.');
       } finally {
         setLoading(false);
       }
     }
   };
 
-  const shorten = str => !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
+  const shorten = str =>
+    !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
 
   return (
     <div className="payment-form-card">
@@ -148,9 +148,8 @@ export default function PaymentForm() {
         <form onSubmit={handleSubmit} className="payment-form-grid">
             <div className="form-group">
                 <label htmlFor="username">Username</label>
-                <input id="username" className="input-field" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username" />
+                <input id="username" className="input-field" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
             </div>
-
             <div className="form-group">
                 <label htmlFor="game">Select Game</label>
                 <select id="game" className="select" name="game" value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} required>
@@ -158,10 +157,9 @@ export default function PaymentForm() {
                     {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
                 </select>
             </div>
-
             <div className="form-group">
                 <label htmlFor="amount">Amount (USD)</label>
-                <input id="amount" className="input-field" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00" />
+                <input id="amount" className="input-field" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
             </div>
 
             <div className="form-group">
@@ -169,11 +167,13 @@ export default function PaymentForm() {
                 <div className="radio-option-group">
                     <label className="radio-label">
                         <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                        <span className="icon-inline">⚡</span> Lightning (Instant)
+                        <span className="icon-inline">⚡</span>
+                        Lightning (Instant)
                     </label>
                     <label className="radio-label">
                         <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                        <span className="icon-inline">🅿️</span> PYUSD (PayPal/Venmo)
+                        <span className="icon-inline">🅿️</span>
+                        PYUSD (PayPal/Venmo)
                     </label>
                 </div>
             </div>
@@ -187,9 +187,8 @@ export default function PaymentForm() {
 
       {modals.invoice && (<InvoiceModal order={order} expiresAt={expiresAtRef.current} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
       {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
-      {modals.receipt && order && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
-
-      {/* --- New PYUSD Modals --- */}
+      {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
+      
       {modals.pyusdInvoice && (
         <PYUSDInvoiceModal
           order={order}
