@@ -46,10 +46,17 @@ async function addAddressToWebhook(newAddress) {
         }
 
         // 3. Update the webhook with the new, complete list of addresses.
+        // FINAL FIX: The Helius API requires the full webhook data structure in the PUT request body,
+        // not just the account addresses. We must include all the original fields.
+        const updatePayload = {
+            ...webhookData, // Start with all the existing data
+            accountAddresses: existingAddresses // Only change the address list
+        };
+
         const updateResponse = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accountAddresses: existingAddresses }),
+            body: JSON.stringify(updatePayload),
         });
 
         if (!updateResponse.ok) {
@@ -134,7 +141,7 @@ export default async function handler(req, res) {
         });
 
         res.status(200).json({
-            depositId: depositRef.id,
+            depositId: depositId.id,
             depositAddress: publicKey,
         });
 
