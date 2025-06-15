@@ -5,7 +5,10 @@ import QRCodeLib from 'qrcode';
 export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
     const [copied, setCopied] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('Waiting for payment...');
     const pollingRef = useRef(null);
+
+    const explorerUrl = `https://solscan.io/account/${order?.depositAddress}?cluster=${process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'mainnet-beta'}`;
 
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
@@ -18,19 +21,43 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
 
     useEffect(() => {
         if (!order?.orderId) return;
-        pollingRef.current = setInterval(async () => {
+
+        const pollStatus = async () => {
             try {
-                // This now uses the correct orderId
                 const res = await fetch(`/api/pyusd/check-status?id=${order.orderId}`);
                 const data = await res.json();
-                if (data?.status === 'paid') {
-                    clearInterval(pollingRef.current);
-                    onPaymentSuccess();
+
+                switch (data?.status) {
+                    case 'paid':
+                    case 'sweeping':
+                        setStatusMessage('Transaction found, finalizing...');
+                        // Give a moment for the user to see the message before closing
+                        setTimeout(() => {
+                            clearInterval(pollingRef.current);
+                            onPaymentSuccess();
+                        }, 1500);
+                        break;
+                    case 'completed':
+                        clearInterval(pollingRef.current);
+                        onPaymentSuccess();
+                        break;
+                    case 'pending':
+                        setStatusMessage('Waiting for deposit...');
+                        break;
+                    default:
+                        setStatusMessage(`Status: ${data?.status || 'Unknown'}`);
                 }
             } catch (err) {
                 console.error('PYUSD status polling error:', err);
+                setStatusMessage('Polling error. Please check back.');
             }
-        }, 5000);
+        };
+
+        // Initial check
+        pollStatus();
+        // Set interval
+        pollingRef.current = setInterval(pollStatus, 5000);
+
         return () => clearInterval(pollingRef.current);
     }, [order?.orderId, onPaymentSuccess]);
 
@@ -62,37 +89,12 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                 <div className="short-invoice-display" style={{ cursor: 'pointer' }} onClick={handleCopyToClipboard}>
                     <strong>Deposit Address:</strong> {order.depositAddress}
                 </div>
-                <button className="btn btn-primary" onClick={handleCopyToClipboard}>{copied ? 'Copied!' : 'Copy Address'}</button>
+                <a href={explorerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize: '0.8rem', textDecoration: 'underline'}}>View on Block Explorer</a>
+                <button className="btn btn-primary mt-md" onClick={handleCopyToClipboard}>{copied ? 'Copied!' : 'Copy Address'}</button>
                 <p className="text-center mt-lg" style={{fontSize: '0.9rem', color: 'var(--text-light)', opacity: 0.9}}>
                     <span style={{fontSize: '1.5rem', display: 'block'}}>⏳</span>
-                    Waiting for payment...
+                    {statusMessage}
                 </p>
-            </div>
-        </div>
-    );
-}
-
-// File: src/components/PYUSDReceiptModal.js
-import React from 'react';
-
-export default function PYUSDReceiptModal({ order, resetModals }) {
-    if (!order) return null;
-
-    return (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-            <div className="modal">
-                <button onClick={resetModals} className="modal-close-btn">&times;</button>
-                <h2 className="modal-title text-success">✅ Payment Received</h2>
-                <div className="amount-display mb-md">
-                    <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
-                    <span className="btc-amount">PYUSD on Solana</span>
-                </div>
-                <div className="info-section mb-md">
-                    <p><strong>Game:</strong> <span>{order.game}</span></p>
-                    <p><strong>Username:</strong> <span>{order.username}</span></p>
-                    <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-                </div>
-                <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
             </div>
         </div>
     );

@@ -18,7 +18,7 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                 <div className="info-section mb-md">
                     <p><strong>Game:</strong> <span>{order.game}</span></p>
                     <p><strong>Username:</strong> <span>{order.username}</span></p>
-                    <p><strong>Deposit ID:</strong> <span>{order.depositId}</span></p>
+                    <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
                 </div>
 
                 <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>

@@ -92,7 +92,7 @@ export default function AdminDashboard() {
             let paidCount = 0, pendingCount = 0, revenue = 0;
             const allOrders = snapshot.docs.map(doc => {
                 const data = doc.data();
-                if (data.status === 'paid') {
+                if (data.status === 'paid' || data.status === 'completed' || data.status === 'sweeping') {
                     paidCount++;
                     revenue += parseFloat(data.amount || 0);
                 } else if (data.status === 'pending') {
@@ -178,7 +178,7 @@ export default function AdminDashboard() {
         { header: 'Game', accessor: 'game', sortable: true },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                {row.status === 'paid' && !row.read && (
+                {(row.status === 'paid' || row.status === 'completed') && !row.read && (
                     <button className="btn btn-success btn-small" onClick={() => markAsRead(row.id)}>Mark Read</button>
                 )}
                 <button className="btn btn-secondary btn-small" onClick={() => archiveOrder(row.id)}>Archive</button>
@@ -192,27 +192,6 @@ export default function AdminDashboard() {
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin Dashboard</title></Head>
-            <style jsx>{`
-                .method-badge {
-                    display: inline-block;
-                    padding: 0.3em 0.7em;
-                    border-radius: 4px;
-                    font-size: 0.8rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    border: 1px solid;
-                }
-                .method-lightning {
-                    background-color: #fef9c3;
-                    color: #713f12;
-                    border-color: #fde047;
-                }
-                .method-pyusd {
-                    background-color: #dbeafe;
-                    color: #1e40af;
-                    border-color: #93c5fd;
-                }
-            `}</style>
             <header className="admin-header">
                 <h1>Admin Dashboard</h1>
                 <nav>

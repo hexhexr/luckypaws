@@ -1,5 +1,5 @@
 // src/components/PaymentForm.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../lib/firebaseClient';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
@@ -138,6 +138,12 @@ export default function PaymentForm() {
       }
     }
   };
+  
+  const handlePymtSuccess = useCallback(() => {
+    setModals({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: true });
+    setStatus('paid');
+  }, []);
+
 
   const shorten = str =>
     !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
@@ -185,7 +191,7 @@ export default function PaymentForm() {
 
       {error && <div className="alert alert-danger mt-md">{error}</div>}
 
-      {modals.invoice && (<InvoiceModal order={order} expiresAt={expiresAtRef.current} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
+      {modals.invoice && (<InvoiceModal order={order} expiresAt={order?.expiresAt} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
       {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
       {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
       
@@ -193,10 +199,7 @@ export default function PaymentForm() {
         <PYUSDInvoiceModal
           order={order}
           resetModals={resetAllModals}
-          onPaymentSuccess={() => {
-            setModals({ pyusdReceipt: true });
-            setStatus('paid');
-          }}
+          onPaymentSuccess={handlePymtSuccess}
         />
       )}
       {modals.pyusdReceipt && order && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
