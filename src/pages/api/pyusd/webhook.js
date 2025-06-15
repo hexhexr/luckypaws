@@ -8,7 +8,12 @@ import bs58 from 'bs58';
 // --- CONFIGURATION ---
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
+
+// ** THE FIX IS HERE **
+// We now pass the environment variable directly, as it's already a string.
+// The new PublicKey() constructor will correctly handle it.
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
+
 
 // Use a different Auth Secret for devnet and mainnet webhooks
 const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet'
