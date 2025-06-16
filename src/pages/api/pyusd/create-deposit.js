@@ -1,4 +1,3 @@
-// File: src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
@@ -44,13 +43,15 @@ async function addAddressToWebhook(newAddress) {
     }
     const updatedAddresses = [...existingAddresses, newAddress];
 
-    // --- DEFINITIVE FIX ---
-    // The previous payload was incorrect because webhookData.authHeader is undefined for security reasons.
-    // The Helius API requires sending back ALL properties from the GET request, EXCEPT for the authHeader.
-    const { authHeader, ...rest } = webhookData;
+    // --- FINAL FIX ---
+    // Manually construct the payload with ONLY the updatable fields.
+    // This prevents sending back read-only fields (like 'wallet' or 'projectId')
+    // or undefined fields (like 'authHeader') from the GET response.
     const updatePayload = {
-        ...rest, // Use all other properties from the original webhook data
-        accountAddresses: updatedAddresses, // Overwrite with the new address list
+        webhookURL: webhookData.webhookURL,
+        transactionTypes: webhookData.transactionTypes,
+        accountAddresses: updatedAddresses,
+        webhookType: webhookData.webhookType,
     };
 
     const updateResponse = await fetch(url, {
