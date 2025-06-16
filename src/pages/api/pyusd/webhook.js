@@ -1,7 +1,7 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair } from '@solana/web3.js';
-import { decrypt, sweepTokens, PYUSD_MINT_ADDRESS } from './lib/pyusd-helpers';
+import { decrypt, sweepTokens, checkPyusdBalance } from './pyusd-helpers';
 
 // --- CONFIGURATION ---
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
