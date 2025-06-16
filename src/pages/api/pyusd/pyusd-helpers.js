@@ -3,9 +3,16 @@ import { getAssociatedTokenAddress, createTransferInstruction, getAccount } from
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 
-// Re-usable configuration
-export const PYUSD_MINT_ADDRESS = new PublicKey('CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM');
+// --- DYNAMIC MINT ADDRESS CONFIGURATION ---
+const MAINNET_MINT = new PublicKey('CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM');
+const DEVNET_MINT = new PublicKey(process.env.DEVNET_PYUSD_MINT_ADDRESS);
+
+// Export the correct mint address based on the current network environment
+export const PYUSD_MINT_ADDRESS = SOLANA_NETWORK === 'devnet' ? DEVNET_MINT : MAINNET_MINT;
+// --- END DYNAMIC CONFIGURATION ---
+
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
 
 /**
@@ -46,15 +53,13 @@ export async function checkPyusdBalance(connection, depositAddress) {
         
         const accountInfo = await getAccount(connection, associatedTokenAccount, 'confirmed');
         
-        // The balance is a BigInt, convert it to a number. PYUSD has 6 decimal places.
+        // The balance is a BigInt, convert it to a number. Assumes 6 decimal places.
         return Number(accountInfo.amount) / (10 ** 6);
 
     } catch (error) {
-        // This can happen if the associated token account hasn't been created yet (i.e., no payment sent)
         if (error.name === 'TokenAccountNotFoundError') {
             return 0;
         }
-        // For other errors, log them but return 0
         console.error(`Error checking balance for ${depositAddress}:`, error);
         return 0;
     }
