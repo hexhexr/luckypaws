@@ -1,3 +1,4 @@
+// File: src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
@@ -19,11 +20,6 @@ if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !ENCRYPTION_KEY || !SOLANA_RPC_URL ||
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
-/**
- * Encrypts a text string using AES-256-GCM.
- * @param {string} text The text to encrypt.
- * @returns {{iv: string, encryptedData: string}} The IV and encrypted data, both as hex strings.
- */
 function encrypt(text) {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
@@ -32,34 +28,29 @@ function encrypt(text) {
     return { iv: iv.toString('hex'), encryptedData: encrypted.toString('hex') };
 }
 
-/**
- * Adds a new Solana address to your Helius webhook's watch list.
- * @param {string} newAddress The new public key to add to the webhook.
- */
 async function addAddressToWebhook(newAddress) {
     if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) throw new Error("Helius is not configured.");
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
     
-    // Get the current list of addresses on the webhook
     const getResponse = await fetch(url);
-    if (!getResponse.ok) {
-        throw new Error(`Failed to fetch Helius webhook configuration. Status: ${getResponse.status}`);
-    }
+    if (!getResponse.ok) throw new Error(`Failed to fetch Helius webhook. Status: ${getResponse.status}`);
+
     const webhookData = await getResponse.json();
     const existingAddresses = webhookData.accountAddresses || [];
     
-    // Add the new address if it's not already present
     if (existingAddresses.includes(newAddress)) {
         console.log(`Address ${newAddress} is already on the Helius webhook list.`);
         return;
     }
     const updatedAddresses = [...existingAddresses, newAddress];
 
-    // --- FIX: The Helius API for updating webhooks only accepts the fields being changed. ---
-    // Sending read-only fields like `authHeader` or `webhookType` will cause the request to fail.
-    // We only need to send the updated list of addresses.
+    // --- DEFINITIVE FIX ---
+    // The previous payload was incorrect because webhookData.authHeader is undefined for security reasons.
+    // The Helius API requires sending back ALL properties from the GET request, EXCEPT for the authHeader.
+    const { authHeader, ...rest } = webhookData;
     const updatePayload = {
-        accountAddresses: updatedAddresses,
+        ...rest, // Use all other properties from the original webhook data
+        accountAddresses: updatedAddresses, // Overwrite with the new address list
     };
 
     const updateResponse = await fetch(url, {
@@ -75,25 +66,12 @@ async function addAddressToWebhook(newAddress) {
     console.log(`Successfully added address to Helius webhook: ${newAddress}`);
 }
 
-/**
- * Creates a new account on Solana and funds it with enough SOL to be rent-exempt.
- * @param {Keypair} payer The wallet that will pay for the transaction.
- * @param {Keypair} newAccount The new account to be created.
- */
 async function createAndFundAccountForRent(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
-    // Add a small amount of lamports for potential future transaction fees (like token account creation)
     const amountForFees = 50000;
     const totalLamports = rentExemptionAmount + amountForFees;
-
     const transaction = new Transaction().add(
-        SystemProgram.createAccount({
-            fromPubkey: payer.publicKey,
-            newAccountPubkey: newAccount.publicKey,
-            lamports: totalLamports,
-            space: 0,
-            programId: SystemProgram.programId
-        })
+        SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: newAccount.publicKey, lamports: totalLamports, space: 0, programId: SystemProgram.programId })
     );
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
     console.log(`Successfully created and funded new deposit address ${newAccount.publicKey.toBase58()} on ${SOLANA_NETWORK}`);
