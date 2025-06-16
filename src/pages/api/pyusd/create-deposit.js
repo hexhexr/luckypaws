@@ -1,32 +1,28 @@
-// File: src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import crypto from 'crypto';
 
 // --- CONFIGURATION ---
-// This reads your .env.local file. Ensure SOLANA_NETWORK is set to 'devnet'.
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-// The code correctly selects the DEVNET webhook ID when SOLANA_NETWORK is 'devnet'.
-const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' 
-    ? process.env.HELIUS_DEVNET_WEBHOOK_ID 
-    : process.env.HELIUS_MAINNET_WEBHOOK_ID;
+const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' ? process.env.HELIUS_DEVNET_WEBHOOK_ID : process.env.HELIUS_MAINNET_WEBHOOK_ID;
 const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
 
 if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !ENCRYPTION_KEY || !SOLANA_RPC_URL || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID) {
     console.error("Critical environment variables are missing for PYUSD deposit creation.");
-    // In a real app, you might want to throw an error or handle this more gracefully
 }
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 /**
  * Encrypts a text string using AES-256-GCM.
+ * @param {string} text The text to encrypt.
+ * @returns {{iv: string, encryptedData: string}} The IV and encrypted data, both as hex strings.
  */
 function encrypt(text) {
     const iv = crypto.randomBytes(16);
@@ -38,11 +34,13 @@ function encrypt(text) {
 
 /**
  * Adds a new Solana address to your Helius webhook's watch list.
+ * @param {string} newAddress The new public key to add to the webhook.
  */
 async function addAddressToWebhook(newAddress) {
+    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) throw new Error("Helius is not configured.");
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
     
-    // First, get the current list of addresses on the webhook
+    // Get the current list of addresses on the webhook
     const getResponse = await fetch(url);
     if (!getResponse.ok) {
         throw new Error(`Failed to fetch Helius webhook configuration. Status: ${getResponse.status}`);
@@ -57,14 +55,17 @@ async function addAddressToWebhook(newAddress) {
     }
     const updatedAddresses = [...existingAddresses, newAddress];
 
-    // Update the webhook with the new list
+    // --- FIX: The Helius API for updating webhooks only accepts the fields being changed. ---
+    // Sending read-only fields like `authHeader` or `webhookType` will cause the request to fail.
+    // We only need to send the updated list of addresses.
     const updatePayload = {
         accountAddresses: updatedAddresses,
     };
-    const updateResponse = await fetch(url, { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(updatePayload) 
+
+    const updateResponse = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
     });
 
     if (!updateResponse.ok) {
@@ -76,20 +77,22 @@ async function addAddressToWebhook(newAddress) {
 
 /**
  * Creates a new account on Solana and funds it with enough SOL to be rent-exempt.
+ * @param {Keypair} payer The wallet that will pay for the transaction.
+ * @param {Keypair} newAccount The new account to be created.
  */
 async function createAndFundAccountForRent(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
     // Add a small amount of lamports for potential future transaction fees (like token account creation)
-    const amountForFees = 50000; 
+    const amountForFees = 50000;
     const totalLamports = rentExemptionAmount + amountForFees;
 
     const transaction = new Transaction().add(
-        SystemProgram.createAccount({ 
-            fromPubkey: payer.publicKey, 
-            newAccountPubkey: newAccount.publicKey, 
-            lamports: totalLamports, 
-            space: 0, 
-            programId: SystemProgram.programId 
+        SystemProgram.createAccount({
+            fromPubkey: payer.publicKey,
+            newAccountPubkey: newAccount.publicKey,
+            lamports: totalLamports,
+            space: 0,
+            programId: SystemProgram.programId
         })
     );
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
@@ -103,7 +106,7 @@ export default async function handler(req, res) {
 
     try {
         const { username, game, amount } = req.body;
-        if (!username || !game || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        if (!username || !game || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
             return res.status(400).json({ message: 'Invalid input: username, game, and a positive amount are required.' });
         }
 
@@ -111,7 +114,6 @@ export default async function handler(req, res) {
         const publicKey = newDepositWallet.publicKey.toBase58();
         const serializedSecretKey = JSON.stringify(Array.from(newDepositWallet.secretKey));
         
-        // Ensure your MAIN_WALLET has DEVNET SOL
         const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
         await createAndFundAccountForRent(mainWalletKeypair, newDepositWallet);
 
@@ -130,7 +132,7 @@ export default async function handler(req, res) {
             depositAddress: publicKey,
             _privateKey: encryptedKey,
             created: Timestamp.now(),
-            network: SOLANA_NETWORK, // Explicitly save the network
+            network: SOLANA_NETWORK,
             read: false,
         });
 
