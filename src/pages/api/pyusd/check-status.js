@@ -1,7 +1,7 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair } from '@solana/web3.js';
-import { decrypt, sweepTokens, checkPyusdBalance } from '../../../lib/pyusd-helpers';
+import { decrypt, sweepTokens, checkPyusdBalance } from './pyusd-helpers';
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
