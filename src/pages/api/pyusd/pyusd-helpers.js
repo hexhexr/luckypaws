@@ -18,15 +18,11 @@ export function decrypt(data) {
     return decrypted.toString();
 }
 
-/**
- * [FINAL CORRECTED VERSION] Checks balance using the Token-2022 Program ID.
- */
 export async function checkPyusdBalance(connection, depositAddress, mintAddress) {
     try {
         const ownerPublicKey = new PublicKey(depositAddress);
         const mintPublicKey = new PublicKey(mintAddress);
 
-        // This function now correctly searches within the Token-2022 program
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(ownerPublicKey, {
             programId: TOKEN_2022_PROGRAM_ID,
         });
@@ -42,9 +38,6 @@ export async function checkPyusdBalance(connection, depositAddress, mintAddress)
     }
 }
 
-/**
- * [FINAL CORRECTED VERSION] Processes payment using the Token-2022 Program ID.
- */
 export async function processPyusdPayment(connection, orderRef, paidAmount, mintAddress, confirmationMethod, txSignature) {
     const orderData = (await orderRef.get()).data();
     if (orderData.status !== 'pending') return;
@@ -61,25 +54,15 @@ export async function processPyusdPayment(connection, orderRef, paidAmount, mint
         
         const mintPublicKey = new PublicKey(mintAddress);
         
-        // When finding the ATAs, we must also specify the correct program ID
         const fromAta = await getAssociatedTokenAddress(mintPublicKey, depositWalletKeypair.publicKey, false, TOKEN_2022_PROGRAM_ID);
         const toAta = await getAssociatedTokenAddress(mintPublicKey, MAIN_WALLET_PUBLIC_KEY, false, TOKEN_2022_PROGRAM_ID);
 
         const { blockhash } = await connection.getLatestBlockhash('confirmed');
         const transaction = new Transaction({ feePayer: depositWalletKeypair.publicKey, recentBlockhash: blockhash }).add(
-            createTransferInstruction(
-                fromAta,
-                toAta,
-                depositWalletKeypair.publicKey,
-                paidAmount * (10 ** 6),
-                [],
-                TOKEN_2022_PROGRAM_ID
-            )
+            createTransferInstruction(fromAta, toAta, depositWalletKeypair.publicKey, paidAmount * (10 ** 6), [], TOKEN_2022_PROGRAM_ID)
         );
         
         const sweepSignature = await connection.sendAndConfirmTransaction(transaction, [depositWalletKeypair]);
-        console.log(`Sweep successful for order ${orderRef.id}! Signature: ${sweepSignature}`);
-        
         await orderRef.update({ status: 'completed', sweepSignature });
     } catch (sweepError) {
         console.error(`CRITICAL SWEEP ERROR for order ${orderRef.id}:`, sweepError);
