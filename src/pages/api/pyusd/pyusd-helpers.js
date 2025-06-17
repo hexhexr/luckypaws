@@ -18,6 +18,9 @@ export function decrypt(data) {
     return decrypted.toString();
 }
 
+/**
+ * [FINAL CORRECTED VERSION] Checks balance using the Token-2022 Program ID.
+ */
 export async function checkPyusdBalance(connection, depositAddress, mintAddress) {
     try {
         const ownerPublicKey = new PublicKey(depositAddress);
@@ -38,6 +41,9 @@ export async function checkPyusdBalance(connection, depositAddress, mintAddress)
     }
 }
 
+/**
+ * [FINAL CORRECTED VERSION] Processes payment using the Token-2022 Program ID.
+ */
 export async function processPyusdPayment(connection, orderRef, paidAmount, mintAddress, confirmationMethod, txSignature) {
     const orderData = (await orderRef.get()).data();
     if (orderData.status !== 'pending') return;
