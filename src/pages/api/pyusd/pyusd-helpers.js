@@ -6,7 +6,7 @@ import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 
-// --- DEVNET ONLY CONFIGURATION ---
+// --- DEVNET ONLY CONFIGURAfTION ---
 // This now directly uses your devnet environment variables.
 export const PYUSD_MINT_ADDRESS = new PublicKey(process.env.DEVNET_PYUSD_MINT_ADDRESS);
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
