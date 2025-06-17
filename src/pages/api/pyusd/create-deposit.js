@@ -4,17 +4,18 @@ import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransact
 import bs58 from 'bs58';
 import crypto from 'crypto';
 
-// --- CONFIGURATION ---
-const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
+// --- CONFIGURATION (DEVNET ONLY) ---
+const SOLANA_NETWORK = 'devnet'; // Hardcoded to devnet
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' ? process.env.HELIUS_DEVNET_WEBHOOK_ID : process.env.HELIUS_MAINNET_WEBHOOK_ID;
+// Simplified to only use the devnet webhook ID
+const HELIUS_WEBHOOK_ID = process.env.HELIUS_DEVNET_WEBHOOK_ID;
 const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
 
 if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !ENCRYPTION_KEY || !SOLANA_RPC_URL || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID) {
-    console.error("Critical environment variables are missing for PYUSD deposit creation.");
+    console.error("Critical devnet environment variables are missing for PYUSD deposit creation.");
 }
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
@@ -28,7 +29,6 @@ function encrypt(text) {
 }
 
 async function addAddressToWebhook(newAddress) {
-    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) throw new Error("Helius is not configured.");
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
     
     const getResponse = await fetch(url);
@@ -38,15 +38,10 @@ async function addAddressToWebhook(newAddress) {
     const existingAddresses = webhookData.accountAddresses || [];
     
     if (existingAddresses.includes(newAddress)) {
-        console.log(`Address ${newAddress} is already on the Helius webhook list.`);
         return;
     }
     const updatedAddresses = [...existingAddresses, newAddress];
 
-    // --- FINAL FIX ---
-    // Manually construct the payload with ONLY the updatable fields.
-    // This prevents sending back read-only fields (like 'wallet' or 'projectId')
-    // or undefined fields (like 'authHeader') from the GET response.
     const updatePayload = {
         webhookURL: webhookData.webhookURL,
         transactionTypes: webhookData.transactionTypes,
@@ -86,7 +81,7 @@ export default async function handler(req, res) {
     try {
         const { username, game, amount } = req.body;
         if (!username || !game || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-            return res.status(400).json({ message: 'Invalid input: username, game, and a positive amount are required.' });
+            return res.status(400).json({ message: 'Invalid input.' });
         }
 
         const newDepositWallet = Keypair.generate();

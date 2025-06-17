@@ -1,4 +1,3 @@
-// File: src/components/PYUSDInvoiceModal.js
 import React, { useState, useEffect, useRef } from 'react';
 import QRCodeLib from 'qrcode';
 
@@ -8,8 +7,8 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     const [statusMessage, setStatusMessage] = useState('Waiting for payment...');
     const pollingRef = useRef(null);
 
-    // This will correctly generate a devnet explorer link if NEXT_PUBLIC_SOLANA_NETWORK is 'devnet'
-    const explorerUrl = `https://solscan.io/account/${order?.depositAddress}?cluster=${process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'mainnet-beta'}`;
+    // Simplified to always point to the devnet explorer
+    const explorerUrl = `https://solscan.io/account/${order?.depositAddress}?cluster=devnet`;
 
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
@@ -32,7 +31,6 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                     case 'paid':
                     case 'sweeping':
                         setStatusMessage('Transaction found, finalizing...');
-                        // Give a moment for the user to see the message before closing
                         setTimeout(() => {
                             clearInterval(pollingRef.current);
                             onPaymentSuccess();
@@ -86,11 +84,9 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                     {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="PYUSD Deposit QR Code" width={180} height={180} /> : <p>Generating QR code...</p>}
                 </div>
                 <div className="short-invoice-display" style={{ cursor: 'pointer' }} onClick={handleCopyToClipboard}>
-
                     <strong>Deposit Address:</strong> {order.depositAddress}
                 </div>
                 <a href={explorerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize: '0.8rem', textDecoration: 'underline'}}>View on Block Explorer</a>
-
                 <button className="btn btn-primary mt-md" onClick={handleCopyToClipboard}>{copied ? 'Copied!' : 'Copy Address'}</button>
                 <p className="text-center mt-lg" style={{fontSize: '0.9rem', color: 'var(--text-light)', opacity: 0.9}}>
                     <span style={{fontSize: '1.5rem', display: 'block'}}>⏳</span>
