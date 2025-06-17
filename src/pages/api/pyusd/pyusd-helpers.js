@@ -5,10 +5,8 @@ import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/sp
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
+const MAIN_WALLET_PUBLIC_KEY_STRING = process.env.MAIN_WALLET_PUBLIC_KEY;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
-
-// The official address for the Token-2022 Program
 const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLznL24');
 
 export function decrypt(data) {
@@ -18,50 +16,34 @@ export function decrypt(data) {
     return decrypted.toString();
 }
 
-/**
- * [FINAL CORRECTED VERSION] Checks balance using the Token-2022 Program ID.
- */
 export async function checkPyusdBalance(connection, depositAddress, mintAddress) {
     try {
         const ownerPublicKey = new PublicKey(depositAddress);
         const mintPublicKey = new PublicKey(mintAddress);
-
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(ownerPublicKey, {
-            programId: TOKEN_2022_PROGRAM_ID,
-        });
-
-        const targetAccount = tokenAccounts.value.find(
-            (account) => account.account.data.parsed.info.mint === mintPublicKey.toBase58()
-        );
-
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(ownerPublicKey, { programId: TOKEN_2022_PROGRAM_ID });
+        const targetAccount = tokenAccounts.value.find(acct => acct.account.data.parsed.info.mint === mintPublicKey.toBase58());
         return targetAccount ? targetAccount.account.data.parsed.info.tokenAmount.uiAmount : 0;
     } catch (error) {
-        console.error(`[checkPyusdBalance] Error checking balance for ${depositAddress}:`, error);
+        console.error(`[checkPyusdBalance] Error for ${depositAddress}:`, error);
         return 0;
     }
 }
 
-/**
- * [FINAL CORRECTED VERSION] Processes payment using the Token-2022 Program ID.
- */
 export async function processPyusdPayment(connection, orderRef, paidAmount, mintAddress, confirmationMethod, txSignature) {
     const orderData = (await orderRef.get()).data();
     if (orderData.status !== 'pending') return;
-
-    console.log(`Processing payment for order ${orderRef.id} via ${confirmationMethod}.`);
-    
-    await orderRef.update({ status: 'paid', paidAt: Timestamp.now(), transactionSignature: txSignature, confirmationMethod });
+    await orderRef.update({ status: 'paid', paidAt: Timestamp.now(), transactionSignature, confirmationMethod });
 
     try {
         await orderRef.update({ status: 'sweeping' });
+        const mainWalletPublicKey = new PublicKey(MAIN_WALLET_PUBLIC_KEY_STRING);
+        const mintPublicKey = new PublicKey(mintAddress);
         const decryptedSecret = decrypt(orderData._privateKey);
         const secretKeyArray = new Uint8Array(JSON.parse(decryptedSecret));
         const depositWalletKeypair = Keypair.fromSecretKey(secretKeyArray);
         
-        const mintPublicKey = new PublicKey(mintAddress);
-        
         const fromAta = await getAssociatedTokenAddress(mintPublicKey, depositWalletKeypair.publicKey, false, TOKEN_2022_PROGRAM_ID);
-        const toAta = await getAssociatedTokenAddress(mintPublicKey, MAIN_WALLET_PUBLIC_KEY, false, TOKEN_2022_PROGRAM_ID);
+        const toAta = await getAssociatedTokenAddress(mintPublicKey, mainWalletPublicKey, false, TOKEN_2022_PROGRAM_ID);
 
         const { blockhash } = await connection.getLatestBlockhash('confirmed');
         const transaction = new Transaction({ feePayer: depositWalletKeypair.publicKey, recentBlockhash: blockhash }).add(
@@ -72,6 +54,6 @@ export async function processPyusdPayment(connection, orderRef, paidAmount, mint
         await orderRef.update({ status: 'completed', sweepSignature });
     } catch (sweepError) {
         console.error(`CRITICAL SWEEP ERROR for order ${orderRef.id}:`, sweepError);
-        await orderRef.update({ status: 'sweep_failed', failureReason: sweepError.message || 'Unknown sweep error.' });
+        await orderRef.update({ status: 'sweep_failed', failureReason: sweepError.message || 'Unknown error' });
     }
 }
