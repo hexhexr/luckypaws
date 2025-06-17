@@ -1,68 +1,78 @@
-// src/pages/api/pyusd/webhook.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Connection } from '@solana/web3.js';
 import { PYUSD_MINT_ADDRESS, processPyusdPayment } from './pyusd-helpers';
 
-// --- CONFIGURATION (DEVNET ONLY) ---
+// --- CONFIGURATION ---
+// This should match the RPC URL used in other parts of your application
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
-// FIX: Using the correct environment variable name from your list
+
+// This MUST match the Authorization Header secret from your Helius webhook settings
 const HELIUS_AUTH_SECRET = process.env.HELIUS_DEVNET_AUTH_SECRET;
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 export default async function handler(req, res) {
-    // --- LOGGING STEP 1 ---
-    // Log the entire incoming request body to see the raw payload from Helius.
-    // This will prove if the webhook is being called at all.
-    console.log("[Webhook Arrived] Received a request. Full Payload:", JSON.stringify(req.body, null, 2));
-
+    // Only allow POST requests
     if (req.method !== 'POST') {
+        res.setHeader('Allow', 'POST');
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    // This check is important. If it fails, the logs below won't run.
+    // --- 1. Authentication ---
+    // Secure the webhook by checking for the authorization header sent by Helius.
     if (HELIUS_AUTH_SECRET && req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
-        console.error("WEBHOOK: Authentication failed. Check if HELIUS_DEVNET_AUTH_SECRET is correct and configured in Helius dashboard.");
+        console.error("WEBHOOK AUTHENTICATION FAILED: The secret in the 'Authorization' header did not match the expected HELIUS_DEVNET_AUTH_SECRET.");
         return res.status(401).json({ success: false, message: "Unauthorized." });
     }
 
+    // --- 2. Process Transactions ---
     try {
         const transactions = req.body;
+
+        // The webhook can send an array of transactions, so we loop through them.
         for (const tx of transactions) {
-
-            // --- LOGGING STEP 2 ---
-            // Log the mint address of every single token transfer found in the transaction.
-            if (tx.tokenTransfers && tx.tokenTransfers.length > 0) {
-                 tx.tokenTransfers.forEach((transfer, index) => {
-                    console.log(`[Mint Address Check] Tx <span class="math-inline">\{tx\.signature\}, Transfer \#</span>{index + 1}: The mint address is -> ${transfer.mint}`);
-                 });
-            }
-            // ---
-
+            // Find the specific transfer related to your PYUSD mint address.
             const pyusdTransfer = tx.tokenTransfers?.find(t => t.mint === PYUSD_MINT_ADDRESS.toBase58());
 
+            // If this transaction doesn't involve PYUSD, skip to the next one.
             if (!pyusdTransfer) {
-                 // This log helps understand why a transaction might be processed by the webhook but not acted upon.
-                 console.log(`[Webhook Info] Skipping Tx ${tx.signature} because it did not contain a transfer for the expected PYUSD mint address.`);
-                 continue;
-            }
-
-            const depositAddress = pyusdTransfer.toUserAccount;
-            const snapshot = await db.collection('orders').where('depositAddress', '==', depositAddress).where('status', '==', 'pending').get();
-            if (snapshot.empty) {
-                console.warn(`Webhook received for ${depositAddress}, but no pending order found.`);
                 continue;
             }
 
-            const orderDoc = snapshot.docs[0];
-            const paidAmount = pyusdTransfer.tokenAmount;
+            // --- 3. Find Matching Order ---
+            // The destination of the transfer is the temporary deposit address.
+            const depositAddress = pyusdTransfer.toUserAccount;
 
-            // Call the centralized processing function, do not block the response
+            // Find the pending order in Firestore that corresponds to this deposit address.
+            const snapshot = await db.collection('orders')
+                                     .where('depositAddress', '==', depositAddress)
+                                     .where('status', '==', 'pending')
+                                     .get();
+
+            if (snapshot.empty) {
+                // This can happen if the webhook arrives before the order is created in Firestore,
+                // or if the payment is for an old/non-existent order. It's safe to ignore.
+                console.warn(`Webhook received a valid PYUSD transfer to ${depositAddress}, but no matching pending order was found in the database.`);
+                continue;
+            }
+            
+            // --- 4. Process Payment ---
+            const orderDoc = snapshot.docs[0];
+            const paidAmount = pyusdTransfer.tokenAmount; // Amount with decimals (e.g., 10.5)
+            
+            // Call the centralized processing function. We do this without 'await'
+            // to immediately send a 200 OK response to Helius and prevent timeouts.
+            // The actual payment processing will happen in the background.
             processPyusdPayment(connection, orderDoc.ref, paidAmount, 'webhook', tx.signature);
         }
-        res.status(200).json({ success: true, message: "Webhook processed." });
+
+        // --- 5. Acknowledge Receipt ---
+        // Immediately tell Helius that we have received the webhook successfully.
+        res.status(200).json({ success: true, message: "Webhook received and is being processed." });
+
     } catch (error) {
-        console.error("WEBHOOK: An error occurred during processing:", error);
+        console.error("WEBHOOK PROCESSING ERROR: An unexpected error occurred while handling the webhook payload.", error);
+        // If something goes wrong, send a server error response.
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 }
