@@ -28,7 +28,7 @@ export async function checkPyusdBalance(connection, depositAddress, mintAddress)
 
         // This function now correctly searches within the Token-2022 program
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(ownerPublicKey, {
-            programId: TOKEN_2022_PROGRAM_ID, // Use the correct program ID
+            programId: TOKEN_2022_PROGRAM_ID,
         });
 
         const targetAccount = tokenAccounts.value.find(
@@ -71,9 +71,9 @@ export async function processPyusdPayment(connection, orderRef, paidAmount, mint
                 fromAta,
                 toAta,
                 depositWalletKeypair.publicKey,
-                paidAmount * (10 ** 6), // 6 decimals is correct
+                paidAmount * (10 ** 6),
                 [],
-                TOKEN_2022_PROGRAM_ID // Pass the correct program ID to the transfer instruction
+                TOKEN_2022_PROGRAM_ID
             )
         );
         
