@@ -3,11 +3,13 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair } from '@solana/web3.js';
 import { decrypt, sweepTokens, PYUSD_MINT_ADDRESS } from './pyusd-helpers';
 
-// --- CONFIGURATION (DEVNET ONLY) ---
+// --- CONFIGURATION ---
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
-// Simplified to only use the devnet auth secret
-const HELIUS_AUTH_SECRET = process.env.HELIUS_DEVNET_AUTH_SECRET;
+const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet' 
+    ? process.env.HELIUS_DEVNET_AUTH_SECRET 
+    : process.env.HELIUS_MAINNET_AUTH_SECRET;
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -35,18 +37,52 @@ export default async function handler(req, res) {
             }
 
             const depositAddress = pyusdTransfer.toUserAccount;
-            const snapshot = await db.collection('orders')
-                .where('depositAddress', '==', depositAddress)
-                .where('status', '==', 'pending').get();
+            
+            let orderDoc = null;
+            let attempt = 0;
+            while (!orderDoc && attempt < 3) {
+                attempt++;
+                const snapshot = await db.collection('orders')
+                    .where('depositAddress', '==', depositAddress)
+                    .where('status', '==', 'pending').get();
+                
+                if (!snapshot.empty) orderDoc = snapshot.docs[0];
+                else if (attempt < 3) await sleep(2000);
+            }
 
-            if (snapshot.empty) {
+            if (!orderDoc || orderDoc.data().status !== 'pending') {
                 continue;
             }
+
+            await orderDoc.ref.update({
+                status: 'paid',
+                paidAt: Timestamp.now(),
+                confirmationMethod: 'webhook',
+                transactionSignature: tx.signature,
+            });
+
+            const orderData = orderDoc.data();
             
-            const orderDoc = snapshot.docs[0];
-            await orderDoc.ref.update({ status: 'paid', paidAt: Timestamp.now(), confirmationMethod: 'webhook' });
-            
-            // Sweep logic remains the same
+            try {
+                await orderDoc.ref.update({ status: 'sweeping' });
+                const decryptedSecret = decrypt(orderData._privateKey, ENCRYPTION_KEY);
+                const secretKeyArray = new Uint8Array(JSON.parse(decryptedSecret));
+                const depositWalletKeypair = Keypair.fromSecretKey(secretKeyArray);
+                
+                const sweepAmount = pyusdTransfer.tokenAmount * (10 ** 6);
+                const sweepSignature = await sweepTokens(connection, depositWalletKeypair, sweepAmount);
+                
+                await orderDoc.ref.update({
+                    sweepSignature: sweepSignature,
+                    status: 'completed'
+                });
+            } catch (sweepError) {
+                console.error(`WEBHOOK: CRITICAL SWEEP ERROR for order ${orderDoc.id}:`, sweepError);
+                await orderDoc.ref.update({
+                    status: 'sweep_failed',
+                    failureReason: sweepError.message || 'Unknown sweep error.'
+                });
+            }
         }
         res.status(200).json({ success: true, message: "Webhook processed." });
     } catch (error) {

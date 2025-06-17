@@ -4,18 +4,17 @@ import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransact
 import bs58 from 'bs58';
 import crypto from 'crypto';
 
-// --- CONFIGURATION (DEVNET ONLY) ---
-const SOLANA_NETWORK = 'devnet'; // Hardcoded to devnet
+// --- CONFIGURATION ---
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-// Simplified to only use the devnet webhook ID
-const HELIUS_WEBHOOK_ID = process.env.HELIUS_DEVNET_WEBHOOK_ID;
+const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' ? process.env.HELIUS_DEVNET_WEBHOOK_ID : process.env.HELIUS_MAINNET_WEBHOOK_ID;
 const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
 
 if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !ENCRYPTION_KEY || !SOLANA_RPC_URL || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID) {
-    console.error("Critical devnet environment variables are missing for PYUSD deposit creation.");
+    console.error("Critical environment variables are missing for PYUSD deposit creation.");
 }
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
@@ -42,6 +41,9 @@ async function addAddressToWebhook(newAddress) {
     }
     const updatedAddresses = [...existingAddresses, newAddress];
 
+    // --- DEFINITIVE FIX ---
+    // Manually construct the payload with ONLY the fields Helius allows in a PUT request.
+    // This prevents sending back read-only fields (like 'wallet') or undefined fields (like 'authHeader').
     const updatePayload = {
         webhookURL: webhookData.webhookURL,
         transactionTypes: webhookData.transactionTypes,

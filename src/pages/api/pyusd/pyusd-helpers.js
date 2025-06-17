@@ -3,10 +3,15 @@ import { getAssociatedTokenAddress, createTransferInstruction, getAccount } from
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 
-// --- CONFIGURATION (DEVNET ONLY) ---
-// Simplified to only use the devnet mint address from your environment variables
-export const PYUSD_MINT_ADDRESS = new PublicKey(process.env.DEVNET_PYUSD_MINT_ADDRESS);
+// --- DYNAMIC MINT ADDRESS CONFIGURATION ---
+// This now correctly selects the mint address based on your environment variables.
+const MAINNET_MINT = new PublicKey('CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM');
+const DEVNET_MINT = new PublicKey(process.env.DEVNET_PYUSD_MINT_ADDRESS);
+
+export const PYUSD_MINT_ADDRESS = SOLANA_NETWORK === 'devnet' ? DEVNET_MINT : MAINNET_MINT;
+// ---
 
 const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
 
@@ -48,7 +53,7 @@ export async function checkPyusdBalance(connection, depositAddress) {
         
         const accountInfo = await getAccount(connection, associatedTokenAccount, 'confirmed');
         
-        // Assumes 6 decimal places for PYUSD
+        // PYUSD has 6 decimal places.
         return Number(accountInfo.amount) / (10 ** 6);
 
     } catch (error) {

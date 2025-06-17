@@ -1,7 +1,7 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair } from '@solana/web3.js';
-import { decrypt, sweepTokens, PYUSD_MINT_ADDRESS } from './pyusd-helpers';
+import { decrypt, sweepTokens, checkPyusdBalance } from './pyusd-helpers';
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
@@ -27,8 +27,6 @@ export default async function handler(req, res) {
         }
 
         const orderData = docSnap.data();
-        
-        console.log(`POLLING: Checking order ${id}. Current status: ${orderData.status}`);
 
         if (orderData.status !== 'pending') {
             return res.status(200).json({ status: orderData.status });
@@ -37,30 +35,45 @@ export default async function handler(req, res) {
         const expectedAmount = orderData.amount;
         const actualBalance = await checkPyusdBalance(connection, orderData.depositAddress);
 
-        console.log(`POLLING: For order ${id}, Expected Amount: ${expectedAmount}, Found Balance: ${actualBalance}`);
-
         if (actualBalance >= expectedAmount) {
-            console.log(`POLLING: Detected sufficient balance for order ${id}. Processing payment.`);
+            console.log(`POLLING: Detected payment for order ${id}. Balance: ${actualBalance}`);
             
-            await orderRef.update({ status: 'paid', paidAt: Timestamp.now(), confirmationMethod: 'polling' });
-            
+            await orderRef.update({
+                status: 'paid',
+                paidAt: Timestamp.now(),
+                confirmationMethod: 'polling'
+            });
+
             try {
-                // ... your sweep logic ...
-                console.log(`POLLING: Order ${id} processed successfully.`);
+                await orderRef.update({ status: 'sweeping' });
+                const decryptedSecret = decrypt(orderData._privateKey, ENCRYPTION_KEY);
+                const secretKeyArray = new Uint8Array(JSON.parse(decryptedSecret));
+                const depositWalletKeypair = Keypair.fromSecretKey(secretKeyArray);
+                
+                const sweepAmount = actualBalance * (10 ** 6); 
+                const sweepSignature = await sweepTokens(connection, depositWalletKeypair, sweepAmount);
+                
+                await orderRef.update({
+                    sweepSignature: sweepSignature,
+                    status: 'completed'
+                });
             } catch (sweepError) {
                 console.error(`POLLING: CRITICAL SWEEP ERROR for order ${id}:`, sweepError);
-                await orderRef.update({ status: 'sweep_failed', failureReason: sweepError.message || 'Unknown sweep error.' });
+                await orderRef.update({
+                    status: 'sweep_failed',
+                    failureReason: sweepError.message || 'Unknown sweep error.'
+                });
             }
             
             const finalDoc = await orderRef.get();
             return res.status(200).json({ status: finalDoc.data().status });
+
         } else {
-            console.log(`POLLING: Balance for order ${id} is not sufficient yet.`);
-            return res.status(200).json({ status: 'pending' });
+            return res.status(200).json({ status: orderData.status });
         }
 
     } catch (err) {
-        console.error(`POLLING: Error checking PYUSD status for order ${id}:`, err);
+        console.error(`Error checking PYUSD status for order ${id}:`, err);
         return res.status(500).json({ message: 'Internal server error.' });
     }
 }
