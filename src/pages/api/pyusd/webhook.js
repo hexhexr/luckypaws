@@ -1,15 +1,14 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair } from '@solana/web3.js';
+import { Connection, Keypair } from '@solana/web-3.js';
 import { decrypt, sweepTokens, PYUSD_MINT_ADDRESS } from './pyusd-helpers';
 
 // --- CONFIGURATION ---
-const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
-const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet' 
-    ? process.env.HELIUS_DEVNET_AUTH_SECRET 
-    : process.env.HELIUS_MAINNET_AUTH_SECRET;
+
+// --- UPDATE: Simplified to use a single, unified webhook secret ---
+const HELIUS_AUTH_SECRET = process.env.HELIUS_WEBHOOK_SECRET;
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -19,6 +18,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
     
+    // This check now uses the single HELIUS_WEBHOOK_SECRET variable
     if (HELIUS_AUTH_SECRET && req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
         console.error("WEBHOOK: Authentication failed. Invalid secret.");
         return res.status(401).json({ success: false, message: "Unauthorized." });
