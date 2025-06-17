@@ -4,18 +4,13 @@ import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransact
 import bs58 from 'bs58';
 import crypto from 'crypto';
 
-// --- CONFIGURATION ---
-const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
+// --- CONFIGURATION (DEVNET ONLY) ---
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' ? process.env.HELIUS_DEVNET_WEBHOOK_ID : process.env.HELIUS_MAINNET_WEBHOOK_ID;
+const HELIUS_WEBHOOK_ID = process.env.HELIUS_DEVNET_WEBHOOK_ID;
 const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const ENCRYPTION_KEY = process.env.PYUSD_ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
-
-if (!MAIN_WALLET_PRIVATE_KEY_STRING_B58 || !ENCRYPTION_KEY || !SOLANA_RPC_URL || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID) {
-    console.error("Critical environment variables are missing for PYUSD deposit creation.");
-}
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
@@ -29,21 +24,15 @@ function encrypt(text) {
 
 async function addAddressToWebhook(newAddress) {
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
-    
     const getResponse = await fetch(url);
-    if (!getResponse.ok) throw new Error(`Failed to fetch Helius webhook. Status: ${getResponse.status}`);
+    if (!getResponse.ok) throw new Error(`Failed to fetch Helius webhook config. Status: ${getResponse.status}`);
 
     const webhookData = await getResponse.json();
     const existingAddresses = webhookData.accountAddresses || [];
-    
-    if (existingAddresses.includes(newAddress)) {
-        return;
-    }
-    const updatedAddresses = [...existingAddresses, newAddress];
+    if (existingAddresses.includes(newAddress)) return;
 
-    // --- DEFINITIVE FIX ---
-    // Manually construct the payload with ONLY the fields Helius allows in a PUT request.
-    // This prevents sending back read-only fields (like 'wallet') or undefined fields (like 'authHeader').
+    const updatedAddresses = [...new Set([...existingAddresses, newAddress])];
+
     const updatePayload = {
         webhookURL: webhookData.webhookURL,
         transactionTypes: webhookData.transactionTypes,
@@ -51,12 +40,7 @@ async function addAddressToWebhook(newAddress) {
         webhookType: webhookData.webhookType,
     };
 
-    const updateResponse = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-    });
-
+    const updateResponse = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatePayload) });
     if (!updateResponse.ok) {
         const errorData = await updateResponse.json();
         throw new Error(`Helius API Error: ${errorData.message || 'Failed to update webhook'}`);
@@ -66,19 +50,15 @@ async function addAddressToWebhook(newAddress) {
 
 async function createAndFundAccountForRent(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
-    const amountForFees = 50000;
-    const totalLamports = rentExemptionAmount + amountForFees;
     const transaction = new Transaction().add(
-        SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: newAccount.publicKey, lamports: totalLamports, space: 0, programId: SystemProgram.programId })
+        SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: newAccount.publicKey, lamports: rentExemptionAmount, space: 0, programId: SystemProgram.programId })
     );
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
-    console.log(`Successfully created and funded new deposit address ${newAccount.publicKey.toBase58()} on ${SOLANA_NETWORK}`);
+    console.log(`Successfully created and funded new deposit address ${newAccount.publicKey.toBase58()}`);
 }
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
-    }
+    if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
     try {
         const { username, game, amount } = req.body;
@@ -108,7 +88,7 @@ export default async function handler(req, res) {
             depositAddress: publicKey,
             _privateKey: encryptedKey,
             created: Timestamp.now(),
-            network: SOLANA_NETWORK,
+            network: 'devnet',
             read: false,
         });
 
