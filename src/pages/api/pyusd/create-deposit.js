@@ -12,28 +12,42 @@ const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 async function addAddressToWebhook(newAddress) {
-    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) throw new Error("Helius not configured.");
+    console.log("Attempting to add address to Helius webhook:", newAddress);
+    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) {
+        console.error("Helius environment variables are not configured.");
+        throw new Error("Helius not configured.");
+    }
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
-    const getResponse = await fetch(url);
-    if (!getResponse.ok) throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
-    const webhookData = await getResponse.json();
-    let existingAddresses = webhookData.accountAddresses || [];
-    if (!existingAddresses.includes(newAddress)) {
+    try {
+        console.log("Fetching current webhook configuration...");
+        const getResponse = await fetch(url);
+        const webhookData = await getResponse.json();
+        if (!getResponse.ok) {
+            console.error("Failed to fetch webhook. Status:", getResponse.status, "Response:", webhookData);
+            throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
+        }
+        console.log("Successfully fetched webhook config. Current addresses:", webhookData.accountAddresses?.length);
+
+        let existingAddresses = webhookData.accountAddresses || [];
+        if (existingAddresses.includes(newAddress)) {
+            console.log("Address already exists in webhook. No update needed.");
+            return;
+        }
         existingAddresses.push(newAddress);
+
+        const updatePayload = { ...webhookData, accountAddresses: existingAddresses };
+        console.log("Updating webhook with new address list...");
+        const updateResponse = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatePayload) });
+        const updateResponseData = await updateResponse.json();
+        if (!updateResponse.ok) {
+            console.error("Helius API Error during update. Status:", updateResponse.status, "Response:", updateResponseData);
+            throw new Error(`Helius API Error: ${updateResponseData.message || 'Failed to update webhook'}`);
+        }
+        console.log("Successfully updated webhook. New address count:", existingAddresses.length);
+    } catch (error) {
+        console.error("Critical error in addAddressToWebhook:", error);
+        throw error;
     }
-    const updatePayload = {
-        webhookURL: webhookData.webhookURL,
-        transactionTypes: webhookData.transactionTypes,
-        accountAddresses: existingAddresses,
-        webhookType: webhookData.webhookType,
-        authHeader: webhookData.authHeader,
-    };
-    const updateResponse = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatePayload) });
-    if (!updateResponse.ok) {
-        const errorData = await updateResponse.json();
-        throw new Error(`Helius API Error: ${errorData.message || 'Failed to update webhook'}`);
-    }
-    console.log(`Successfully updated webhook with: ${newAddress}`);
 }
 
 async function createAndFundAccountForRent(payer, newAccount) {
@@ -58,8 +72,15 @@ export default async function handler(req, res) {
         const publicKey = newDepositWallet.publicKey.toBase58();
         const serializedSecretKey = JSON.stringify(Array.from(newDepositWallet.secretKey));
         const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
+        
         await createAndFundAccountForRent(mainWalletKeypair, newDepositWallet);
-        await addAddressToWebhook(publicKey);
+
+        try {
+            await addAddressToWebhook(publicKey);
+        } catch (webhookError) {
+            console.error(`CRITICAL: Failed to add address ${publicKey} to Helius webhook. Manual intervention may be required. Error: ${webhookError.message}`);
+        }
+
         const orderRef = db.collection('orders').doc();
         await orderRef.set({
             orderId: orderRef.id,
