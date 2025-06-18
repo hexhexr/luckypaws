@@ -1,4 +1,3 @@
-// src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
@@ -35,9 +34,23 @@ async function addAddressToWebhook(newAddress) {
         }
         existingAddresses.push(newAddress);
 
-        const updatePayload = { ...webhookData, accountAddresses: existingAddresses };
+        // Manually build the payload with only the fields Helius expects for an update.
+        // This prevents sending back read-only fields like 'webhookID'.
+        const updatePayload = {
+            webhookURL: webhookData.webhookURL,
+            transactionTypes: webhookData.transactionTypes,
+            accountAddresses: existingAddresses,
+            webhookType: webhookData.webhookType,
+            // Conditionally include authHeader only if it exists
+            ...(webhookData.authHeader && { authHeader: webhookData.authHeader })
+        };
+
         console.log("Updating webhook with new address list...");
-        const updateResponse = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatePayload) });
+        const updateResponse = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatePayload)
+        });
         const updateResponseData = await updateResponse.json();
         if (!updateResponse.ok) {
             console.error("Helius API Error during update. Status:", updateResponse.status, "Response:", updateResponseData);
@@ -49,6 +62,7 @@ async function addAddressToWebhook(newAddress) {
         throw error;
     }
 }
+
 
 async function createAndFundAccountForRent(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
