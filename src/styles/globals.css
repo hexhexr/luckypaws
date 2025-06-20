@@ -121,6 +121,12 @@ p {
     margin-bottom: var(--spacing-md);
 }
 
+/* --- Global Text Utilities --- */
+.text-success { color: var(--success-color); }
+.text-danger { color: var(--danger-color); }
+.text-warning { color: var(--warning-color); }
+.text-info { color: var(--info-color); }
+
 /* --- Layout Containers --- */
 .container {
     max-width: 1200px;
@@ -288,12 +294,9 @@ label {
     text-align: center;
     border-width: 1px;
     border-style: solid;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
 }
 .alert::before {
+    margin-right: 10px;
     font-weight: bold;
 }
 .alert-danger { background-color: var(--danger-light-bg); color: var(--red-dark-text); border-color: var(--danger-color); }
@@ -304,7 +307,6 @@ label {
 .alert-warning::before { content: '⚠️'; }
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
-
 
 /* --- Modals --- */
 .modal-overlay {
@@ -413,10 +415,8 @@ label {
     color: white;
 }
 .admin-nav { display: flex; gap: var(--spacing-md); align-items: center; list-style: none; margin: 0; padding: 0;}
-.admin-nav a { color: white; text-decoration: none; padding: 8px 15px; border-radius: var(--border-radius-sm); transition: background-color 0.2s ease, box-shadow 0.2s ease; }
-.admin-nav a:hover { background-color: #333; }
-.admin-nav a.active { background-color: var(--primary-blue); font-weight: 600; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
-
+.admin-nav a { color: white; text-decoration: none; padding: 8px 15px; border-radius: var(--border-radius-sm); transition: background-color 0.2s ease; }
+.admin-nav a:hover, .admin-nav a.active { background-color: var(--primary-blue); }
 .admin-main-content {
     flex-grow: 1;
     padding: var(--spacing-lg);
@@ -433,19 +433,22 @@ label {
     padding: var(--spacing-lg);
     position: relative;
     overflow: hidden;
-    border-left: 5px solid;
+    border-top: 4px solid;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-md), inset 0 1px 3px rgba(0,0,0,0.05);
     background: var(--card-bg);
     border-radius: var(--border-radius);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    /* FIX: Add tint for better visual distinction */
+    background-color: var(--bg-light); 
 }
-.stat-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-}
+.stat-card[style*="--primary-green"] { background-color: #f0fff4; }
+.stat-card[style*="--red-alert"] { background-color: #fff0f0; }
+.stat-card[style*="--primary-blue"] { background-color: #f0f7ff; }
+.stat-card[style*="--orange"] { background-color: #fff8e1; }
+.stat-card[style*="--purple"] { background-color: #f3e5f5; }
+
 .stat-card-title { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--spacing-xs); }
 .stat-card-value { font-size: 2.25rem; font-weight: 700; }
 .stat-card-icon { position: absolute; right: var(--spacing-lg); top: var(--spacing-lg); font-size: 4.5rem; opacity: 0.2; }
@@ -498,19 +501,19 @@ table tbody tr:nth-child(even):hover {
 .status-paid, .status-completed, .status-approved { background-color: var(--success-light-bg); color: var(--green-dark); }
 .status-paid::before, .status-completed::before, .status-approved::before { content: '✔'; }
 .status-pending { background-color: var(--warning-light-bg); color: var(--warning-color); }
-.status-pending::before { content: '⏳'; }
+.status-pending::before { content: '...'; }
 .status-failed, .status-rejected, .status-archived { background-color: var(--danger-light-bg); color: var(--red-dark-text); }
 .status-failed::before, .status-rejected::before, .status-archived::before { content: '✖'; }
 .unread-badge::before {
     content: '●';
     color: var(--primary-blue);
     margin-right: 8px;
-    font-size: 1em;
-    animation: pulse 1.8s infinite;
+    font-size: 1.2em;
+    animation: pulse 1.5s infinite;
 }
 @keyframes pulse {
     0% { opacity: 1; }
-    50% { opacity: 0.3; }
+    50% { opacity: 0.2; }
     100% { opacity: 1; }
 }
 
@@ -648,8 +651,52 @@ table tbody tr:nth-child(even):hover {
   border-radius: var(--border-radius);
   padding: var(--spacing-sm);
 }
-.radio-option-group { display: flex; flex-direction: column; gap: var(--spacing-sm); }
-.radio-label { display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; }
+/* FIX: Styles for enhanced payment method selection cards */
+.radio-option-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+.radio-label {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.radio-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.radio-label .icon-inline {
+    font-size: 2rem;
+    margin-bottom: var(--spacing-sm);
+}
+.radio-label:hover {
+    border-color: var(--primary-blue);
+    background-color: #f0f7ff;
+}
+.radio-label input[type="radio"]:checked + .radio-content {
+    /* This style will apply to the container when radio is checked */
+}
+.radio-label input[type="radio"]:checked ~ * {
+    /* Style for elements inside the label when checked */
+    color: var(--primary-blue);
+}
+input[type="radio"]:checked + label {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+    background-color: #f0f7ff;
+}
+
 
 /* --- Game Page Specifics --- */
 .game-list-header, .game-list-item {

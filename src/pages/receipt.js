@@ -29,7 +29,6 @@ export default function ReceiptPage() {
 
     const loadReceipt = async () => {
         try {
-            // This API now only returns minimal, safe data for a public receipt
             const res = await fetch(`/api/orders?id=${id}`);
             if (!res.ok) {
                 const errData = await res.json();
@@ -47,23 +46,22 @@ export default function ReceiptPage() {
                 setLoading(false);
                 stopPolling();
             } else {
-                // Status is likely 'pending', start polling
-                setLoading(false); // We are no longer loading, we are waiting
+                setLoading(false);
                 setError('⏳ Payment is pending. Waiting for confirmation...');
                 
-                if (!pollingRef.current) { // Start polling only if not already running
+                if (!pollingRef.current) {
                     pollingRef.current = setInterval(async () => {
-                        console.log("Polling for status...");
+                        // FIX: Changed to the correct endpoint
                         const checkRes = await fetch(`/api/check-status?id=${id}`);
                         const checkData = await checkRes.json();
                         if (checkData.status === 'paid' || checkData.status === 'completed') {
                             stopPolling();
-                            loadReceipt(); // Re-fetch the full data now that it's paid
+                            loadReceipt();
                         } else if (checkData.status === 'expired' || checkData.status === 'failed') {
                             stopPolling();
                             setError('This payment has expired or failed. Please create a new one.');
                         }
-                    }, 5000); // Poll every 5 seconds
+                    }, 5000);
                 }
             }
         } catch (err) {
@@ -75,7 +73,7 @@ export default function ReceiptPage() {
 
     loadReceipt();
 
-    return () => stopPolling(); // Cleanup on unmount
+    return () => stopPolling();
 
   }, [id]);
 
@@ -97,7 +95,6 @@ export default function ReceiptPage() {
                 <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
                 <span className="btc-amount">{order.btc} BTC</span>
               </div>
-
               <div className="info-section">
                 <p><strong>Game:</strong> <span>{order.game}</span></p>
                 <p><strong>Username:</strong> <span>{order.username}</span></p>
