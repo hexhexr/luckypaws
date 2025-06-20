@@ -1,6 +1,6 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
 
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
@@ -11,58 +11,35 @@ const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 async function addAddressToWebhook(newAddress) {
-    console.log("Attempting to add address to Helius webhook:", newAddress);
-    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) {
-        console.error("Helius environment variables are not configured.");
-        throw new Error("Helius not configured.");
-    }
+    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) throw new Error("Helius not configured.");
     const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
-    try {
-        console.log("Fetching current webhook configuration...");
-        const getResponse = await fetch(url);
-        const webhookData = await getResponse.json();
-        if (!getResponse.ok) {
-            console.error("Failed to fetch webhook. Status:", getResponse.status, "Response:", webhookData);
-            throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
-        }
-        console.log("Successfully fetched webhook config. Current addresses:", webhookData.accountAddresses?.length);
+    const getResponse = await fetch(url);
+    const webhookData = await getResponse.json();
+    if (!getResponse.ok) throw new Error(`Failed to fetch webhook. Status: ${getResponse.status}`);
+    
+    let existingAddresses = webhookData.accountAddresses || [];
+    if (existingAddresses.includes(newAddress)) return;
+    existingAddresses.push(newAddress);
 
-        let existingAddresses = webhookData.accountAddresses || [];
-        if (existingAddresses.includes(newAddress)) {
-            console.log("Address already exists in webhook. No update needed.");
-            return;
-        }
-        existingAddresses.push(newAddress);
+    const updatePayload = {
+        webhookURL: webhookData.webhookURL,
+        transactionTypes: webhookData.transactionTypes,
+        accountAddresses: existingAddresses,
+        webhookType: webhookData.webhookType,
+        ...(webhookData.authHeader && { authHeader: webhookData.authHeader })
+    };
 
-        // Manually build the payload with only the fields Helius expects for an update.
-        // This prevents sending back read-only fields like 'webhookID'.
-        const updatePayload = {
-            webhookURL: webhookData.webhookURL,
-            transactionTypes: webhookData.transactionTypes,
-            accountAddresses: existingAddresses,
-            webhookType: webhookData.webhookType,
-            // Conditionally include authHeader only if it exists
-            ...(webhookData.authHeader && { authHeader: webhookData.authHeader })
-        };
+    const updateResponse = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
+    });
 
-        console.log("Updating webhook with new address list...");
-        const updateResponse = await fetch(url, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload)
-        });
+    if (!updateResponse.ok) {
         const updateResponseData = await updateResponse.json();
-        if (!updateResponse.ok) {
-            console.error("Helius API Error during update. Status:", updateResponse.status, "Response:", updateResponseData);
-            throw new Error(`Helius API Error: ${updateResponseData.message || 'Failed to update webhook'}`);
-        }
-        console.log("Successfully updated webhook. New address count:", existingAddresses.length);
-    } catch (error) {
-        console.error("Critical error in addAddressToWebhook:", error);
-        throw error;
+        throw new Error(`Helius API Error: ${updateResponseData.message || 'Failed to update webhook'}`);
     }
 }
-
 
 async function createAndFundAccountForRent(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
@@ -72,7 +49,6 @@ async function createAndFundAccountForRent(payer, newAccount) {
         SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: newAccount.publicKey, lamports: totalLamports, space: 0, programId: SystemProgram.programId })
     );
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
-    console.log(`Created/funded address ${newAccount.publicKey.toBase58()}`);
 }
 
 export default async function handler(req, res) {
@@ -84,27 +60,31 @@ export default async function handler(req, res) {
         }
         const newDepositWallet = Keypair.generate();
         const publicKey = newDepositWallet.publicKey.toBase58();
-        const serializedSecretKey = JSON.stringify(Array.from(newDepositWallet.secretKey));
         const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
         
         await createAndFundAccountForRent(mainWalletKeypair, newDepositWallet);
 
+        // --- FIX: Abort if webhook registration fails to prevent lost funds ---
         try {
             await addAddressToWebhook(publicKey);
         } catch (webhookError) {
-            console.error(`CRITICAL: Failed to add address ${publicKey} to Helius webhook. Manual intervention may be required. Error: ${webhookError.message}`);
+            console.error(`CRITICAL: Failed to add address ${publicKey} to Helius webhook. Aborting order creation. Error: ${webhookError.message}`);
+            // TODO: Implement a mechanism to reclaim funds from the created-but-unmonitored address.
+            return res.status(500).json({ message: 'Failed to configure payment monitoring. Please try again later.' });
         }
 
         const orderRef = db.collection('orders').doc();
         await orderRef.set({
             orderId: orderRef.id,
-            username,
+            username: username.toLowerCase().trim(),
             game,
             amount: parseFloat(amount),
             status: 'pending',
             method: 'pyusd',
             depositAddress: publicKey,
-            _privateKey: serializedSecretKey,
+            // --- SECURITY FIX: DO NOT STORE THE PRIVATE KEY IN THE DATABASE ---
+            // The sweeping process must be handled by a secure, separate service
+            // that has access to keys via a proper secret manager (e.g., GCP Secret Manager).
             created: Timestamp.now(),
             network: SOLANA_NETWORK,
             read: false,

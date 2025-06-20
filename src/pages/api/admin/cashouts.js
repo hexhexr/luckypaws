@@ -8,7 +8,7 @@ const handler = async (req, res) => {
   }
 
   try {
-    // FIX: Target the 'cashouts' collection, which is the correct source of truth.
+    // --- FIX: Query the correct 'cashouts' collection ---
     const cashoutsRef = db.collection('cashouts');
     const snapshot = await cashoutsRef.orderBy('time', 'desc').limit(100).get();
 

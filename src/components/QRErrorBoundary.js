@@ -18,11 +18,11 @@ class QRErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      // FIX: Display a generic message to the user instead of the raw error string.
       return this.props.fallback || (
         <div className="alert alert-danger">
           <p>⚠️ Error displaying QR code.</p>
-          <p>Please try copying the invoice text manually.</p>
+          {/* --- FIX: Display generic message instead of raw error --- */}
+          <p>Please try copying the invoice text manually. Details have been logged.</p>
         </div>
       );
     }

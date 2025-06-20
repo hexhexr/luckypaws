@@ -1,7 +1,7 @@
 // pages/api/webhooks/speed-webhook.js
 import { buffer } from 'micro';
 import crypto from 'crypto';
-import { db } from '../../lib/firebaseAdmin'; // Assuming this path is correct for your webhook file
+import { db } from '../../lib/firebaseAdmin';
 
 export const config = { api: { bodyParser: false } };
 
@@ -13,14 +13,13 @@ export default async function handler(req, res) {
     console.error('CRITICAL: Missing webhook secret (SPEED_WEBHOOK_SECRET environment variable).');
     return res.status(500).json({ error: 'Missing webhook secret' });
   }
-
+  
   const secret = Buffer.from(secretEnv.replace(/^wsec_/, ''), 'base64');
 
   let rawBody;
   try {
     rawBody = (await buffer(req)).toString();
   } catch (err) {
-    console.error('Failed to read raw body:', err);
     return res.status(500).json({ error: 'Failed to read body' });
   }
 
@@ -29,13 +28,11 @@ export default async function handler(req, res) {
   const webhookTimestamp = req.headers['webhook-timestamp'];
 
   if (!headerSig || !webhookId || !webhookTimestamp) {
-    console.error('❌ Missing required webhook headers.');
     return res.status(400).json({ error: 'Missing required webhook headers' });
   }
 
   const [algo, receivedSig] = headerSig.split(',');
   if (algo !== 'v1' || !receivedSig) {
-    console.error('❌ Invalid webhook signature format.');
     return res.status(400).json({ error: 'Invalid webhook signature format' });
   }
 
@@ -48,7 +45,6 @@ export default async function handler(req, res) {
     receivedSigBuffer.length !== computedSigBuffer.length ||
     !crypto.timingSafeEqual(receivedSigBuffer, computedSigBuffer)
   ) {
-    console.error('❌ Invalid signature');
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
@@ -56,22 +52,21 @@ export default async function handler(req, res) {
   try {
     payload = JSON.parse(rawBody);
   } catch {
-    console.error('❌ Invalid JSON payload.');
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
   const payment = payload?.data?.object;
-  const paymentGatewayIdFromWebhook = payment?.id || payment?.payment_hash;
+  const paymentGatewayIdFromWebhook = payment?.id || payment?.payment_hash; 
 
   if (payload.event_type === 'payment.confirmed' && payment?.status === 'paid' && paymentGatewayIdFromWebhook) {
     try {
-      // FIX: Query the 'cashouts' collection, which is the correct source of truth.
-      const cashoutQuery = db.collection('cashouts').where('paymentGatewayId', '==', paymentGatewayIdFromWebhook);
-      const snapshot = await cashoutQuery.get();
+      // --- FIX: Query the correct 'cashouts' collection ---
+      const cashoutsQuery = db.collection('cashouts').where('paymentGatewayId', '==', paymentGatewayIdFromWebhook);
+      const snapshot = await cashoutsQuery.get();
 
       if (snapshot.empty) {
-        console.warn('❌ Webhook: No matching cashout entry found for paymentGatewayId:', paymentGatewayIdFromWebhook);
-        return res.status(200).json({ error: 'Cashout entry not found for this payment ID.' });
+        console.warn('Webhook: No matching cashout entry found for paymentGatewayId:', paymentGatewayIdFromWebhook);
+        return res.status(200).json({ error: 'Cashout entry not found, possibly not yet recorded or ID mismatch.' });
       }
 
       const cashoutDoc = snapshot.docs[0];
@@ -90,9 +85,9 @@ export default async function handler(req, res) {
     }
   } else if (payload.event_type === 'payment.failed' && paymentGatewayIdFromWebhook) {
     try {
-      // FIX: Query the 'cashouts' collection for failed payments as well.
-      const cashoutQuery = db.collection('cashouts').where('paymentGatewayId', '==', paymentGatewayIdFromWebhook);
-      const snapshot = await cashoutQuery.get();
+      // --- FIX: Query the correct 'cashouts' collection ---
+      const cashoutsQuery = db.collection('cashouts').where('paymentGatewayId', '==', paymentGatewayIdFromWebhook);
+      const snapshot = await cashoutsQuery.get();
 
       if (!snapshot.empty) {
         const cashoutDoc = snapshot.docs[0];
@@ -105,7 +100,7 @@ export default async function handler(req, res) {
         });
         console.log('⚠️ Webhook: Cashout entry marked as FAILED for Payment ID:', paymentGatewayIdFromWebhook);
       } else {
-        console.warn('❌ Webhook: No matching cashout entry found to mark as failed for paymentGatewayId:', paymentGatewayIdFromWebhook);
+        console.warn('Webhook: No matching cashout entry found to mark as failed for paymentGatewayId:', paymentGatewayIdFromWebhook);
       }
       return res.status(200).json({ success: true });
     } catch (err) {

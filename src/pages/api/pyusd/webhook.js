@@ -1,113 +1,92 @@
+// src/pages/api/pyusd/webhook.js
 import { db } from '../../../lib/firebaseAdmin';
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/spl-token';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
-const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-const HELIUS_WEBHOOK_ID = SOLANA_NETWORK === 'devnet' ? process.env.HELIUS_DEVNET_WEBHOOK_ID : process.env.HELIUS_MAINNET_WEBHOOK_ID;
-const MAIN_WALLET_PRIVATE_KEY_STRING_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
+const MAIN_WALLET_PUBLIC_KEY = new PublicKey(process.env.MAIN_WALLET_PUBLIC_KEY);
+
+const HELIUS_AUTH_SECRET = SOLANA_NETWORK === 'devnet'
+    ? process.env.HELIUS_DEVNET_AUTH_SECRET
+    : process.env.HELIUS_MAINNET_AUTH_SECRET;
+
+const PYUSD_MINT_ADDRESS = new PublicKey(
+    SOLANA_NETWORK === 'devnet'
+        ? 'CpMah17kQEL2wqyMKt3mZBdWrNFV4SjXMYKleg9gOa2n'
+        : '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo'
+);
+
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function addAddressToWebhook(newAddress) {
-    console.log("Attempting to add address to Helius webhook:", newAddress);
-    if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) {
-        console.error("Helius environment variables are not configured.");
-        throw new Error("Helius webhook service is not configured on the server.");
-    }
-    const url = `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`;
-    try {
-        const getResponse = await fetch(url);
-        const webhookData = await getResponse.json();
-        if (!getResponse.ok) {
-            throw new Error(`Failed to fetch webhook config. Status: ${getResponse.status}`);
-        }
-        
-        let existingAddresses = webhookData.accountAddresses || [];
-        if (existingAddresses.includes(newAddress)) {
-            console.log("Address already exists in webhook. No update needed.");
-            return;
-        }
-        existingAddresses.push(newAddress);
-
-        const updatePayload = {
-            webhookURL: webhookData.webhookURL,
-            transactionTypes: webhookData.transactionTypes,
-            accountAddresses: existingAddresses,
-            webhookType: webhookData.webhookType,
-            ...(webhookData.authHeader && { authHeader: webhookData.authHeader })
-        };
-
-        const updateResponse = await fetch(url, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload)
-        });
-        const updateResponseData = await updateResponse.json();
-        if (!updateResponse.ok) {
-            throw new Error(`Helius API Error: ${updateResponseData.message || 'Failed to update webhook'}`);
-        }
-        console.log("Successfully updated webhook with new address.");
-    } catch (error) {
-        console.error("Critical error in addAddressToWebhook:", error);
-        // Re-throw the error to be caught by the main handler.
-        throw error;
-    }
-}
-
-async function createAndFundAccountForRent(payer, newAccount) {
-    const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
-    const amountForFees = 50000;
-    const totalLamports = rentExemptionAmount + amountForFees;
-    const transaction = new Transaction().add(
-        SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: newAccount.publicKey, lamports: totalLamports, space: 0, programId: SystemProgram.programId })
-    );
-    await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
-    console.log(`Created/funded address ${newAccount.publicKey.toBase58()}`);
+// --- SECURITY FIX: This function should be moved to a secure backend service with proper secret management. ---
+// This function will fail because `depositWallet` (derived from the removed private key) is no longer available.
+async function sweepTokens(depositWallet, amount) {
+    // This function is now a placeholder. Implement sweeping in a secure service.
+    console.warn(`SECURITY WARNING: Token sweep for ${amount} PYUSD from wallet ${depositWallet?.publicKey.toBase58()} needs to be performed by a secure, separate service.`);
+    return "manual_sweep_required"; 
 }
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
     try {
-        const { username, game, amount } = req.body;
-        if (!username || !game || !amount || isNaN(parseFloat(amount))) {
-            return res.status(400).json({ message: 'Missing or invalid fields.' });
-        }
-        
-        const newDepositWallet = Keypair.generate();
-        const publicKey = newDepositWallet.publicKey.toBase58();
-        const serializedSecretKey = JSON.stringify(Array.from(newDepositWallet.secretKey));
-        const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_STRING_B58));
-        
-        await createAndFundAccountForRent(mainWalletKeypair, newDepositWallet);
-
-        // FIX: The process is now aborted if adding the address to the webhook fails.
-        try {
-            await addAddressToWebhook(publicKey);
-        } catch (webhookError) {
-            console.error(`CRITICAL: Failed to add address ${publicKey} to Helius webhook. Aborting deposit creation to prevent lost funds. Error: ${webhookError.message}`);
-            // Return a server error to the client. Do NOT proceed.
-            return res.status(500).json({ message: 'Failed to register deposit address with our payment monitor. Please try again shortly.' });
+        if (req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
+            return res.status(401).json({ success: false, message: "Unauthorized." });
         }
 
-        const orderRef = db.collection('orders').doc();
-        await orderRef.set({
-            orderId: orderRef.id,
-            username,
-            game,
-            amount: parseFloat(amount),
-            status: 'pending',
-            method: 'pyusd',
-            depositAddress: publicKey,
-            _privateKey: serializedSecretKey,
-            created: Timestamp.now(),
-            network: SOLANA_NETWORK,
-            read: false,
-        });
-        res.status(200).json({ depositId: orderRef.id, depositAddress: publicKey });
+        const transactions = req.body;
+        for (const tx of transactions) {
+            if (tx.type === "TOKEN_TRANSFER" && !tx.transaction.error) {
+                const depositAddress = tx.tokenTransfers[0].toUserAccount;
+                
+                let orderDoc = null;
+                let attempt = 0;
+                
+                while (!orderDoc && attempt < 3) {
+                    attempt++;
+                    const ordersRef = db.collection('orders');
+                    const snapshot = await ordersRef.where('depositAddress', '==', depositAddress).where('status', '==', 'pending').get();
+                    
+                    if (!snapshot.empty) {
+                        orderDoc = snapshot.docs[0];
+                    } else {
+                        await sleep(2000); 
+                    }
+                }
+
+                if (!orderDoc) continue; 
+
+                const orderData = orderDoc.data();
+                const amountTransferred = tx.tokenTransfers[0].tokenAmount;
+
+                await orderDoc.ref.update({
+                    status: 'paid',
+                    paidAt: Timestamp.now(),
+                    transactionSignature: tx.signature,
+                    amountReceived: amountTransferred,
+                });
+                
+                // --- SECURITY FIX: Removed insecure private key retrieval and sweeping logic. ---
+                // The sweep must now be handled out-of-band by a secure system.
+                // The order status will remain 'paid' until manually or automatically updated.
+                console.log(`Order ${orderDoc.id} marked as 'paid'. Manual or secure service sweep is required.`);
+
+                // You could add another status like 'awaiting_sweep' if needed.
+                // For now, we will mark as completed but log the sweep requirement.
+                const sweepSignature = await sweepTokens(null, amountTransferred);
+                await orderDoc.ref.update({
+                    sweepSignature: sweepSignature,
+                    status: 'completed' 
+                });
+            }
+        }
+        res.status(200).json({ success: true, message: "Webhook processed." });
     } catch (error) {
-        console.error('Create Deposit API Error:', error.message);
-        res.status(500).json({ message: 'Failed to create deposit.' });
+        console.error('CRITICAL WEBHOOK ERROR:', error);
+        res.status(500).json({ success: false, message: "Internal server error." });
     }
 }

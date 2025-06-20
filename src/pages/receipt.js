@@ -14,82 +14,88 @@ export default function ReceiptPage() {
   const pollingRef = useRef(null);
 
   useEffect(() => {
-    if (!id) {
-        setLoading(false);
-        setError("No order ID provided.");
-        return;
-    };
+    if (!id) return;
 
     const stopPolling = () => {
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
-            pollingRef.current = null;
         }
-    }
+    };
+
+    const checkStatus = async () => {
+      try {
+        // --- FIX: Corrected the API endpoint URL ---
+        const res = await fetch(`/api/check-status?id=${id}`);
+        const data = await res.json();
+        
+        if (data.status === 'paid') {
+          stopPolling();
+          // Refetch the full order details to show the receipt
+          const orderRes = await fetch(`/api/orders?id=${id}`);
+          const orderData = await orderRes.json();
+          setOrder(orderData);
+          setError('');
+          setLoading(false);
+        } else if (data.status === 'expired') {
+          stopPolling();
+          setError('This payment link has expired.');
+          setLoading(false);
+        }
+        // If still pending, the interval will simply run again
+      } catch (err) {
+        stopPolling();
+        setError('Could not verify payment status. Please contact support.');
+        setLoading(false);
+      }
+    };
 
     const loadReceipt = async () => {
-        try {
-            const res = await fetch(`/api/orders?id=${id}`);
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.message || 'Could not fetch order details.');
-            }
-            const data = await res.json();
-            
-            if (data.status === 'paid' || data.status === 'completed') {
-                setOrder(data);
-                setError('');
-                setLoading(false);
-                stopPolling();
-            } else if (data.status === 'expired' || data.status === 'failed') {
-                setError('This payment has expired or failed. Please create a new one.');
-                setLoading(false);
-                stopPolling();
-            } else {
-                setLoading(false);
-                setError('⏳ Payment is pending. Waiting for confirmation...');
-                
-                if (!pollingRef.current) {
-                    pollingRef.current = setInterval(async () => {
-                        // FIX: Changed to the correct endpoint
-                        const checkRes = await fetch(`/api/check-status?id=${id}`);
-                        const checkData = await checkRes.json();
-                        if (checkData.status === 'paid' || checkData.status === 'completed') {
-                            stopPolling();
-                            loadReceipt();
-                        } else if (checkData.status === 'expired' || checkData.status === 'failed') {
-                            stopPolling();
-                            setError('This payment has expired or failed. Please create a new one.');
-                        }
-                    }, 5000);
-                }
-            }
-        } catch (err) {
-            setError(err.message);
-            setLoading(false);
-            stopPolling();
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/orders?id=${id}`);
+        const data = await res.json();
+
+        if (!res.ok || !data?.orderId) throw new Error('Order not found.');
+        
+        if (data.status === 'paid') {
+          setOrder(data);
+          setLoading(false);
+        } else if (data.status === 'expired') {
+          setError('This payment link has expired.');
+          setLoading(false);
+        } else {
+          // --- FIX: Start polling for pending orders ---
+          setError('⏳ Payment is pending... Awaiting confirmation.');
+          // Initial check
+          checkStatus(); 
+          // Set interval for subsequent checks
+          pollingRef.current = setInterval(checkStatus, 3000);
         }
+      } catch (err) {
+        setError(err.message);
+        setLoading(false);
+      }
     };
 
     loadReceipt();
 
+    // Cleanup effect
     return () => stopPolling();
-
   }, [id]);
 
   if (loading) return <p className="text-center mt-xl">Loading receipt...</p>;
 
   return (
     <>
-    <Head>
-        <title>{order ? `Receipt for Order ${order.orderId}` : 'Payment Status'}</title>
-    </Head>
-    <Header />
-    <main className="container mt-xl">
-      <div className="card">
-        {order ? (
-            <>
-            <h1 className="card-header text-success">✅ Payment Received</h1>
+      <Head>
+        <title>{order ? 'Payment Confirmed' : 'Payment Status'}</title>
+      </Head>
+      <Header />
+      <main className="container main-content" style={{maxWidth: '600px'}}>
+        {error && !order && <div className="alert alert-info">{error}</div>}
+        {order && (
+          <div className="card">
+            <h1 className="card-header">✅ Payment Received</h1>
             <div className="card-body">
               <div className="amount-display mb-lg">
                 <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
@@ -102,22 +108,14 @@ export default function ReceiptPage() {
               </div>
               {order.invoice && (
                 <div className="short-invoice-display mt-md">
-                    <strong>Invoice:</strong> {order.invoice}
+                  <strong>Full Invoice:</strong> {order.invoice}
                 </div>
               )}
-               <button className="btn btn-primary mt-lg" onClick={() => router.push('/')}>Done</button>
             </div>
-            </>
-        ) : (
-            <div className="card-body text-center">
-                <h1 className="card-header">{error.includes('pending') ? 'Waiting for Payment' : 'Error'}</h1>
-                <p className={`alert ${error.includes('pending') ? 'alert-info' : 'alert-danger'} mt-md`}>{error}</p>
-                {error.includes('pending') && <p className="text-light">This page will update automatically once payment is confirmed.</p>}
-            </div>
+          </div>
         )}
-      </div>
-    </main>
-    <Footer />
+      </main>
+      <Footer />
     </>
   );
 }
