@@ -103,6 +103,26 @@ export default function AdminDashboard() {
                     created: data.created?.toDate ? data.created.toDate().toISOString() : data.created
                 };
             });
+
+            // --- FIX: Logic to clean up stale pending orders ---
+            const now = new Date();
+            allOrders.forEach(order => {
+                // Check if an order is still marked as pending but its expiration time has passed.
+                if (order.status === 'pending' && order.expiresAt) {
+                    const expiresDate = new Date(order.expiresAt);
+                    if (expiresDate < now) {
+                        console.log(`Found stale pending order (${order.id}), triggering status check...`);
+                        // This "fire-and-forget" call tells the backend to verify the order status.
+                        // The backend will update the status to "expired" in Firestore.
+                        // The 'onSnapshot' listener will then automatically receive the update and re-render the UI.
+                        fetch(`/api/check-status?id=${order.id}`).catch(err => {
+                            console.error(`Failed to auto-update status for order ${order.id}:`, err);
+                        });
+                    }
+                }
+            });
+            // --- END OF FIX ---
+
             setOrders(allOrders);
             setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalRevenue: revenue }));
             setDataLoading(false);
