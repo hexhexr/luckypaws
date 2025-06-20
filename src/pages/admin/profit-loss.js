@@ -25,10 +25,13 @@ export default function AdminProfitLoss() {
     const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
     
+    // State for combined, consistent data
     const [allTransactions, setAllTransactions] = useState([]);
+
     const [manualTx, setManualTx] = useState({ username: '', amount: '', description: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Authentication Check
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
@@ -47,6 +50,7 @@ export default function AdminProfitLoss() {
         return () => unsubscribe();
     }, [router]);
 
+    // BUG FIX: Rewritten data fetching logic to use the correct collections ('orders' and 'cashouts')
     useEffect(() => {
         if (!isAdmin) return;
         setDataLoading(true);
@@ -54,58 +58,57 @@ export default function AdminProfitLoss() {
         const depositsQuery = query(collection(db, "orders"), where("status", "==", "paid"));
         const cashoutsQuery = query(collection(db, "cashouts"), where("status", "==", "completed"));
 
-        const unsubDeposits = onSnapshot(depositsQuery, (depositSnap) => {
-            const deposits = depositSnap.docs.map(d => ({ ...d.data(), type: 'deposit', time: d.data().created?.toDate ? d.data().created.toDate() : new Date(d.data().created) }));
-            setAllTransactions(currentTxs => [
-                ...currentTxs.filter(tx => tx.type !== 'deposit'),
-                ...deposits
-            ]);
+        let depositsData = [];
+        let cashoutsData = [];
+
+        const combineData = () => {
+            const transformedDeposits = depositsData.map(d => ({ ...d, type: 'deposit', time: d.created?.toDate ? d.created.toDate().toISOString() : d.created }));
+            const transformedCashouts = cashoutsData.map(c => ({ ...c, type: 'cashout', amount: c.amountUSD, time: c.time?.toDate ? c.time.toDate().toISOString() : c.time }));
+            setAllTransactions([...transformedDeposits, ...transformedCashouts]);
             setDataLoading(false);
+        };
+
+        const depositsListener = onSnapshot(depositsQuery, (snapshot) => {
+            depositsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            combineData();
         }, (err) => {
             setError("Failed to load deposit data.");
             setDataLoading(false);
         });
 
-        const unsubCashouts = onSnapshot(cashoutsQuery, (cashoutSnap) => {
-            const cashouts = cashoutSnap.docs.map(c => ({ ...c.data(), type: 'cashout', amount: c.data().amountUSD, time: c.data().time?.toDate ? c.data().time.toDate() : new Date(c.data().time) }));
-            setAllTransactions(currentTxs => [
-                ...currentTxs.filter(tx => tx.type !== 'cashout'),
-                ...cashouts
-            ]);
-            setDataLoading(false);
+        const cashoutsListener = onSnapshot(cashoutsQuery, (snapshot) => {
+            cashoutsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            combineData();
         }, (err) => {
             setError("Failed to load cashout data.");
             setDataLoading(false);
         });
 
         return () => {
-            unsubDeposits();
-            unsubCashouts();
+            depositsListener();
+            cashoutsListener();
         };
     }, [isAdmin]);
 
-    // --- FIX: Corrected and robust aggregation logic ---
-    // This logic now guarantees one row per user with correctly summed columns.
+    // Memoized calculation for performance
     const userProfitLossData = useMemo(() => {
         const userMap = {};
         allTransactions.forEach(t => {
-            // Ensure username is consistently lowercased to group correctly
-            const username = t.username?.toLowerCase().trim() || 'unknown';
+            const username = t.username?.toLowerCase() || 'unknown';
             if (!userMap[username]) {
-                userMap[username] = { username, totalDeposits: 0, totalCashout: 0, transactionCount: 0 };
+                userMap[username] = { username, totalDeposits: 0, totalCashout: 0 };
             }
             const amount = parseFloat(t.amount || 0);
-            if (t.type === 'deposit') {
+            if (t.type.includes('deposit')) {
                 userMap[username].totalDeposits += amount;
-            } else if (t.type === 'cashout') {
+            } else if (t.type.includes('cashout')) {
                 userMap[username].totalCashout += amount;
             }
-            userMap[username].transactionCount += 1;
         });
         return Object.values(userMap).map(u => ({
             ...u,
             net: u.totalDeposits - u.totalCashout,
-            profitMargin: u.totalDeposits > 0 ? (((u.totalDeposits - u.totalCashout) / u.totalDeposits) * 100) : (u.totalCashout > 0 ? -100 : 0),
+            profitMargin: u.totalDeposits > 0 ? (((u.totalDeposits - u.totalCashout) / u.totalDeposits) * 100) : 0,
         }));
     }, [allTransactions]);
 
@@ -115,11 +118,12 @@ export default function AdminProfitLoss() {
         setError('');
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
+            // This API endpoint has been fixed to write to the 'cashouts' collection
             const res = await fetch('/api/admin/cashouts/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
                 body: JSON.stringify({
-                    username: manualTx.username.toLowerCase().trim(), // Sanitize on submission
+                    username: manualTx.username,
                     amount: manualTx.amount,
                     description: `Manual Cashout: ${manualTx.description}`
                 })
@@ -145,7 +149,7 @@ export default function AdminProfitLoss() {
         { header: 'Total Deposits', accessor: 'totalDeposits', sortable: true, cell: (row) => formatCurrency(row.totalDeposits) },
         { header: 'Total Cashouts', accessor: 'totalCashout', sortable: true, cell: (row) => formatCurrency(row.totalCashout) },
         { header: 'Net P/L', accessor: 'net', sortable: true, cell: (row) => <span style={{ color: row.net >= 0 ? 'var(--primary-green)' : 'var(--red-alert)', fontWeight: 'bold' }}>{formatCurrency(row.net)}</span> },
-        { header: 'Profit Margin', accessor: 'profitMargin', sortable: true, cell: (row) => `${row.profitMargin.toFixed(1)}%` },
+        { header: 'Profit Margin', accessor: 'profitMargin', sortable: true, cell: (row) => `${row.profitMargin.toFixed(2)}%` },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => <button className="btn btn-info btn-xsmall" onClick={() => router.push(`/admin/customer/${row.username}`)}>View History</button>}
     ], [router]);
     
@@ -177,7 +181,7 @@ export default function AdminProfitLoss() {
                         <form onSubmit={handleManualTxSubmit} className="form-grid">
                             <div className="form-group">
                                 <label>Username</label>
-                                <input type="text" className="input" value={manualTx.username} onChange={e => setManualTx({...manualTx, username: e.target.value})} required placeholder="Enter exact username (case-insensitive)" />
+                                <input type="text" className="input" value={manualTx.username} onChange={e => setManualTx({...manualTx, username: e.target.value})} required placeholder="Enter exact username" />
                             </div>
                             <div className="form-group">
                                 <label>Amount (USD)</label>
