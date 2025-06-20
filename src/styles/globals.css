@@ -288,9 +288,12 @@ label {
     text-align: center;
     border-width: 1px;
     border-style: solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
 }
 .alert::before {
-    margin-right: 10px;
     font-weight: bold;
 }
 .alert-danger { background-color: var(--danger-light-bg); color: var(--red-dark-text); border-color: var(--danger-color); }
@@ -301,6 +304,7 @@ label {
 .alert-warning::before { content: '⚠️'; }
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
+
 
 /* --- Modals --- */
 .modal-overlay {
@@ -409,8 +413,10 @@ label {
     color: white;
 }
 .admin-nav { display: flex; gap: var(--spacing-md); align-items: center; list-style: none; margin: 0; padding: 0;}
-.admin-nav a { color: white; text-decoration: none; padding: 8px 15px; border-radius: var(--border-radius-sm); transition: background-color 0.2s ease; }
-.admin-nav a:hover, .admin-nav a.active { background-color: var(--primary-blue); }
+.admin-nav a { color: white; text-decoration: none; padding: 8px 15px; border-radius: var(--border-radius-sm); transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+.admin-nav a:hover { background-color: #333; }
+.admin-nav a.active { background-color: var(--primary-blue); font-weight: 600; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
+
 .admin-main-content {
     flex-grow: 1;
     padding: var(--spacing-lg);
@@ -427,13 +433,18 @@ label {
     padding: var(--spacing-lg);
     position: relative;
     overflow: hidden;
-    border-top: 4px solid;
+    border-left: 5px solid;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    box-shadow: var(--shadow-md), inset 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-md);
     background: var(--card-bg);
     border-radius: var(--border-radius);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
 }
 .stat-card-title { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--spacing-xs); }
 .stat-card-value { font-size: 2.25rem; font-weight: 700; }
@@ -487,19 +498,19 @@ table tbody tr:nth-child(even):hover {
 .status-paid, .status-completed, .status-approved { background-color: var(--success-light-bg); color: var(--green-dark); }
 .status-paid::before, .status-completed::before, .status-approved::before { content: '✔'; }
 .status-pending { background-color: var(--warning-light-bg); color: var(--warning-color); }
-.status-pending::before { content: '...'; }
+.status-pending::before { content: '⏳'; }
 .status-failed, .status-rejected, .status-archived { background-color: var(--danger-light-bg); color: var(--red-dark-text); }
 .status-failed::before, .status-rejected::before, .status-archived::before { content: '✖'; }
 .unread-badge::before {
     content: '●';
     color: var(--primary-blue);
     margin-right: 8px;
-    font-size: 1.2em;
-    animation: pulse 1.5s infinite;
+    font-size: 1em;
+    animation: pulse 1.8s infinite;
 }
 @keyframes pulse {
     0% { opacity: 1; }
-    50% { opacity: 0.2; }
+    50% { opacity: 0.3; }
     100% { opacity: 1; }
 }
 

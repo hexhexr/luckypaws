@@ -1,42 +1,39 @@
 // pages/api/orders.js
 import { db } from '../../lib/firebaseAdmin.js';
 
+// This endpoint is now ONLY for fetching a single public receipt. It is not authenticated.
 export default async function handler(req, res) {
-  const { id, limit = 100 } = req.query;
+  const { id } = req.query;
+
+  // FIX: This endpoint now ONLY supports fetching a single order by ID for the public receipt page.
+  // List fetching has been removed to prevent leaking data.
+  if (req.method !== 'GET' || !id) {
+    return res.status(400).json({ message: 'Method not allowed or missing order ID.' });
+  }
 
   try {
-    // Handle request for a single specific order
-    if (id) {
-      const doc = await db.collection('orders').doc(id).get();
-      if (!doc.exists) {
-        return res.status(404).json({ message: 'Order not found' });
-      }
-      // Return the single document's data
-      return res.status(200).json({ id: doc.id, ...doc.data() });
+    const doc = await db.collection('orders').doc(id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Order not found' });
     }
+    
+    const orderData = doc.data();
 
-    // Handle request for a list of orders
-    // BUG FIX: Removed the restrictive 'where' clause. The frontend (admin dashboard)
-    // is designed to handle and filter all statuses. This ensures the initial data load
-    // is consistent with the subsequent real-time snapshot listener.
-    const query = db.collection('orders')
-                  .orderBy('created', 'desc')
-                  .limit(Number(limit));
+    // Return only the data needed for the receipt to minimize data exposure.
+    const receiptData = {
+        orderId: orderData.orderId,
+        username: orderData.username,
+        game: orderData.game,
+        amount: orderData.amount,
+        btc: orderData.btc,
+        status: orderData.status,
+        invoice: orderData.invoice, // Include for user reference
+    };
 
-    const snapshot = await query.get();
-    const orders = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { 
-            id: doc.id, 
-            ...data,
-            // Ensure timestamp is consistently formatted as an ISO string for serialization
-            created: data.created?.toDate ? data.created.toDate().toISOString() : data.created
-        };
-    });
+    return res.status(200).json(receiptData);
 
-    return res.status(200).json(orders);
   } catch (err) {
-    console.error('Fetch order error:', err);
-    res.status(500).json({ message: 'Failed to fetch order(s)' });
+    console.error('Public receipt fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch order' });
   }
 }

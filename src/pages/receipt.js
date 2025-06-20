@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 export default function ReceiptPage() {
   const router = useRouter();
@@ -8,69 +11,116 @@ export default function ReceiptPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pollingRef = useRef(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+        setLoading(false);
+        setError("No order ID provided.");
+        return;
+    };
+
+    const stopPolling = () => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+        }
+    }
 
     const loadReceipt = async () => {
-      try {
-        const res = await fetch(`/api/orders?id=${id}`);
-        const data = await res.json();
-
-        if (!res.ok || !data?.orderId) throw new Error('Order not found');
-        if (data.status === 'paid') {
-          setOrder(data);
-          setLoading(false);
-          return;
+        try {
+            // This API now only returns minimal, safe data for a public receipt
+            const res = await fetch(`/api/orders?id=${id}`);
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.message || 'Could not fetch order details.');
+            }
+            const data = await res.json();
+            
+            if (data.status === 'paid' || data.status === 'completed') {
+                setOrder(data);
+                setError('');
+                setLoading(false);
+                stopPolling();
+            } else if (data.status === 'expired' || data.status === 'failed') {
+                setError('This payment has expired or failed. Please create a new one.');
+                setLoading(false);
+                stopPolling();
+            } else {
+                // Status is likely 'pending', start polling
+                setLoading(false); // We are no longer loading, we are waiting
+                setError('⏳ Payment is pending. Waiting for confirmation...');
+                
+                if (!pollingRef.current) { // Start polling only if not already running
+                    pollingRef.current = setInterval(async () => {
+                        console.log("Polling for status...");
+                        const checkRes = await fetch(`/api/check-status?id=${id}`);
+                        const checkData = await checkRes.json();
+                        if (checkData.status === 'paid' || checkData.status === 'completed') {
+                            stopPolling();
+                            loadReceipt(); // Re-fetch the full data now that it's paid
+                        } else if (checkData.status === 'expired' || checkData.status === 'failed') {
+                            stopPolling();
+                            setError('This payment has expired or failed. Please create a new one.');
+                        }
+                    }, 5000); // Poll every 5 seconds
+                }
+            }
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+            stopPolling();
         }
-
-        const checkRes = await fetch(`/api/check-payment-status?id=${id}`);
-        const checkData = await checkRes.json();
-
-        if (checkData.status === 'paid') {
-          const refetched = await fetch(`/api/orders?id=${id}`);
-          const updatedOrder = await refetched.json();
-          setOrder(updatedOrder);
-        } else {
-          // This path means it's pending but not yet paid, keep polling
-          throw new Error('⏳ Payment is still pending. Please wait or refresh.');
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
     };
 
     loadReceipt();
+
+    return () => stopPolling(); // Cleanup on unmount
+
   }, [id]);
 
   if (loading) return <p className="text-center mt-xl">Loading receipt...</p>;
-  if (error) return <div className="alert alert-danger container mt-xl">{error}</div>;
 
   return (
-    <div className="container">
+    <>
+    <Head>
+        <title>{order ? `Receipt for Order ${order.orderId}` : 'Payment Status'}</title>
+    </Head>
+    <Header />
+    <main className="container mt-xl">
       <div className="card">
-        <h1 className="card-header">✅ Payment Received</h1>
-        <div className="card-body">
-          <div className="amount-display mb-lg">
-            <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
-            <span className="btc-amount">{order.btc} BTC</span>
-          </div>
+        {order ? (
+            <>
+            <h1 className="card-header text-success">✅ Payment Received</h1>
+            <div className="card-body">
+              <div className="amount-display mb-lg">
+                <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
+                <span className="btc-amount">{order.btc} BTC</span>
+              </div>
 
-          <div className="info-section"> {/* Re-using for consistent look */}
-            <p><strong>Game:</strong> <span>{order.game}</span></p>
-            <p><strong>Username:</strong> <span>{order.username}</span></p>
-            <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-            {/* Removed "Paid Manually" from here */}
-          </div>
-          {order.invoice && (
-            <div className="short-invoice-display">
-                <strong>Full Invoice:</strong> {order.invoice}
+              <div className="info-section">
+                <p><strong>Game:</strong> <span>{order.game}</span></p>
+                <p><strong>Username:</strong> <span>{order.username}</span></p>
+                <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
+              </div>
+              {order.invoice && (
+                <div className="short-invoice-display mt-md">
+                    <strong>Invoice:</strong> {order.invoice}
+                </div>
+              )}
+               <button className="btn btn-primary mt-lg" onClick={() => router.push('/')}>Done</button>
             </div>
-          )}
-        </div>
+            </>
+        ) : (
+            <div className="card-body text-center">
+                <h1 className="card-header">{error.includes('pending') ? 'Waiting for Payment' : 'Error'}</h1>
+                <p className={`alert ${error.includes('pending') ? 'alert-info' : 'alert-danger'} mt-md`}>{error}</p>
+                {error.includes('pending') && <p className="text-light">This page will update automatically once payment is confirmed.</p>}
+            </div>
+        )}
       </div>
-    </div>
+    </main>
+    <Footer />
+    </>
   );
 }
