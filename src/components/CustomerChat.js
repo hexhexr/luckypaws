@@ -13,16 +13,13 @@ const SendIcon = () => <svg width="20" height="20" viewBox="0 0 24 24"><path fil
 /**
  * A login form component displayed before the user starts a chat.
  */
-const ChatLogin = ({ onLogin, error }) => {
+const ChatLogin = ({ onLogin, error, isLoading }) => {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true);
-        await onLogin(username, email);
-        setIsLoading(false);
+        onLogin(username, email);
     };
 
     return (
@@ -38,6 +35,7 @@ const ChatLogin = ({ onLogin, error }) => {
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="Game Username"
                         required
+                        disabled={isLoading}
                     />
                 </div>
                 <div className="form-group">
@@ -48,6 +46,7 @@ const ChatLogin = ({ onLogin, error }) => {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email Address"
                         required
+                        disabled={isLoading}
                     />
                 </div>
                 <button type="submit" className="btn btn-primary btn-full-width" disabled={isLoading}>
@@ -62,10 +61,11 @@ const ChatLogin = ({ onLogin, error }) => {
 export default function CustomerChat() {
     const [isOpen, setIsOpen] = useState(false);
     const [user, setUser] = useState(null); // Firebase auth user object
-    const [loggedInUsername, setLoggedInUsername] = useState(''); // Store username from form
+    const [loggedInUsername, setLoggedInUsername] = useState('');
     const [chatId, setChatId] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    const [isLoginLoading, setIsLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState('');
     const [messageText, setMessageText] = useState('');
     const messagesEndRef = useRef(null);
@@ -88,17 +88,6 @@ export default function CustomerChat() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Effect to close the chat panel when clicking outside of it
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (isOpen && panelRef.current && !panelRef.current.contains(event.target)) {
-                setIsOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [isOpen]);
-
     // Effect to fetch chat messages once a user is logged in and the panel is open
     useEffect(() => {
         if (!user || !isOpen) {
@@ -107,8 +96,7 @@ export default function CustomerChat() {
             return;
         }
 
-        setIsLoading(true);
-        // The chat document ID is the user's UID, ensuring a unique chat per user.
+        setIsChatLoading(true);
         const chatDocRef = doc(db, 'chats', user.uid);
         setChatId(user.uid);
 
@@ -116,22 +104,37 @@ export default function CustomerChat() {
             query(collection(chatDocRef, 'messages'), orderBy('timestamp', 'asc')),
             (msgSnapshot) => {
                 setMessages(msgSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-                setIsLoading(false);
+                setIsChatLoading(false);
             },
             (error) => {
                 console.error("Error fetching messages:", error);
-                setIsLoading(false);
+                setIsChatLoading(false);
             }
         );
 
         return () => unsubscribeMessages();
     }, [user, isOpen]);
 
-    /**
-     * Handles the chat login process by calling the new API endpoint.
-     */
+    const handleOpenChat = () => {
+        setIsOpen(true);
+    };
+
+    const handleCloseChat = async () => {
+        setIsOpen(false);
+        // Logout and reset all local state when the panel is closed
+        if (auth.currentUser) {
+            await signOut(auth);
+        }
+        setUser(null);
+        setChatId(null);
+        setMessages([]);
+        setLoggedInUsername('');
+        setLoginError('');
+    };
+
     const handleLogin = async (username, email) => {
         setLoginError('');
+        setIsLoginLoading(true);
         try {
             const res = await fetch('/api/chat/login', {
                 method: 'POST',
@@ -141,31 +144,16 @@ export default function CustomerChat() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Failed to log in.');
 
-            setLoggedInUsername(username); // Store username for use in creating the chat doc
+            setLoggedInUsername(username);
             await signInWithCustomToken(auth, data.token);
-            // onAuthStateChanged will now set the user state, triggering the chat to load.
         } catch (err) {
             console.error("Chat login error:", err);
             setLoginError(err.message);
+        } finally {
+            setIsLoginLoading(false);
         }
     };
 
-    /**
-     * Signs the user out of the chat session.
-     */
-    const handleLogout = async () => {
-        if (auth.currentUser) {
-            await signOut(auth);
-        }
-        setUser(null);
-        setChatId(null);
-        setMessages([]);
-        setLoggedInUsername('');
-    };
-
-    /**
-     * Handles sending a new message.
-     */
     const handleSendMessage = async (e) => {
         e.preventDefault();
         const textToSend = messageText.trim();
@@ -176,7 +164,6 @@ export default function CustomerChat() {
         const messagesColRef = collection(chatDocRef, 'messages');
 
         try {
-            // Check if the main chat document exists. If not, create it.
             const chatDocSnap = await getDoc(chatDocRef);
             if (!chatDocSnap.exists()) {
                 await setDoc(chatDocRef, {
@@ -188,56 +175,37 @@ export default function CustomerChat() {
                     createdAt: serverTimestamp(),
                 });
             } else {
-                // If it exists, just update the last message for the agent/admin view.
                 await updateDoc(chatDocRef, {
                     lastMessage: { text: textToSend, timestamp: new Date() },
                     unreadByAgent: true,
                     unreadByAdmin: true,
                 });
             }
-
-            // Add the new message to the 'messages' subcollection.
-            await addDoc(messagesColRef, {
-                text: textToSend,
-                senderId: user.uid,
-                timestamp: serverTimestamp(),
-            });
+            await addDoc(messagesColRef, { text: textToSend, senderId: user.uid, timestamp: serverTimestamp() });
         } catch (error) {
             console.error("Error sending message:", error);
         }
     };
 
-    /**
-     * Toggles the chat panel's visibility and handles logout on close.
-     */
-    const toggleChat = () => {
-        if (isOpen && user) {
-            handleLogout();
-        }
-        setIsOpen(!isOpen);
-    };
-
     return (
         <div className={styles.chatContainer}>
-            <button className={styles.floatingIcon} onClick={toggleChat} style={{ display: isOpen ? 'none' : 'flex' }}><ChatIcon /></button>
-            <div ref={panelRef} className={`${styles.panel} ${styles.customerPanel} ${isOpen ? 'open' : ''}`}>
+            <button className={styles.floatingIcon} onClick={handleOpenChat} style={{ display: isOpen ? 'none' : 'flex' }}><ChatIcon /></button>
+            <div ref={panelRef} className={`${styles.panel} ${styles.customerPanel} ${isOpen ? styles.open : ''}`}>
                 <div className={styles.header}>
                     <h3>{user ? `Chatting as ${loggedInUsername}` : 'Support Chat'}</h3>
                     <div className={styles.headerActions}>
-                        <button onClick={toggleChat} className={styles.headerButton}><CloseIcon /></button>
+                        <button onClick={handleCloseChat} className={styles.headerButton}><CloseIcon /></button>
                     </div>
                 </div>
                 <div className={styles.chatView}>
                     {user ? (
                         <>
                             <div className={styles.messagesContainer}>
-                                {isLoading ? <p className={styles.noItemsMessage}>Loading chat...</p> :
+                                {isChatLoading ? <p className={styles.noItemsMessage}>Loading chat...</p> :
                                     messages.length > 0 ? (
                                         messages.map(msg => (
                                             <div key={msg.id} className={`${styles.messageWrapper} ${msg.senderId === user.uid ? styles.sent : styles.received}`}>
-                                                <div className={styles.message}>
-                                                    <p>{msg.text}</p>
-                                                </div>
+                                                <div className={styles.message}><p>{msg.text}</p></div>
                                             </div>
                                         ))
                                     ) : <p className={styles.noItemsMessage}>No messages yet. Say hello!</p>
@@ -252,7 +220,7 @@ export default function CustomerChat() {
                             </div>
                         </>
                     ) : (
-                        <ChatLogin onLogin={handleLogin} error={loginError} />
+                        <ChatLogin onLogin={handleLogin} error={loginError} isLoading={isLoginLoading} />
                     )}
                 </div>
             </div>
