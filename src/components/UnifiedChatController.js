@@ -1,6 +1,6 @@
+// src/components/UnifiedChatController.js
 import React, { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { signInAnonymously } from 'firebase/auth';
 import { auth } from '../lib/firebaseClient';
 
 import CustomerChat from './CustomerChat';
@@ -12,31 +12,17 @@ export default function UnifiedChatController() {
 
     useEffect(() => {
         const determineRole = async () => {
-            // Wait until the authentication state is fully resolved.
-            // This is the key fix for the race condition.
             if (loading) {
-                return;
+                return; // Wait until auth state is fully resolved
             }
 
+            // If there's no user, the CustomerChat component will show a login form.
             if (!user) {
-                // If there's no user, it's a new session. Attempt anonymous sign-in.
-                try {
-                    await signInAnonymously(auth);
-                    // The useAuthState hook will re-run with the new anonymous user,
-                    // and the logic will proceed to the next block.
-                } catch (e) {
-                    console.error("Critical: Anonymous sign-in failed. Chat will not load.", e);
-                    setRole('customer'); // Default to customer on failure
-                }
-                return;
-            }
-
-            if (user.isAnonymous) {
                 setRole('customer');
                 return;
             }
 
-            // For fully signed-in users, get their custom claims to determine role.
+            // For logged-in users, get their custom claims to determine their role.
             try {
                 const tokenResult = await user.getIdTokenResult();
                 if (tokenResult.claims.admin) {
@@ -44,7 +30,8 @@ export default function UnifiedChatController() {
                 } else if (tokenResult.claims.agent) {
                     setRole('agent');
                 } else {
-                    setRole('customer'); // A signed-in user without a specific role is a customer.
+                    // This path is taken by users who log in via the CustomerChat component.
+                    setRole('customer');
                 }
             } catch (e) {
                 console.error("Could not get user claims, defaulting to customer role.", e);
@@ -60,9 +47,11 @@ export default function UnifiedChatController() {
         return null;
     }
 
+    // Render the appropriate chat interface based on the user's role.
     if (role === 'agent' || role === 'admin') {
         return <AgentAdminChat user={user} userRole={role} />;
     } else {
-        return <CustomerChat user={user} />;
+        // This will render the CustomerChat component, which now contains its own login flow.
+        return <CustomerChat />;
     }
 }
