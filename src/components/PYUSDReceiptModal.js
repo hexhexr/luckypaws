@@ -21,6 +21,10 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                     <p><strong>Deposit ID:</strong> <span>{order.depositId}</span></p>
                 </div>
 
+                <p className="text-center" style={{fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
+                    Your account has been credited. Thank you!
+                </p>
+
                 <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
             </div>
         </div>

@@ -29,17 +29,14 @@ export default function PaymentForm() {
         const snap = await getDocs(q);
         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
-        setError('Failed to load games');
+        console.error('Failed to load games:', err);
+        setError('Could not load game list. Please refresh.');
       }
     };
     loadGames();
   }, []);
 
-  // ARCHITECTURAL NOTE: Abandoned payments are not automatically expired.
-  // The polling below only works while the modal is open. If a user closes the modal
-  // without paying, the order remains 'pending'. A scheduled backend function (e.g., a cron job
-  // or Cloud Function) is required to periodically query pending orders and update their
-  // status to 'expired' based on the 'expiresAt' timestamp.
+  // Polling for Lightning payments
   useEffect(() => {
     if (!order || status !== 'pending' || form.method !== 'lightning') {
       clearInterval(pollingRef.current);

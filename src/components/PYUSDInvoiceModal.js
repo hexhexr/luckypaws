@@ -1,4 +1,4 @@
-// File: src/components/PYUSDInvoiceModal.js
+// src/components/PYUSDInvoiceModal.js
 import React, { useState, useEffect, useRef } from 'react';
 import QRCodeLib from 'qrcode';
 
@@ -7,6 +7,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     const [copied, setCopied] = useState(false);
     const pollingRef = useRef(null);
 
+    // Generate QR Code for the deposit address
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
         if (depositAddress) {
@@ -16,11 +17,15 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
         }
     }, [order?.depositAddress]);
 
+    // Poll the backend to check if the order status has changed to 'paid'
     useEffect(() => {
         if (!order?.orderId) return;
-        pollingRef.current = setInterval(async () => {
-            try {
+
+        const checkStatus = async () => {
+             try {
+                // Use the dedicated check-status API for PYUSD
                 const res = await fetch(`/api/pyusd/check-status?id=${order.orderId}`);
+                if (!res.ok) return; // Don't stop polling on server error
                 const data = await res.json();
                 if (data?.status === 'paid') {
                     clearInterval(pollingRef.current);
@@ -29,12 +34,19 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
             } catch (err) {
                 console.error('PYUSD status polling error:', err);
             }
-        }, 5000);
+        };
+        
+        // Start polling immediately and then every 5 seconds
+        checkStatus();
+        pollingRef.current = setInterval(checkStatus, 5000);
+
+        // Cleanup on unmount
         return () => clearInterval(pollingRef.current);
     }, [order?.orderId, onPaymentSuccess]);
 
     const handleCopyToClipboard = () => {
         const text = order?.depositAddress || '';
+        if (!text) return;
         navigator.clipboard.writeText(text).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -47,7 +59,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
             <div className="modal">
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
-                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>Deposit PYUSD</h2>
+                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>Deposit PYUSD on Solana</h2>
                 <p className="section-subtitle" style={{fontSize: '0.9rem', marginBottom: 'var(--spacing-md)'}}>
                     Send exactly <strong>${order.amount} of PYUSD</strong> to the address below.
                 </p>

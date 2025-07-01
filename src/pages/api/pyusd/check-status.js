@@ -12,12 +12,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        // FIX: The collection name is now 'orders' to match where the data is saved.
         const orderRef = db.collection('orders').doc(id);
         const doc = await orderRef.get();
 
         if (!doc.exists) {
-            // This is expected if the ID is wrong, but the API itself will now be found.
             return res.status(404).json({ message: 'Order not found.' });
         }
 
