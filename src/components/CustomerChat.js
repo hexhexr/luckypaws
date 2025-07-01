@@ -1,13 +1,13 @@
 // src/components/CustomerChat.js
 import React, { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../lib/firebaseClient';
-import { signInWithCustomToken, signOut } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, serverTimestamp, orderBy, addDoc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import styles from './SharedChat.module.css';
 
 // --- SVG Icons ---
 const ChatIcon = () => <svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>;
-const CloseIcon = () => <svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>;
+const MinimizeIcon = () => <svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M19 13H5v-2h14v2z"></path></svg>;
 const SendIcon = () => <svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>;
 
 /**
@@ -70,8 +70,9 @@ export default function CustomerChat() {
     const [messageText, setMessageText] = useState('');
     const messagesEndRef = useRef(null);
     const panelRef = useRef(null);
+    const iconRef = useRef(null); // Ref for the floating icon
 
-    // Effect to listen for Firebase auth state changes
+    // Effect to listen for Firebase auth state changes. Session is now persistent.
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(currentUser => {
             if (currentUser && !currentUser.isAnonymous) {
@@ -88,15 +89,32 @@ export default function CustomerChat() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // Effect to handle clicks outside the chat panel to minimize it
+    useEffect(() => {
+        function handleClickOutside(event) {
+            // If panel is open, and the click is not on the panel or the icon, minimize.
+            if (isOpen && panelRef.current && !panelRef.current.contains(event.target) && iconRef.current && !iconRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isOpen]);
+
     // Effect to fetch chat messages once a user is logged in and the panel is open
     useEffect(() => {
         if (!user || !isOpen) {
-            setMessages([]);
-            setChatId(null);
+            // We don't clear messages anymore to persist state when minimized
             return;
         }
 
-        setIsChatLoading(true);
+        // Only set loading state if messages are not already loaded
+        if (messages.length === 0) {
+            setIsChatLoading(true);
+        }
+
         const chatDocRef = doc(db, 'chats', user.uid);
         setChatId(user.uid);
 
@@ -113,23 +131,10 @@ export default function CustomerChat() {
         );
 
         return () => unsubscribeMessages();
-    }, [user, isOpen]);
+    }, [user, isOpen, messages.length]);
 
-    const handleOpenChat = () => {
-        setIsOpen(true);
-    };
-
-    const handleCloseChat = async () => {
-        setIsOpen(false);
-        // Logout and reset all local state when the panel is closed
-        if (auth.currentUser) {
-            await signOut(auth);
-        }
-        setUser(null);
-        setChatId(null);
-        setMessages([]);
-        setLoggedInUsername('');
-        setLoginError('');
+    const handleToggleChat = () => {
+        setIsOpen(prev => !prev);
     };
 
     const handleLogin = async (username, email) => {
@@ -189,12 +194,14 @@ export default function CustomerChat() {
 
     return (
         <div className={styles.chatContainer}>
-            <button className={styles.floatingIcon} onClick={handleOpenChat} style={{ display: isOpen ? 'none' : 'flex' }}><ChatIcon /></button>
+            <button ref={iconRef} className={styles.floatingIcon} onClick={handleToggleChat}>
+                {isOpen ? <MinimizeIcon /> : <ChatIcon />}
+            </button>
             <div ref={panelRef} className={`${styles.panel} ${styles.customerPanel} ${isOpen ? styles.open : ''}`}>
                 <div className={styles.header}>
                     <h3>{user ? `Chatting as ${loggedInUsername}` : 'Support Chat'}</h3>
                     <div className={styles.headerActions}>
-                        <button onClick={handleCloseChat} className={styles.headerButton}><CloseIcon /></button>
+                        <button onClick={handleToggleChat} className={styles.headerButton}><MinimizeIcon /></button>
                     </div>
                 </div>
                 <div className={styles.chatView}>
