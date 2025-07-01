@@ -1,3 +1,4 @@
+// src/components/AgentAdminChat.js
 import React, { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../lib/firebaseClient';
 import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, addDoc } from 'firebase/firestore';
@@ -125,10 +126,14 @@ export default function AgentAdminChat({ user, userRole }) {
                                     ))}
                                     <div ref={messagesEndRef} />
                                 </div>
-                                <form onSubmit={handleSendMessage} className={styles.inputArea}>
-                                    <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." />
-                                    <button type="submit" aria-label="Send Message"><SendIcon /></button>
-                                </form>
+                                {/* --- THIS IS THE FIX --- */}
+                                {/* The form is now wrapped in a div with the correct class, just like in CustomerChat.js */}
+                                <div className={styles.inputArea}>
+                                    <form onSubmit={handleSendMessage}>
+                                        <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." />
+                                        <button type="submit" aria-label="Send Message"><SendIcon /></button>
+                                    </form>
+                                </div>
                             </div>
                         ) : (
                             <div className={styles.noChatSelected}>
