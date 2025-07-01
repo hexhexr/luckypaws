@@ -3,42 +3,37 @@ import { auth } from './firebaseAdmin';
 
 /**
  * A higher-order factory function to create role-specific authentication middleware.
- * It verifies a Firebase ID token and checks for a specific claim (e.g., 'admin', 'agent').
- * @param {string} requiredRole The role to check for in the token's custom claims.
- * @returns {function} A middleware function that wraps an API handler to protect the route.
  */
-const createAuthMiddleware = (requiredRole) => (handler) => async (req, res) => {
+const createAuthMiddleware = (requiredRole, allowUnverified = false) => (handler) => async (req, res) => {
   try {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) {
-      throw new Error('Authorization token not found.');
+      return res.status(401).json({ success: false, message: 'Unauthorized: No token provided.' });
     }
 
     const decodedToken = await auth.verifyIdToken(token);
-
-    // Check if the required role claim is present and true
-    if (!decodedToken[requiredRole]) {
-      throw new Error(`User does not have required '${requiredRole}' privileges.`);
+    
+    if (allowUnverified) {
+      req.decodedToken = decodedToken;
+      return handler(req, res);
     }
 
-    // Attach the decoded token to the request object for use in the handler
+    if (!decodedToken[requiredRole]) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Insufficient privileges.' });
+    }
+
     req.decodedToken = decodedToken;
     return handler(req, res);
   } catch (error) {
-    console.error(`Auth middleware error for role '${requiredRole}':`, error.message);
-    // Return a generic 403 Forbidden status for security reasons
-    return res.status(403).json({ success: false, message: 'Unauthorized.' });
+    console.error(`Auth middleware error:`, error.message);
+    return res.status(403).json({ success: false, message: 'Forbidden: Invalid token.' });
   }
 };
 
-/**
- * Middleware for protecting API routes that require ADMIN access.
- * Usage: export default withAuth(handler);
- */
 export const withAuth = createAuthMiddleware('admin');
+export const withAgentAuth = createAuthMiddleware('agent');
 
 /**
- * Middleware for protecting API routes that require AGENT access.
- * Usage: export default withAgentAuth(handler);
+ * Middleware for protecting API routes that require ANY authenticated user (including anonymous).
  */
-export const withAgentAuth = createAuthMiddleware('agent');
+export const withAuthenticatedUser = createAuthMiddleware(null, true);

@@ -8,9 +8,8 @@ const handler = async (req, res) => {
   }
 
   try {
-    // --- FIX: Query the correct 'cashouts' collection ---
-    const cashoutsRef = db.collection('cashouts');
-    const snapshot = await cashoutsRef.orderBy('time', 'desc').limit(100).get();
+    const cashoutsRef = db.collection('profitLoss');
+    const snapshot = await cashoutsRef.where('type', '==', 'cashout_lightning').get();
 
     const cashouts = snapshot.docs.map(doc => ({
       id: doc.id,

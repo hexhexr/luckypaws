@@ -1,14 +1,13 @@
 // pages/api/orders.js
 import { db } from '../../lib/firebaseAdmin.js';
 
-// This endpoint is now ONLY for fetching a single public receipt. It is not authenticated.
 export default async function handler(req, res) {
+  // Only handle requests with an 'id' parameter.
   const { id } = req.query;
 
-  // FIX: This endpoint now ONLY supports fetching a single order by ID for the public receipt page.
-  // List fetching has been removed to prevent leaking data.
-  if (req.method !== 'GET' || !id) {
-    return res.status(400).json({ message: 'Method not allowed or missing order ID.' });
+  // If no ID is provided, it's a bad request. Do not return a list of orders.
+  if (!id) {
+    return res.status(400).json({ message: 'Order ID is required.' });
   }
 
   try {
@@ -16,24 +15,11 @@ export default async function handler(req, res) {
     if (!doc.exists) {
       return res.status(404).json({ message: 'Order not found' });
     }
-    
-    const orderData = doc.data();
-
-    // Return only the data needed for the receipt to minimize data exposure.
-    const receiptData = {
-        orderId: orderData.orderId,
-        username: orderData.username,
-        game: orderData.game,
-        amount: orderData.amount,
-        btc: orderData.btc,
-        status: orderData.status,
-        invoice: orderData.invoice, // Include for user reference
-    };
-
-    return res.status(200).json(receiptData);
+    // Return the single document's data
+    return res.status(200).json({ id: doc.id, ...doc.data() });
 
   } catch (err) {
-    console.error('Public receipt fetch error:', err);
-    res.status(500).json({ message: 'Failed to fetch order' });
+    console.error('Fetch order error:', err);
+    res.status(500).json({ message: 'Failed to fetch order(s)' });
   }
 }

@@ -7,19 +7,25 @@ import { onAuthStateChanged } from 'firebase/auth';
 import Head from 'next/head';
 import DataTable from '../../../components/DataTable';
 
+// FIX: Add the robust timestamp formatting function to prevent crashes.
 const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
+    // Handle Firestore Timestamp objects
     if (typeof timestamp.toDate === 'function') {
         return timestamp.toDate().toLocaleString();
     }
+    // Handle ISO strings or other date formats
     try {
         const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return 'Invalid Date';
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
         return date.toLocaleString();
     } catch (e) {
         return 'Formatting Error';
     }
 };
+
 
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
@@ -61,24 +67,39 @@ export default function CustomerProfile() {
         setDataLoading(true);
         
         try {
+            // Fetch Deposits (Paid Orders)
             const depositsQuery = query(collection(db, 'orders'), where('username', '==', username), where('status', '==', 'paid'));
             const depositsSnap = await getDocs(depositsQuery);
-            const userDeposits = depositsSnap.docs.map(d => ({
-                id: d.id, type: 'Deposit', amount: parseFloat(d.data().amount || 0),
-                time: d.data().created, game: d.data().game || 'N/A'
+            const userDeposits = depositsSnap.docs.map(doc => ({
+                id: doc.id,
+                type: 'Deposit',
+                amount: parseFloat(doc.data().amount || 0),
+                time: doc.data().created,
+                game: doc.data().game || 'N/A'
             }));
             
+            // Fetch Cashouts
             const cashoutsQuery = query(collection(db, 'cashouts'), where('username', '==', username), where('status', '==', 'completed'));
             const cashoutsSnap = await getDocs(cashoutsQuery);
-            const userCashouts = cashoutsSnap.docs.map(d => ({
-                id: d.id, type: 'Cashout', amount: -parseFloat(d.data().amountUSD || 0),
-                time: d.data().time, game: 'N/A'
+            const userCashouts = cashoutsSnap.docs.map(doc => ({
+                id: doc.id,
+                type: 'Cashout',
+                amount: -parseFloat(doc.data().amountUSD || 0), // Negative for cashouts
+                time: doc.data().time,
+                game: 'N/A'
             }));
             
-            setTransactions([...userDeposits, ...userCashouts]);
+            const allTrans = [...userDeposits, ...userCashouts];
+            setTransactions(allTrans);
+
             const totalDeposits = userDeposits.reduce((sum, t) => sum + t.amount, 0);
-            const totalCashouts = userCashouts.reduce((sum, t) => sum - t.amount, 0);
-            setTotals({ deposits: totalDeposits, cashouts: totalCashouts, net: totalDeposits - totalCashouts });
+            const totalCashouts = userCashouts.reduce((sum, t) => sum - t.amount, 0); // amount is already negative
+            
+            setTotals({
+                deposits: totalDeposits,
+                cashouts: totalCashouts,
+                net: totalDeposits - totalCashouts
+            });
 
         } catch (err) {
             console.error('Error loading user data:', err);
@@ -87,7 +108,9 @@ export default function CustomerProfile() {
         }
     }, [username, isAdmin]);
     
-    useEffect(() => { loadUserData(); }, [loadUserData]);
+    useEffect(() => {
+        loadUserData();
+    }, [loadUserData]);
     
     const logout = async () => {
         await firebaseAuth.signOut();
@@ -95,9 +118,9 @@ export default function CustomerProfile() {
     };
     
     const columns = useMemo(() => [
+        // FIX: Use the safe timestamp function in the data table cell.
         { header: 'Time', accessor: 'time', sortable: true, cell: (row) => formatTimestamp(row.time) },
         { header: 'Type', accessor: 'type', sortable: true, cell: (row) => (
-            // --- FIX: Applied global CSS classes ---
             <span className={row.type === 'Deposit' ? 'text-success' : 'text-danger'}>{row.type}</span>
         )},
         { header: 'Amount (USD)', accessor: 'amount', sortable: true, cell: (row) => `$${row.amount.toFixed(2)}`},

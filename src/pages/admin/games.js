@@ -3,9 +3,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
+
+// Removed the imports for the public Header and Footer
+// import Header from '../../components/Header';
+// import Footer from '../../components/Footer';
+
 
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
@@ -18,10 +23,11 @@ export default function AdminGames() {
     const router = useRouter();
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
+
     const [games, setGames] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [newGameName, setNewGameName] = useState('');
-    const [editingGame, setEditingGame] = useState(null);
+    const [editingGame, setEditingGame] = useState(null); // { id, name }
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,21 +72,26 @@ export default function AdminGames() {
         e.preventDefault();
         setError('');
         setIsSubmitting(true);
-        
-        if (editingGame) {
+        const adminIdToken = await firebaseAuth.currentUser.getIdToken();
+
+        if (editingGame) { // Handle Update
             if (!editingGame.name.trim()) {
                 setError('Game name cannot be empty.');
                 setIsSubmitting(false);
                 return;
             }
             try {
-                const gameRef = doc(db, 'games', editingGame.id);
-                await updateDoc(gameRef, { name: editingGame.name.trim() });
+                const res = await fetch('/api/admin/games/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
+                    body: JSON.stringify({ id: editingGame.id, name: editingGame.name })
+                });
+                if (!res.ok) throw new Error('Failed to update game.');
                 setEditingGame(null);
             } catch (err) {
-                setError('Failed to update game.');
+                setError(err.message);
             }
-        } else {
+        } else { // Handle Add
             if (!newGameName.trim()) {
                 setError('Game name cannot be empty.');
                 setIsSubmitting(false);
@@ -119,8 +130,8 @@ export default function AdminGames() {
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
     if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
+    // The entire component now returns the standard admin container div directly
     return (
-        // FIX: Removed public Header/Footer and implemented the standard admin layout.
         <div className="admin-dashboard-container">
             <Head><title>Admin - Manage Games</title></Head>
             <header className="admin-header">

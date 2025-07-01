@@ -1,0 +1,120 @@
+/* src/components/SharedChat.module.css - Final, Isolated & Polished Version */
+
+/* This parent class isolates all chat styles from globals.css */
+.chatContainer {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 2000;
+}
+
+.chatContainer .floatingIcon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: #0d6efd; color: white;
+    border: none; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.chatContainer .floatingIcon:hover { transform: scale(1.1); }
+
+.chatContainer .panel {
+    position: absolute;
+    bottom: 72px; right: 0;
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column;
+    border: 1px solid #dee2e6; overflow: hidden;
+    opacity: 0; transform: translateY(10px) scale(0.98);
+    visibility: hidden; transition: all 0.25s ease-out;
+    pointer-events: none;
+}
+
+.chatContainer .panel.open { opacity: 1; transform: translateY(0) scale(1); visibility: visible; pointer-events: auto; }
+.chatContainer .customerPanel { width: 370px; height: 65vh; max-height: 500px; }
+.chatContainer .agentPanel { width: 70vw; max-width: 720px; height: 80vh; max-height: 600px; }
+
+/* --- Layouts --- */
+.chatContainer .dashboard { display: flex; height: 100%; width: 100%; position: relative; overflow: hidden; }
+.chatContainer .mainContent { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
+.chatContainer .chatView { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; background: #f8f9fa; }
+
+/* --- Sidebar (Agent/Admin) --- */
+.chatContainer .sidebar { width: 220px; border-right: 1px solid #dee2e6; flex-shrink: 0; transition: margin-left 0.3s ease; display: flex; flex-direction: column; background-color: #f8f9fa; }
+.chatContainer .sidebarHeader { font-size: 0.75rem; font-weight: 600; padding: 10px 16px; border-bottom: 1px solid #dee2e6; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+.chatContainer .sidebarCollapsed .sidebar { margin-left: -220px; }
+.chatContainer .chatListContainer { overflow-y: auto; flex-grow: 1; }
+.chatContainer .chatListItem { padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f1f3f5; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chatContainer .customerName { font-weight: 500; font-size: 0.85rem; }
+.chatContainer .lastMessage { font-size: 0.8rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.chatContainer .deleteChatButton { background: none; border: none; cursor: pointer; color: #ced4da; opacity: 0; transition: opacity 0.2s; padding: 4px; }
+.chatContainer .chatListItem:hover .deleteChatButton { opacity: 1; }
+
+/* --- Header --- */
+.chatContainer .header { padding: 8px 8px 8px 16px; background: #fff; border-bottom: 1px solid #dee2e6; display: flex; align-items: center; justify-content: space-between; }
+.chatContainer .header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.chatContainer .headerActions { display: flex; align-items: center; }
+.chatContainer .headerButton { background: none; border: none; cursor: pointer; color: #6c757d; padding: 4px; }
+.chatContainer .menuToggle { background: none; border: none; cursor: pointer; color: #6c757d; }
+
+/* --- Messages --- */
+.chatContainer .messagesContainer { flex-grow: 1; overflow-y: auto; padding: 16px; }
+.chatContainer .messageWrapper { display: flex; flex-direction: column; margin-bottom: 12px; max-width: 100%; }
+.chatContainer .messageWrapper.sent { align-items: flex-end; }
+.chatContainer .messageWrapper.received { align-items: flex-start; }
+.chatContainer .message { padding: 8px 14px; border-radius: 16px; max-width: 85%; line-height: 1.5; font-size: 0.9rem; }
+.chatContainer .senderName { font-size: 0.7rem; font-weight: 500; color: #6c757d; margin-top: 4px; padding: 0 8px; }
+.chatContainer .sent .message { background-color: #0d6efd; color: #fff; border-bottom-right-radius: 4px; }
+.chatContainer .received .message { background-color: #e9ecef; color: #212529; border-bottom-left-radius: 4px; }
+
+/* --- Input Area (Final Corrected Version) --- */
+.chatContainer .inputArea {
+    padding: 12px;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+}
+.chatContainer .inputArea form {
+    display: flex;
+    align-items: center; /* This is key for vertical alignment */
+    gap: 8px;
+}
+.chatContainer .inputArea input {
+    flex-grow: 1;
+    border: 1px solid #ced4da;
+    border-radius: 8px; /* A more modern, less rounded look */
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.chatContainer .inputArea input:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+.chatContainer .inputArea button {
+    background: #0d6efd;
+    color: #fff;
+    border: none;
+    border-radius: 8px; /* Match the input field */
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.chatContainer .inputArea button:hover { background-color: #0b5ed7; }
+
+/* --- Placeholders --- */
+.chatContainer .welcomeContainer, .chatContainer .noChatSelected { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; text-align: center; color: #6c757d; }
+.chatContainer .noItemsMessage { text-align: center; color: #adb5bd; padding: 1rem; font-size: 0.85rem; }
+
+/* --- Mobile Specific --- */
+@media (max-width: 480px) {
+    .chatContainer { bottom: 0; right: 0; left: 0; top: 0; pointer-events: none; }
+    .chatContainer .panel { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; max-height: 100%; border-radius: 0; pointer-events: auto; }
+    .chatContainer .floatingIcon { position: fixed; bottom: 24px; right: 24px; pointer-events: auto; }
+}
