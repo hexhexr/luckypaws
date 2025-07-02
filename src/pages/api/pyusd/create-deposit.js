@@ -1,7 +1,8 @@
 // src/pages/api/pyusd/create-deposit.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, ComputeBudgetProgram } from '@solana/web3.js';
+import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction, ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
+import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
 import bs58 from 'bs58';
 
 // --- MAINNET CONFIGURATION ---
@@ -10,6 +11,9 @@ const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
 const HELIUS_WEBHOOK_ID = process.env.HELIUS_MAINNET_WEBHOOK_ID;
 const MAIN_WALLET_PRIVATE_KEY_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
+
+// The official PYUSD mint address on Solana Mainnet
+const PYUSD_MINT_ADDRESS = new PublicKey('2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo');
 
 if (!SOLANA_RPC_URL || !HELIUS_API_KEY || !HELIUS_WEBHOOK_ID || !MAIN_WALLET_PRIVATE_KEY_B58) {
     throw new Error("One or more critical environment variables for PYUSD mainnet are not set.");
@@ -28,7 +32,6 @@ async function addAddressToWebhook(newAddress) {
     
     const existingAddresses = webhookData.accountAddresses || [];
     if (existingAddresses.includes(newAddress)) {
-        console.log(`Address ${newAddress} is already monitored.`);
         return;
     }
     const updatedAddresses = [...existingAddresses, newAddress];
@@ -55,17 +58,16 @@ async function addAddressToWebhook(newAddress) {
     console.log(`Successfully added ${newAddress} to Helius webhook.`);
 }
 
-async function createAndFundAccountForRent(payer, newAccount) {
+async function prepareDepositAccount(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
     
-    // --- FEE OPTIMIZATION ---
-    // Explicitly set a very low priority fee for this transaction.
+    // FIX: Set a low priority fee to keep transaction costs minimal.
     const lowPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: 100 // Set a minimal fee (0.0000001 lamports per compute unit)
+        microLamports: 100
     });
 
     const transaction = new Transaction().add(
-        lowPriorityFeeInstruction, // Add the fee instruction first
+        lowPriorityFeeInstruction,
         SystemProgram.createAccount({
             fromPubkey: payer.publicKey,
             newAccountPubkey: newAccount.publicKey,
@@ -75,7 +77,17 @@ async function createAndFundAccountForRent(payer, newAccount) {
         })
     );
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
-    console.log(`Funded new wallet ${newAccount.publicKey.toBase58()} with ${rentExemptionAmount} lamports for rent exemption.`);
+    console.log(`Funded new wallet ${newAccount.publicKey.toBase58()} with rent exemption.`);
+
+    // FIX: Pre-create the Associated Token Account (ATA) for PYUSD.
+    // This solves the "not enough fees" error for the user by having the server pay the one-time account creation fee.
+    await getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        PYUSD_MINT_ADDRESS,
+        newAccount.publicKey
+    );
+    console.log(`Created PYUSD token account for ${newAccount.publicKey.toBase58()}.`);
 }
 
 export default async function handler(req, res) {
@@ -92,7 +104,8 @@ export default async function handler(req, res) {
         const privateKey = bs58.encode(newDepositWallet.secretKey);
 
         const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_B58));
-        await createAndFundAccountForRent(mainWalletKeypair, newDepositWallet);
+        
+        await prepareDepositAccount(mainWalletKeypair, newDepositWallet);
 
         try {
             await addAddressToWebhook(publicKey);

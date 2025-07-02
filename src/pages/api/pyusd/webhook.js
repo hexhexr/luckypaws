@@ -19,55 +19,27 @@ if (!HELIUS_AUTH_SECRET || !SOLANA_RPC_URL || !MAIN_WALLET_PRIVATE_KEY_B58) {
 
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
-/**
- * Sweeps PYUSD from a temporary wallet to the main wallet, then closes the temporary accounts to reclaim SOL.
- * @param {Keypair} tempWalletKeypair - The keypair of the temporary wallet holding the funds.
- * @param {PublicKey} mainWalletPublicKey - The public key of the main wallet to receive the funds and rent.
- * @returns {string} The signature of the sweep transaction.
- */
 async function sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey) {
-    // 1. Get the Associated Token Accounts (ATAs) for PYUSD for both wallets.
     const fromTokenAccount = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, tempWalletKeypair.publicKey);
     const toTokenAccount = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, mainWalletPublicKey);
 
-    // 2. Get the full balance of the temporary token account.
     const balance = await connection.getTokenAccountBalance(fromTokenAccount);
     const amountToTransfer = balance.value.amount;
 
     if (amountToTransfer === 0) {
-        console.log(`No PYUSD balance to sweep from ${tempWalletKeypair.publicKey.toBase58()}. Skipping sweep.`);
         return "no_balance_to_sweep";
     }
 
-    // 3. Build the transaction with all instructions.
     const transaction = new Transaction().add(
-        // Instruction to transfer the full PYUSD balance to the main wallet
-        createTransferInstruction(
-            fromTokenAccount,
-            toTokenAccount,
-            tempWalletKeypair.publicKey,
-            amountToTransfer
-        ),
-        // Instruction to close the now-empty temporary token account, reclaiming its rent SOL
-        createCloseAccountInstruction(
-            fromTokenAccount,          // Account to close
-            mainWalletPublicKey,       // Destination for reclaimed SOL
-            tempWalletKeypair.publicKey // Owner of the account to close
-        ),
-        // Instruction to close the temporary wallet's main account, reclaiming its rent SOL
-        SystemProgram.transfer({
-            fromPubkey: tempWalletKeypair.publicKey,
-            toPubkey: mainWalletPublicKey,
-            lamports: await connection.getBalance(tempWalletKeypair.publicKey)
-        })
+        createTransferInstruction(fromTokenAccount, toTokenAccount, tempWalletKeypair.publicKey, amountToTransfer),
+        createCloseAccountInstruction(fromTokenAccount, mainWalletPublicKey, tempWalletKeypair.publicKey),
+        SystemProgram.transfer({ fromPubkey: tempWalletKeypair.publicKey, toPubkey: mainWalletPublicKey, lamports: await connection.getBalance(tempWalletKeypair.publicKey) })
     );
 
-    // 4. Sign with the temporary wallet's key and send the transaction.
     const signature = await sendAndConfirmTransaction(connection, transaction, [tempWalletKeypair]);
     console.log(`Sweep transaction successful with signature: ${signature}`);
     return signature;
 }
-
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
@@ -84,8 +56,14 @@ export default async function handler(req, res) {
         }
 
         for (const tx of transactions) {
+            // FIX: Robust check to prevent crash from malformed Helius payloads.
+            if (!tx || !tx.transaction || !Array.isArray(tx.accountData)) {
+                console.warn("Skipping malformed or irrelevant transaction object in webhook payload.");
+                continue;
+            }
             if (tx.transaction.error) continue;
 
+            // FIX: Robustly parse all accounts to reliably detect Token-2022 (PYUSD) transfers.
             const involvedAccounts = tx.accountData.map(acc => acc.account);
 
             for (const depositAddress of involvedAccounts) {
@@ -96,20 +74,12 @@ export default async function handler(req, res) {
                 if (snapshot.empty) continue;
 
                 const orderDoc = snapshot.docs[0];
-                const orderData = orderDoc.data();
                 console.log(`Webhook detected activity for pending order ${orderDoc.id} at address ${depositAddress}.`);
 
-                // Update order status to 'paid' immediately
-                await orderDoc.ref.update({
-                    status: 'paid',
-                    paidAt: Timestamp.now(),
-                    transactionSignature: tx.signature,
-                });
+                await orderDoc.ref.update({ status: 'paid', paidAt: Timestamp.now(), transactionSignature: tx.signature });
                 console.log(`Order ${orderDoc.id} marked as 'paid'.`);
 
-                // --- AUTOMATED SWEEP AND CLOSE ---
                 try {
-                    // Retrieve the temporary wallet's private key from Firestore
                     const tempWalletRef = db.collection('tempWallets').doc(depositAddress);
                     const tempWalletDoc = await tempWalletRef.get();
                     if (!tempWalletDoc.exists) throw new Error(`Temp wallet doc not found for ${depositAddress}`);
@@ -119,17 +89,15 @@ export default async function handler(req, res) {
                     
                     const mainWalletPublicKey = new PublicKey(Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_B58)).publicKey);
 
-                    // Execute the sweep
+                    // FIX: Automatically sweep funds and reclaim SOL rent.
                     const sweepSignature = await sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey);
 
-                    // Update the order and temp wallet with the final status and sweep signature
                     await orderDoc.ref.update({ status: 'completed', sweepSignature });
                     await tempWalletRef.update({ status: 'closed', sweepSignature });
                     console.log(`Order ${orderDoc.id} successfully completed and swept.`);
 
                 } catch (sweepError) {
                     console.error(`CRITICAL SWEEP ERROR for order ${orderDoc.id}:`, sweepError);
-                    // If the sweep fails, the order remains 'paid' for manual intervention.
                     await orderDoc.ref.update({ status: 'paid_sweep_failed', failureReason: sweepError.message });
                 }
                 
