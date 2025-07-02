@@ -1,5 +1,5 @@
 // src/pages/api/pyusd/recover-funds.js
-import { db, auth as adminAuth } from '../../../lib/firebaseAdmin';
+import { db } from '../../../lib/firebaseAdmin';
 import { withAuth } from '../../../lib/authMiddleware';
 import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction, SystemProgram } from '@solana/web3.js';
 import { getAssociatedTokenAddress, createTransferInstruction, createCloseAccountInstruction } from '@solana/spl-token';
@@ -18,6 +18,7 @@ const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 /**
  * Sweeps PYUSD and reclaims SOL from a specified temporary wallet.
+ * The temporary wallet itself will pay the transaction fee.
  */
 async function sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey) {
     const fromTokenAccount = await getAssociatedTokenAddress(PYUSD_MINT_ADDRESS, tempWalletKeypair.publicKey);
@@ -42,17 +43,32 @@ async function sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey) {
         createCloseAccountInstruction(fromTokenAccount, mainWalletPublicKey, tempWalletKeypair.publicKey)
     );
 
-    // Add instruction to transfer the remaining SOL rent
-    instructions.push(
-        SystemProgram.transfer({
-            fromPubkey: tempWalletKeypair.publicKey,
-            toPubkey: mainWalletPublicKey,
-            lamports: await connection.getBalance(tempWalletKeypair.publicKey)
-        })
-    );
+    // **THE DEFINITIVE FIX:**
+    // The temporary wallet must pay its own fee. To do this, we calculate its full balance,
+    // subtract a standard transaction fee, and transfer the remainder.
+    const balanceInLamports = await connection.getBalance(tempWalletKeypair.publicKey);
+    const fee = 5000; // Standard Solana transaction fee in lamports
+
+    // Only add the transfer instruction if there's enough SOL to transfer after paying the fee.
+    if (balanceInLamports > fee) {
+        instructions.push(
+            SystemProgram.transfer({
+                fromPubkey: tempWalletKeypair.publicKey,
+                toPubkey: mainWalletPublicKey,
+                lamports: balanceInLamports - fee
+            })
+        );
+    }
+
+    if (instructions.length === 0) {
+        throw new Error("No actions to perform for this wallet.");
+    }
 
     const transaction = new Transaction().add(...instructions);
+    
+    // The temporary wallet is now the sole signer and fee payer.
     const signature = await sendAndConfirmTransaction(connection, transaction, [tempWalletKeypair]);
+    
     console.log(`Manual recovery sweep successful with signature: ${signature}`);
     return signature;
 }
@@ -84,9 +100,9 @@ const handler = async (req, res) => {
         }
 
         const tempWalletKeypair = Keypair.fromSecretKey(bs58.decode(privateKeyB58));
-        const mainWalletPublicKey = new PublicKey(Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_B58)).publicKey);
+        const mainWalletKeypair = Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_B58));
 
-        const sweepSignature = await sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey);
+        const sweepSignature = await sweepAndCloseAccount(tempWalletKeypair, mainWalletKeypair.publicKey);
 
         // Update the wallet's status to prevent reuse
         await tempWalletRef.update({ status: 'manually_closed', sweepSignature });
