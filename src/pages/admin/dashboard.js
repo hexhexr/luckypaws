@@ -14,9 +14,7 @@ const formatTimestamp = (timestamp) => {
     }
     try {
         const date = new Date(timestamp);
-        if (isNaN(date.getTime())) {
-            return 'Invalid Date';
-        }
+        if (isNaN(date.getTime())) { return 'Invalid Date'; }
         return date.toLocaleString();
     } catch (e) {
         return 'Formatting Error';
@@ -41,6 +39,78 @@ const StatCard = ({ title, value, icon, color }) => (
         <span className="stat-card-icon" style={{ color }}>{icon}</span>
     </div>
 );
+
+// --- NEW RECOVERY TOOL COMPONENT ---
+const FundRecoveryTool = () => {
+    const [publicKey, setPublicKey] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [message, setMessage] = useState({ text: '', type: '' });
+
+    const handleRecover = async () => {
+        if (!publicKey.trim()) {
+            setMessage({ text: 'Please enter the public key of the wallet to recover.', type: 'error' });
+            return;
+        }
+        if (!window.confirm(`Are you sure you want to recover funds from wallet: ${publicKey}? This action cannot be undone.`)) {
+            return;
+        }
+
+        setIsLoading(true);
+        setMessage({ text: '', type: '' });
+
+        try {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/pyusd/recover-funds', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ publicKey: publicKey.trim() }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'An unknown error occurred.');
+            }
+            setMessage({ text: `Success! ${data.message}`, type: 'success' });
+            setPublicKey('');
+        } catch (err) {
+            setMessage({ text: `Error: ${err.message}`, type: 'error' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <section className="card mb-lg" style={{ borderColor: 'var(--red-alert)'}}>
+            <h2 className="card-header">🆘 Admin Fund Recovery Tool</h2>
+            <div className="card-body">
+                <p className="text-secondary">Use this tool only to recover funds from a stuck temporary wallet. Enter the wallet's public key from the `tempWallets` collection in Firestore.</p>
+                <div className="form-group">
+                    <label htmlFor="recoveryPublicKey">Stuck Wallet Public Key</label>
+                    <input
+                        id="recoveryPublicKey"
+                        type="text"
+                        className="input"
+                        value={publicKey}
+                        onChange={(e) => setPublicKey(e.target.value)}
+                        placeholder="Paste the public key here"
+                    />
+                </div>
+                <button className="btn btn-danger" onClick={handleRecover} disabled={isLoading}>
+                    {isLoading ? 'Recovering...' : 'Recover Funds'}
+                </button>
+                {message.text && (
+                    <div className={`alert mt-md ${message.type === 'success' ? 'alert-success' : 'alert-danger'}`}>
+                        {message.text}
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+};
+
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -104,24 +174,17 @@ export default function AdminDashboard() {
                 };
             });
 
-            // --- FIX: Logic to clean up stale pending orders ---
             const now = new Date();
             allOrders.forEach(order => {
-                // Check if an order is still marked as pending but its expiration time has passed.
                 if (order.status === 'pending' && order.expiresAt) {
                     const expiresDate = new Date(order.expiresAt);
                     if (expiresDate < now) {
-                        console.log(`Found stale pending order (${order.id}), triggering status check...`);
-                        // This "fire-and-forget" call tells the backend to verify the order status.
-                        // The backend will update the status to "expired" in Firestore.
-                        // The 'onSnapshot' listener will then automatically receive the update and re-render the UI.
                         fetch(`/api/check-status?id=${order.id}`).catch(err => {
                             console.error(`Failed to auto-update status for order ${order.id}:`, err);
                         });
                     }
                 }
             });
-            // --- END OF FIX ---
 
             setOrders(allOrders);
             setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalRevenue: revenue }));
@@ -249,6 +312,9 @@ export default function AdminDashboard() {
 
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
+
+                {/* --- RECOVERY TOOL IS ADDED HERE --- */}
+                <FundRecoveryTool />
 
                 <section className="stats-grid">
                     <StatCard title="Total Revenue" value={`$${stats.totalRevenue.toFixed(2)}`} icon="💰" color="var(--primary-green)" />
