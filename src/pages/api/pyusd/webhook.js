@@ -10,7 +10,6 @@ const HELIUS_AUTH_SECRET = process.env.HELIUS_MAINNET_AUTH_SECRET;
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL;
 const MAIN_WALLET_PRIVATE_KEY_B58 = process.env.MAIN_WALLET_PRIVATE_KEY;
 
-// The official PYUSD mint address on Solana Mainnet
 const PYUSD_MINT_ADDRESS = new PublicKey('2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo');
 
 if (!HELIUS_AUTH_SECRET || !SOLANA_RPC_URL || !MAIN_WALLET_PRIVATE_KEY_B58) {
@@ -26,9 +25,7 @@ async function sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey) {
     const balance = await connection.getTokenAccountBalance(fromTokenAccount);
     const amountToTransfer = balance.value.amount;
 
-    if (amountToTransfer === 0) {
-        return "no_balance_to_sweep";
-    }
+    if (amountToTransfer === 0) { return "no_balance_to_sweep"; }
 
     const transaction = new Transaction().add(
         createTransferInstruction(fromTokenAccount, toTokenAccount, tempWalletKeypair.publicKey, amountToTransfer),
@@ -43,9 +40,7 @@ async function sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey) {
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
-
     if (req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
-        console.warn("Unauthorized webhook attempt detected.");
         return res.status(401).json({ success: false, message: "Unauthorized." });
     }
 
@@ -56,14 +51,14 @@ export default async function handler(req, res) {
         }
 
         for (const tx of transactions) {
-            // FIX: Robust check to prevent crash from malformed Helius payloads.
+            // **CRITICAL FIX:** Robust check to prevent crash from malformed Helius payloads.
             if (!tx || !tx.transaction || !Array.isArray(tx.accountData)) {
                 console.warn("Skipping malformed or irrelevant transaction object in webhook payload.");
                 continue;
             }
-            if (tx.transaction.error) continue;
+            if (tx.transaction.error) { continue; }
 
-            // FIX: Robustly parse all accounts to reliably detect Token-2022 (PYUSD) transfers.
+            // **CRITICAL FIX:** Robustly parse all accounts to reliably detect Token-2022 (PYUSD) transfers.
             const involvedAccounts = tx.accountData.map(acc => acc.account);
 
             for (const depositAddress of involvedAccounts) {
@@ -86,10 +81,9 @@ export default async function handler(req, res) {
                     
                     const privateKeyB58 = tempWalletDoc.data().privateKey;
                     const tempWalletKeypair = Keypair.fromSecretKey(bs58.decode(privateKeyB58));
-                    
                     const mainWalletPublicKey = new PublicKey(Keypair.fromSecretKey(bs58.decode(MAIN_WALLET_PRIVATE_KEY_B58)).publicKey);
 
-                    // FIX: Automatically sweep funds and reclaim SOL rent.
+                    // **CRITICAL FIX:** Automatically sweep funds and reclaim SOL rent.
                     const sweepSignature = await sweepAndCloseAccount(tempWalletKeypair, mainWalletPublicKey);
 
                     await orderDoc.ref.update({ status: 'completed', sweepSignature });
@@ -104,9 +98,7 @@ export default async function handler(req, res) {
                 break;
             }
         }
-
         res.status(200).json({ success: true, message: "Webhook processed successfully." });
-
     } catch (error) {
         console.error('CRITICAL PYUSD WEBHOOK ERROR:', error);
         res.status(500).json({ success: false, message: "Internal server error." });

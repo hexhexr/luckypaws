@@ -31,9 +31,7 @@ async function addAddressToWebhook(newAddress) {
     const webhookData = await getResponse.json();
     
     const existingAddresses = webhookData.accountAddresses || [];
-    if (existingAddresses.includes(newAddress)) {
-        return;
-    }
+    if (existingAddresses.includes(newAddress)) { return; }
     const updatedAddresses = [...existingAddresses, newAddress];
 
     const updatePayload = {
@@ -61,10 +59,7 @@ async function addAddressToWebhook(newAddress) {
 async function prepareDepositAccount(payer, newAccount) {
     const rentExemptionAmount = await connection.getMinimumBalanceForRentExemption(0);
     
-    // FIX: Set a low priority fee to keep transaction costs minimal.
-    const lowPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: 100
-    });
+    const lowPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100 });
 
     const transaction = new Transaction().add(
         lowPriorityFeeInstruction,
@@ -79,7 +74,7 @@ async function prepareDepositAccount(payer, newAccount) {
     await sendAndConfirmTransaction(connection, transaction, [payer, newAccount]);
     console.log(`Funded new wallet ${newAccount.publicKey.toBase58()} with rent exemption.`);
 
-    // FIX: Pre-create the Associated Token Account (ATA) for PYUSD.
+    // **CRITICAL FIX:** Pre-create the Associated Token Account (ATA) for PYUSD.
     // This solves the "not enough fees" error for the user by having the server pay the one-time account creation fee.
     await getOrCreateAssociatedTokenAccount(
         connection,
@@ -116,29 +111,16 @@ export default async function handler(req, res) {
 
         const tempWalletRef = db.collection('tempWallets').doc(publicKey);
         await tempWalletRef.set({
-            publicKey: publicKey,
-            privateKey: privateKey,
-            createdAt: Timestamp.now(),
-            orderId: null,
-            status: 'active'
+            publicKey: publicKey, privateKey: privateKey, createdAt: Timestamp.now(), orderId: null, status: 'active'
         });
 
         const orderRef = db.collection('orders').doc();
         await orderRef.set({
-            orderId: orderRef.id,
-            username: username.toLowerCase().trim(),
-            game,
-            amount: parseFloat(amount),
-            status: 'pending',
-            method: 'pyusd',
-            depositAddress: publicKey,
-            created: Timestamp.now(),
-            network: SOLANA_NETWORK,
-            read: false,
+            orderId: orderRef.id, username: username.toLowerCase().trim(), game, amount: parseFloat(amount),
+            status: 'pending', method: 'pyusd', depositAddress: publicKey, created: Timestamp.now(), network: SOLANA_NETWORK, read: false,
         });
 
         await tempWalletRef.update({ orderId: orderRef.id });
-
         res.status(200).json({ depositId: orderRef.id, depositAddress: publicKey });
 
     } catch (error) {
