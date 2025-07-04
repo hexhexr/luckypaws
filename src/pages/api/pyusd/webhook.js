@@ -16,13 +16,13 @@ function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Decode memo from Memo program
+        // 1. Decode memo
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
         const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
 
-        // 2. Find transferChecked instruction
+        // 2. Locate transferChecked instruction
         const transferInstruction = instructions.find(ix =>
             accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
             ix.data &&
@@ -30,11 +30,11 @@ function parsePaymentTransaction(tx) {
         );
         if (!transferInstruction) return null;
 
-        // ✅ Correct destination account index (accounts[2])
+        // ✅ Use correct destination account index (accounts[2])
         const destinationAccountIndex = transferInstruction.accounts[2];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Resolve the owner of the destination token account
+        // 3. Determine token account owner
         let destinationOwner =
             tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
@@ -47,11 +47,11 @@ function parsePaymentTransaction(tx) {
         }
 
         if (destinationOwner !== MAIN_WALLET_PUBLIC_KEY) {
-            console.log(`Memo ${memo} sent to token account ${destinationTokenAccount}, but owner is ${destinationOwner}. Expected ${MAIN_WALLET_PUBLIC_KEY}. Skipping.`);
+            console.log(`Memo "${memo}" sent to token account ${destinationTokenAccount}, but owner is ${destinationOwner}. Expected ${MAIN_WALLET_PUBLIC_KEY}. Skipping.`);
             return null;
         }
 
-        // 4. Decode amount from instruction data
+        // 4. Decode amount using Buffer
         const instructionDataRaw = bs58.decode(transferInstruction.data);
         const instructionData = Buffer.from(instructionDataRaw);
         const rawAmount = Number(instructionData.readBigUInt64LE(1));
@@ -86,16 +86,20 @@ export default async function handler(req, res) {
             }
 
             const paymentDetails = parsePaymentTransaction(tx);
-
             if (!paymentDetails) {
                 console.log("Webhook received a transaction that was not a valid PYUSD payment. Skipping.");
                 continue;
             }
 
-            const { memo, amount } = paymentDetails;
+            // 🔒 Force string and trimmed version of memo
+            const memo = String(paymentDetails.memo).trim();
+            const amount = paymentDetails.amount;
             const ordersRef = db.collection('orders');
 
-            // 1st Attempt
+            // 🔎 Log for debug
+            console.log("📌 Parsed memo:", JSON.stringify(memo), "| Type:", typeof memo);
+
+            // 1st Attempt to match pending order
             let snapshot = await ordersRef
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
@@ -103,7 +107,7 @@ export default async function handler(req, res) {
                 .get();
 
             if (snapshot.empty) {
-                // Retry after 500ms
+                // Retry after 500ms (Firestore delay handling)
                 await new Promise(res => setTimeout(res, 500));
                 snapshot = await ordersRef
                     .where('memo', '==', memo)
@@ -125,7 +129,7 @@ export default async function handler(req, res) {
 
                 console.log(`✅ Order ${orderDoc.id} marked as completed.`);
             } else {
-                // Check if order exists with different status (e.g., completed)
+                // Final fallback: check if the memo exists but is in completed/other state
                 const fallbackSnapshot = await ordersRef
                     .where('memo', '==', memo)
                     .limit(1)
@@ -133,7 +137,7 @@ export default async function handler(req, res) {
 
                 if (!fallbackSnapshot.empty) {
                     const existing = fallbackSnapshot.docs[0].data();
-                    console.warn(`⚠️ Payment with memo "${memo}" found, but order has status "${existing.status}". Skipping.`);
+                    console.warn(`⚠️ Payment with memo "${memo}" found, but order status is "${existing.status}". Skipping.`);
                 } else {
                     console.warn(`⚠️ Payment received with memo "${memo}" but no matching order found at all.`);
                 }
