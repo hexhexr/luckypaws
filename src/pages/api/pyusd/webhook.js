@@ -9,18 +9,26 @@ const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const TOKEN_2022_PROGRAM_ID = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 
 if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
-    throw new Error("One or more critical environment variables for the webhook are not set.");
+    throw new Error("Missing environment variables for webhook.");
 }
 
 function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Decode memo
+        // 1. Decode memo safely (string or base58 encoded)
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
-        const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
+        let memo = memoInstruction.data;
+        if (typeof memo !== 'string') {
+            memo = bs58.decode(memo).toString('utf-8').trim();
+        } else {
+            memo = memo.trim();
+        }
+
+        // ✅ Debug log for memo value
+        console.log("✅ Decoded memo:", memo, "| Type:", typeof memo, "| Length:", memo.length);
 
         // 2. Locate transferChecked instruction
         const transferInstruction = instructions.find(ix =>
@@ -30,18 +38,16 @@ function parsePaymentTransaction(tx) {
         );
         if (!transferInstruction) return null;
 
-        // ✅ Use correct destination account index (accounts[2])
         const destinationAccountIndex = transferInstruction.accounts[2];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Determine token account owner
+        // 3. Determine destination owner
         let destinationOwner =
             tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             null;
 
         const destinationIsMainWallet = destinationTokenAccount === MAIN_WALLET_PUBLIC_KEY;
-
         if (!destinationOwner && destinationIsMainWallet) {
             destinationOwner = MAIN_WALLET_PUBLIC_KEY;
         }
@@ -51,7 +57,7 @@ function parsePaymentTransaction(tx) {
             return null;
         }
 
-        // 4. Decode amount using Buffer
+        // 4. Decode amount from instruction
         const instructionDataRaw = bs58.decode(transferInstruction.data);
         const instructionData = Buffer.from(instructionDataRaw);
         const rawAmount = Number(instructionData.readBigUInt64LE(1));
@@ -60,7 +66,7 @@ function parsePaymentTransaction(tx) {
         return { memo, amount, destination: destinationTokenAccount };
 
     } catch (error) {
-        console.error("Error parsing transaction:", error);
+        console.error("❌ Error parsing transaction:", error);
         return null;
     }
 }
@@ -91,15 +97,13 @@ export default async function handler(req, res) {
                 continue;
             }
 
-            // 🔒 Force string and trimmed version of memo
             const memo = String(paymentDetails.memo).trim();
             const amount = paymentDetails.amount;
             const ordersRef = db.collection('orders');
 
-            // 🔎 Log for debug
-            console.log("📌 Parsed memo:", JSON.stringify(memo), "| Type:", typeof memo);
+            console.log("📌 Matching Firestore memo:", JSON.stringify(memo));
 
-            // 1st Attempt to match pending order
+            // 1st attempt to match pending order
             let snapshot = await ordersRef
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
@@ -107,7 +111,7 @@ export default async function handler(req, res) {
                 .get();
 
             if (snapshot.empty) {
-                // Retry after 500ms (Firestore delay handling)
+                // Retry after delay (Firestore indexing)
                 await new Promise(res => setTimeout(res, 500));
                 snapshot = await ordersRef
                     .where('memo', '==', memo)
@@ -118,7 +122,7 @@ export default async function handler(req, res) {
 
             if (!snapshot.empty) {
                 const orderDoc = snapshot.docs[0];
-                console.log(`✅ Webhook matched payment for memo ${memo}`);
+                console.log(`✅ Webhook matched payment for memo "${memo}"`);
 
                 await orderDoc.ref.update({
                     status: 'completed',
@@ -129,7 +133,7 @@ export default async function handler(req, res) {
 
                 console.log(`✅ Order ${orderDoc.id} marked as completed.`);
             } else {
-                // Final fallback: check if the memo exists but is in completed/other state
+                // Fallback: check if order exists with a different status
                 const fallbackSnapshot = await ordersRef
                     .where('memo', '==', memo)
                     .limit(1)
