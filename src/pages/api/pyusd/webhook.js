@@ -1,36 +1,38 @@
 // src/pages/api/pyusd/webhook.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { Transaction } from '@solana/web3.js';
+// We no longer need the full Transaction object, just bs58 for decoding the memo data.
 import bs58 from 'bs58';
 
 // --- MAINNET CONFIGURATION ---
 const HELIUS_AUTH_SECRET = process.env.HELIUS_MAINNET_AUTH_SECRET;
 const MAIN_WALLET_PUBLIC_KEY = process.env.MAIN_WALLET_PUBLIC_KEY;
+const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 
 if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
     throw new Error("One or more critical environment variables for the webhook are not set.");
 }
 
 /**
- * Parses a raw Solana transaction to find a memo.
+ * Parses a raw Solana transaction from a Helius webhook to find a memo.
  * @param {object} tx - The raw transaction object from the Helius webhook.
  * @returns {string|null} The memo string if found, otherwise null.
  */
 function findMemoInTransaction(tx) {
     try {
-        // The transaction data is base64 encoded. We need to decode it.
-        const txBuffer = Buffer.from(tx.transaction.message, 'base64');
-        const decodedTx = Transaction.from(txBuffer);
-        
-        // Find the instruction that interacts with the Memo Program.
-        const memoInstruction = decodedTx.instructions.find(
-            (ix) => ix.programId.toBase58() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'
+        // **THE FIX:** The raw webhook payload provides the message as an object
+        // containing instructions and account keys directly. We no longer need to decode a string.
+        const { instructions, accountKeys } = tx.transaction.message;
+
+        // Find the instruction that interacts with the Memo Program by matching its Program ID.
+        const memoInstruction = instructions.find(
+            (ix) => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID
         );
 
-        if (memoInstruction) {
-            // The memo data is in the instruction's data buffer, decoded as a UTF-8 string.
-            const memo = memoInstruction.data.toString('utf-8');
+        if (memoInstruction && memoInstruction.data) {
+            // The memo data in a raw transaction instruction is base58 encoded.
+            // We decode it to a buffer, then convert that buffer to a UTF-8 string.
+            const memo = bs58.decode(memoInstruction.data).toString('utf-8');
             return memo;
         }
         return null;
@@ -54,11 +56,12 @@ export default async function handler(req, res) {
         }
 
         for (const tx of transactions) {
-            if (!tx || !tx.transaction || tx.transaction.error) {
+            // Add more robust checks for the payload structure to prevent crashes
+            if (!tx || !tx.transaction || !tx.transaction.message || !tx.transaction.message.instructions || tx.transaction.error) {
+                console.log("Skipping transaction that is malformed or has an error.");
                 continue;
             }
             
-            // **THE DEFINITIVE FIX:** Manually parse the raw transaction to find the memo.
             const memo = findMemoInTransaction(tx);
             
             if (!memo) {
@@ -66,7 +69,7 @@ export default async function handler(req, res) {
                 continue;
             }
 
-            // Find the transfer information to ensure it was sent to our main wallet.
+            // This part should still work as Helius includes tokenTransfers as a convenience.
             const transferInfo = tx.tokenTransfers?.find(t => t.toUserAccount === MAIN_WALLET_PUBLIC_KEY);
             if (!transferInfo) {
                  console.log(`Webhook received a transaction with memo "${memo}", but not to the main wallet. Skipping.`);
