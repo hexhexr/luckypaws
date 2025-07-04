@@ -3,7 +3,7 @@ import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import bs58 from 'bs58';
 
-// --- MAINNET CONFIGURATION ---
+// --- MAINNET CONFIGURATIONn ---
 const HELIUS_AUTH_SECRET = process.env.HELIUS_MAINNET_AUTH_SECRET;
 const MAIN_WALLET_PUBLIC_KEY = process.env.MAIN_WALLET_PUBLIC_KEY;
 const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
