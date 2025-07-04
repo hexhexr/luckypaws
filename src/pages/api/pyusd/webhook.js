@@ -23,44 +23,39 @@ export default async function handler(req, res) {
         }
 
         for (const tx of transactions) {
-            // Ensure the transaction is valid and successful
             if (!tx || !tx.transaction || tx.transaction.error || !tx.description) {
                 continue;
             }
             
-            // Helius's "Enhanced" webhook conveniently parses the memo into the "description" field.
-            // The memo IS our unique orderId.
             const memo = tx.description;
-            
-            // We only care about transactions that have a memo.
-            if (!memo) {
-                continue;
-            }
+            if (!memo) continue;
 
-            // Check if the transaction was sent to our main wallet.
             const transferInfo = tx.tokenTransfers?.find(t => t.toUserAccount === MAIN_WALLET_PUBLIC_KEY);
-            if (!transferInfo) {
-                continue;
-            }
+            if (!transferInfo) continue;
 
-            // The memo is the orderId. Let's find the corresponding pending order.
-            const orderRef = db.collection('orders').doc(memo);
-            const orderDoc = await orderRef.get();
+            // **THE FIX:** Instead of using the memo as a document ID, we now query the collection
+            // to find the pending order that has this specific 6-digit memo.
+            const ordersRef = db.collection('orders');
+            const q = ordersRef.where('memo', '==', memo)
+                               .where('status', '==', 'pending')
+                               .limit(1);
+            
+            const snapshot = await q.get();
 
-            // If we found a matching PENDING order, process it.
-            if (orderDoc.exists && orderDoc.data().status === 'pending') {
-                console.log(`Webhook detected payment for order (memo): ${memo}`);
+            if (!snapshot.empty) {
+                const orderDoc = snapshot.docs[0];
+                console.log(`Webhook detected payment for order with memo: ${memo}`);
 
                 const amountTransferred = transferInfo.tokenAmount;
 
-                await orderRef.update({
-                    status: 'completed', // We can mark as completed directly, no sweep needed.
+                await orderDoc.ref.update({
+                    status: 'completed',
                     paidAt: Timestamp.now(),
                     transactionSignature: tx.signature,
                     amountReceived: amountTransferred,
                 });
 
-                console.log(`Order ${memo} successfully marked as completed.`);
+                console.log(`Order ${orderDoc.id} successfully marked as completed.`);
             }
         }
         res.status(200).json({ success: true, message: "Webhook processed successfully." });

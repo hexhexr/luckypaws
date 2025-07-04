@@ -4,11 +4,41 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { PublicKey } from '@solana/web3.js';
 
 // --- MAINNET CONFIGURATION ---
-// We only need the public key of your main wallet now.
 const MAIN_WALLET_PUBLIC_KEY = process.env.MAIN_WALLET_PUBLIC_KEY;
 
 if (!MAIN_WALLET_PUBLIC_KEY) {
     throw new Error("Your main wallet's public key is not set in environment variables.");
+}
+
+/**
+ * Generates a unique 6-digit memo that is not currently in use for any other pending order.
+ * @returns {Promise<string>} A unique 6-digit numeric string.
+ */
+async function generateUniqueMemo() {
+    let memo;
+    let isUnique = false;
+    let attempts = 0;
+
+    while (!isUnique && attempts < 10) { // Add a safety break to prevent infinite loops
+        // Generate a random 6-digit number as a string
+        memo = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        const snapshot = await db.collection('orders')
+                                 .where('memo', '==', memo)
+                                 .where('status', '==', 'pending')
+                                 .limit(1).get();
+        
+        if (snapshot.empty) {
+            isUnique = true;
+        }
+        attempts++;
+    }
+
+    if (!isUnique) {
+        throw new Error("Failed to generate a unique memo after several attempts.");
+    }
+
+    return memo;
 }
 
 export default async function handler(req, res) {
@@ -22,29 +52,31 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Missing or invalid required fields.' });
         }
 
-        // 1. Create a new order document in Firestore.
-        // The unique ID of this document will be used as the transaction memo.
-        const orderRef = db.collection('orders').doc();
+        // 1. Generate the unique, short memo.
+        const shortMemo = await generateUniqueMemo();
+
+        // 2. Create the order document with the new memo.
+        const orderRef = db.collection('orders').doc(); // Still use a unique Firestore ID for the document itself.
         
         await orderRef.set({
-            orderId: orderRef.id, // The memo for the user to include
+            orderId: orderRef.id,
+            memo: shortMemo, // Save the short, user-facing memo
             username: username.toLowerCase().trim(),
             game,
             amount: parseFloat(amount),
             status: 'pending',
             method: 'pyusd',
-            // The deposit address is now always your main wallet
             depositAddress: MAIN_WALLET_PUBLIC_KEY,
             created: Timestamp.now(),
             network: 'mainnet-beta',
             read: false,
         });
 
-        // 2. Return the main wallet address and the unique order ID (memo) to the user.
+        // 3. Return the main wallet address and the unique 6-digit memo.
         res.status(200).json({
-            depositId: orderRef.id,
+            depositId: orderRef.id, // The unique ID for polling
             depositAddress: MAIN_WALLET_PUBLIC_KEY,
-            memo: orderRef.id // The orderId is the memo
+            memo: shortMemo // The user-friendly memo
         });
 
     } catch (error) {

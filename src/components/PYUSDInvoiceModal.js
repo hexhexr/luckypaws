@@ -8,27 +8,23 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     const [copiedMemo, setCopiedMemo] = useState(false);
     const pollingRef = useRef(null);
 
-    // Generate QR Code for the deposit address
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
         if (depositAddress) {
-            // Solana Pay QR codes can include the memo, but many wallets don't support it well.
-            // A simple address QR is more reliable.
             QRCodeLib.toDataURL(depositAddress, { errorCorrectionLevel: 'M', width: 180, margin: 2 })
                 .then(setQrCodeDataUrl)
                 .catch(err => console.error('QR generation failed:', err));
         }
     }, [order?.depositAddress]);
 
-    // Poll the backend to check if the order status has changed
     useEffect(() => {
-        if (!order?.depositId) return; // Use depositId (which is the orderId/memo)
+        if (!order?.depositId) return;
         pollingRef.current = setInterval(async () => {
              try {
                 const res = await fetch(`/api/pyusd/check-status?id=${order.depositId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data?.status === 'completed') { // Check for 'completed' now
+                if (data?.status === 'completed') {
                     clearInterval(pollingRef.current);
                     onPaymentSuccess();
                 }
@@ -60,7 +56,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                 <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>Deposit PYUSD on Solana</h2>
                 
                 <div className="alert alert-warning" style={{ textAlign: 'left' }}>
-                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>Memo</strong> in your transaction. Without it, your deposit will be lost.
+                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>6-Digit Memo</strong> in your transaction. Without it, your deposit will be lost.
                 </div>
 
                 <div className="info-section mt-md">
@@ -80,7 +76,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                 </div>
 
                 <div className="form-group">
-                    <label>Memo (Required)</label>
+                    <label>6-Digit Memo (Required)</label>
                      <div className="input-group">
                         <input type="text" className="input" readOnly value={order.memo} />
                         <button className="btn btn-secondary" onClick={() => handleCopy(order.memo, 'memo')}>{copiedMemo ? 'Copied!' : 'Copy'}</button>
