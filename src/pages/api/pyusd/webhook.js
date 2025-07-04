@@ -21,50 +21,52 @@ if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
  */
 function parsePaymentTransaction(tx) {
     try {
-        // The "Raw" webhook payload provides the message as an object.
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Find the Memo
+        // 1. Extract and decode the memo properly (base58 → UTF-8)
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
-        
-        // **DEFINITIVE FIX for Memo:** The data is base58 encoded. Decode it to a buffer, then to a UTF-8 string.
-        const memo = bs58.decode(memoInstruction.data).toString('utf-8');
 
-        // 2. Find the PYUSD Transfer
-        // The instruction for a token transfer has a specific data signature. For `transferChecked`, the first byte is 12.
-        const transferInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID && ix.data && bs58.decode(ix.data)[0] === 12);
+        const memoBuffer = bs58.decode(memoInstruction.data);
+        const memo = memoBuffer.toString('utf-8').trim();
+
+        // 2. Find a transferChecked instruction (starts with byte 12)
+        const transferInstruction = instructions.find(ix =>
+            accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
+            ix.data &&
+            bs58.decode(ix.data)[0] === 12
+        );
         if (!transferInstruction) return null;
 
-        // 3. Confirm the destination is our main wallet
-        // In a `transferChecked` instruction, the destination account index is the second account listed in that instruction's `accounts` array.
         const destinationAccountIndex = transferInstruction.accounts[1];
-        const destination = accountKeys[destinationAccountIndex];
-        
-        if (destination !== MAIN_WALLET_PUBLIC_KEY) {
-            console.log(`Webhook parsed memo "${memo}", but destination was ${destination}, not the main wallet. Skipping.`);
+        const destinationTokenAccount = accountKeys[destinationAccountIndex];
+
+        // 3. Check who owns the destination token account (must be your main wallet)
+        const destinationOwner = tx.meta?.postTokenBalances?.find(
+            t => t.accountIndex === destinationAccountIndex
+        )?.owner;
+
+        if (!destinationOwner || destinationOwner !== MAIN_WALLET_PUBLIC_KEY) {
+            console.log(`Memo ${memo} sent to token account ${destinationTokenAccount}, but owner is ${destinationOwner}. Expected ${MAIN_WALLET_PUBLIC_KEY}. Skipping.`);
             return null;
         }
 
-        // 4. Extract the transfer amount
-        // The amount is an 8-byte little-endian number starting at the second byte of the instruction data.
-        const instructionDataBuffer = bs58.decode(transferInstruction.data);
-        const amount = Number(instructionDataBuffer.readBigUInt64LE(1)); // Read 64-bit unsigned integer, little-endian
+        // 4. Decode amount (bytes 1–8, little-endian)
+        const dataBuffer = bs58.decode(transferInstruction.data);
+        const rawAmount = Number(dataBuffer.readBigUInt64LE(1)); // 64-bit LE integer
+        const amount = rawAmount / 1_000_000; // Adjust for PYUSD decimals
 
-        // The amount is in the smallest unit of the token. For PYUSD with 6 decimals, we divide by 1,000,000.
-        const finalAmount = amount / 1_000_000;
-
-        return { memo, destination, amount: finalAmount };
+        return { memo, amount, destination: destinationOwner };
 
     } catch (e) {
-        console.error("Error manually parsing transaction:", e);
+        console.error("Error parsing transaction:", e);
         return null;
     }
 }
 
-
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
     if (req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
         return res.status(401).json({ success: false, message: "Unauthorized." });
     }
@@ -79,27 +81,26 @@ export default async function handler(req, res) {
             if (!tx || !tx.transaction || !tx.transaction.message || tx.transaction.error) {
                 continue;
             }
-            
-            // Use our new, robust parsing function
+
             const paymentDetails = parsePaymentTransaction(tx);
-            
+
             if (!paymentDetails) {
-                // This log is expected for non-payment transactions to your wallet.
                 console.log("Webhook received a transaction that was not a valid PYUSD payment. Skipping.");
                 continue;
             }
 
             const { memo, amount } = paymentDetails;
 
-            // Find the pending order that matches this unique 6-digit memo.
-            const ordersRef = db.collection('orders');
-            const q = ordersRef.where('memo', '==', memo).where('status', '==', 'pending').limit(1);
-            
-            const snapshot = await q.get();
+            // Search for a pending order with this exact memo
+            const snapshot = await db.collection('orders')
+                .where('memo', '==', memo)
+                .where('status', '==', 'pending')
+                .limit(1)
+                .get();
 
             if (!snapshot.empty) {
                 const orderDoc = snapshot.docs[0];
-                console.log(`Webhook detected payment for order with memo: ${memo}`);
+                console.log(`✅ Webhook matched payment for memo ${memo}`);
 
                 await orderDoc.ref.update({
                     status: 'completed',
@@ -108,14 +109,16 @@ export default async function handler(req, res) {
                     amountReceived: amount,
                 });
 
-                console.log(`Order ${orderDoc.id} successfully marked as completed.`);
+                console.log(`✅ Order ${orderDoc.id} marked as completed.`);
             } else {
-                console.log(`Received payment with memo "${memo}", but no matching pending order was found.`);
+                console.log(`⚠️ Received payment with memo "${memo}", but no matching pending order was found.`);
             }
         }
+
         res.status(200).json({ success: true, message: "Webhook processed successfully." });
+
     } catch (error) {
-        console.error('CRITICAL PYUSD WEBHOOK ERROR:', error);
+        console.error('❌ CRITICAL PYUSD WEBHOOK ERROR:', error);
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 }
