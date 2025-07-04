@@ -4,52 +4,50 @@ import QRCodeLib from 'qrcode';
 
 export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
-    const [copied, setCopied] = useState(false);
+    const [copiedAddress, setCopiedAddress] = useState(false);
+    const [copiedMemo, setCopiedMemo] = useState(false);
     const pollingRef = useRef(null);
 
     // Generate QR Code for the deposit address
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
         if (depositAddress) {
+            // Solana Pay QR codes can include the memo, but many wallets don't support it well.
+            // A simple address QR is more reliable.
             QRCodeLib.toDataURL(depositAddress, { errorCorrectionLevel: 'M', width: 180, margin: 2 })
                 .then(setQrCodeDataUrl)
                 .catch(err => console.error('QR generation failed:', err));
         }
     }, [order?.depositAddress]);
 
-    // Poll the backend to check if the order status has changed to 'paid'
+    // Poll the backend to check if the order status has changed
     useEffect(() => {
-        if (!order?.orderId) return;
-
-        const checkStatus = async () => {
+        if (!order?.depositId) return; // Use depositId (which is the orderId/memo)
+        pollingRef.current = setInterval(async () => {
              try {
-                // Use the dedicated check-status API for PYUSD
-                const res = await fetch(`/api/pyusd/check-status?id=${order.orderId}`);
-                if (!res.ok) return; // Don't stop polling on server error
+                const res = await fetch(`/api/pyusd/check-status?id=${order.depositId}`);
+                if (!res.ok) return;
                 const data = await res.json();
-                if (data?.status === 'paid') {
+                if (data?.status === 'completed') { // Check for 'completed' now
                     clearInterval(pollingRef.current);
                     onPaymentSuccess();
                 }
             } catch (err) {
                 console.error('PYUSD status polling error:', err);
             }
-        };
-        
-        // Start polling immediately and then every 5 seconds
-        checkStatus();
-        pollingRef.current = setInterval(checkStatus, 5000);
-
-        // Cleanup on unmount
+        }, 5000);
         return () => clearInterval(pollingRef.current);
-    }, [order?.orderId, onPaymentSuccess]);
+    }, [order?.depositId, onPaymentSuccess]);
 
-    const handleCopyToClipboard = () => {
-        const text = order?.depositAddress || '';
-        if (!text) return;
+    const handleCopy = (text, type) => {
         navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            if (type === 'address') {
+                setCopiedAddress(true);
+                setTimeout(() => setCopiedAddress(false), 2000);
+            } else {
+                setCopiedMemo(true);
+                setTimeout(() => setCopiedMemo(false), 2000);
+            }
         });
     };
 
@@ -60,20 +58,35 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
             <div className="modal">
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
                 <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>Deposit PYUSD on Solana</h2>
-                <p className="section-subtitle" style={{fontSize: '0.9rem', marginBottom: 'var(--spacing-md)'}}>
-                    Send exactly <strong>${order.amount} of PYUSD</strong> to the address below.
-                </p>
-                <div className="amount-display mb-md">
-                    <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
-                    <span className="btc-amount">PYUSD on Solana</span>
+                
+                <div className="alert alert-warning" style={{ textAlign: 'left' }}>
+                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>Memo</strong> in your transaction. Without it, your deposit will be lost.
                 </div>
-                <div className="qr-container mb-md">
+
+                <div className="info-section mt-md">
+                    <p><strong>Send Amount:</strong> <span>${order.amount} USD</span></p>
+                </div>
+
+                <div className="qr-container mt-md mb-md">
                     {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="PYUSD Deposit QR Code" width={180} height={180} /> : <p>Generating QR code...</p>}
                 </div>
-                <div className="short-invoice-display" style={{ cursor: 'pointer' }} onClick={handleCopyToClipboard}>
-                    <strong>Deposit Address:</strong> {order.depositAddress}
+                
+                <div className="form-group">
+                    <label>To Address (Your Main Wallet)</label>
+                    <div className="input-group">
+                        <input type="text" className="input" readOnly value={order.depositAddress} />
+                        <button className="btn btn-secondary" onClick={() => handleCopy(order.depositAddress, 'address')}>{copiedAddress ? 'Copied!' : 'Copy'}</button>
+                    </div>
                 </div>
-                <button className="btn btn-primary" onClick={handleCopyToClipboard}>{copied ? 'Copied!' : 'Copy Address'}</button>
+
+                <div className="form-group">
+                    <label>Memo (Required)</label>
+                     <div className="input-group">
+                        <input type="text" className="input" readOnly value={order.memo} />
+                        <button className="btn btn-secondary" onClick={() => handleCopy(order.memo, 'memo')}>{copiedMemo ? 'Copied!' : 'Copy'}</button>
+                    </div>
+                </div>
+
                 <p className="text-center mt-lg" style={{fontSize: '0.9rem', color: 'var(--text-light)', opacity: 0.9}}>
                     <span style={{fontSize: '1.5rem', display: 'block'}}>⏳</span>
                     Waiting for payment...
