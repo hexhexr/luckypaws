@@ -16,21 +16,14 @@ function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Decode memo safely (string or base58 encoded)
+        // ✅ Decode memo (always base58 from Helius)
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
-        let memo = memoInstruction.data;
-        if (typeof memo !== 'string') {
-            memo = bs58.decode(memo).toString('utf-8').trim();
-        } else {
-            memo = memo.trim();
-        }
-
-        // ✅ Debug log for memo value
+        const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
         console.log("✅ Decoded memo:", memo, "| Type:", typeof memo, "| Length:", memo.length);
 
-        // 2. Locate transferChecked instruction
+        // ✅ Locate transferChecked instruction
         const transferInstruction = instructions.find(ix =>
             accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
             ix.data &&
@@ -41,7 +34,7 @@ function parsePaymentTransaction(tx) {
         const destinationAccountIndex = transferInstruction.accounts[2];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Determine destination owner
+        // ✅ Determine token account owner
         let destinationOwner =
             tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
@@ -57,7 +50,7 @@ function parsePaymentTransaction(tx) {
             return null;
         }
 
-        // 4. Decode amount from instruction
+        // ✅ Decode amount
         const instructionDataRaw = bs58.decode(transferInstruction.data);
         const instructionData = Buffer.from(instructionDataRaw);
         const rawAmount = Number(instructionData.readBigUInt64LE(1));
@@ -103,7 +96,7 @@ export default async function handler(req, res) {
 
             console.log("📌 Matching Firestore memo:", JSON.stringify(memo));
 
-            // 1st attempt to match pending order
+            // 1st attempt: find pending order
             let snapshot = await ordersRef
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
@@ -111,7 +104,7 @@ export default async function handler(req, res) {
                 .get();
 
             if (snapshot.empty) {
-                // Retry after delay (Firestore indexing)
+                // 🔁 Retry after short delay
                 await new Promise(res => setTimeout(res, 500));
                 snapshot = await ordersRef
                     .where('memo', '==', memo)
@@ -133,7 +126,7 @@ export default async function handler(req, res) {
 
                 console.log(`✅ Order ${orderDoc.id} marked as completed.`);
             } else {
-                // Fallback: check if order exists with a different status
+                // 🔍 Fallback: check if memo exists with different status
                 const fallbackSnapshot = await ordersRef
                     .where('memo', '==', memo)
                     .limit(1)
