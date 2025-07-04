@@ -15,7 +15,6 @@ if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
 
 /**
  * Parses a raw transaction from a Helius webhook to find the memo and transfer details.
- * This function is completely independent of Helius's pre-parsed fields.
  * @param {object} tx - The raw transaction object from the Helius webhook.
  * @returns {object|null} An object with { memo, destination, amount } or null if not a valid payment.
  */
@@ -23,14 +22,13 @@ function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Extract and decode the memo properly (base58 → UTF-8)
+        // 1. Decode the Memo
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
-        const memoBuffer = bs58.decode(memoInstruction.data);
-        const memo = memoBuffer.toString('utf-8').trim();
+        const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
 
-        // 2. Find a transferChecked instruction (starts with byte 12)
+        // 2. Find transferChecked
         const transferInstruction = instructions.find(ix =>
             accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
             ix.data &&
@@ -41,22 +39,30 @@ function parsePaymentTransaction(tx) {
         const destinationAccountIndex = transferInstruction.accounts[1];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Check who owns the destination token account (must be your main wallet)
-        const destinationOwner = tx.meta?.postTokenBalances?.find(
-            t => t.accountIndex === destinationAccountIndex
-        )?.owner;
+        // 3. Try to determine token account owner
+        let destinationOwner =
+            tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
+            tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
+            null;
 
-        if (!destinationOwner || destinationOwner !== MAIN_WALLET_PUBLIC_KEY) {
+        // 4. Accept if either:
+        // - Token account's owner is your wallet
+        // - Token account itself *is* your main wallet
+        const isDestinationValid =
+            destinationOwner === MAIN_WALLET_PUBLIC_KEY ||
+            destinationTokenAccount === MAIN_WALLET_PUBLIC_KEY;
+
+        if (!isDestinationValid) {
             console.log(`Memo ${memo} sent to token account ${destinationTokenAccount}, but owner is ${destinationOwner}. Expected ${MAIN_WALLET_PUBLIC_KEY}. Skipping.`);
             return null;
         }
 
-        // 4. Decode amount (bytes 1–8, little-endian)
-        const dataBuffer = bs58.decode(transferInstruction.data);
-        const rawAmount = Number(dataBuffer.readBigUInt64LE(1)); // 64-bit LE integer
-        const amount = rawAmount / 1_000_000; // Adjust for PYUSD decimals
+        // 5. Extract amount (from byte 1–8, LE)
+        const instructionData = bs58.decode(transferInstruction.data);
+        const rawAmount = Number(instructionData.readBigUInt64LE(1));
+        const amount = rawAmount / 1_000_000; // Adjust for 6 decimals (PYUSD)
 
-        return { memo, amount, destination: destinationOwner };
+        return { memo, destination: destinationOwner || destinationTokenAccount, amount };
 
     } catch (e) {
         console.error("Error parsing transaction:", e);
@@ -91,7 +97,7 @@ export default async function handler(req, res) {
 
             const { memo, amount } = paymentDetails;
 
-            // Search for a pending order with this exact memo
+            // Look for a pending order with this memo
             const snapshot = await db.collection('orders')
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
@@ -111,7 +117,7 @@ export default async function handler(req, res) {
 
                 console.log(`✅ Order ${orderDoc.id} marked as completed.`);
             } else {
-                console.log(`⚠️ Received payment with memo "${memo}", but no matching pending order was found.`);
+                console.log(`⚠️ Payment received with memo "${memo}" but no matching pending order found.`);
             }
         }
 
