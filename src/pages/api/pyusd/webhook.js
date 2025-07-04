@@ -1,6 +1,8 @@
 // src/pages/api/pyusd/webhook.js
 import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { Transaction } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 // --- MAINNET CONFIGURATION ---
 const HELIUS_AUTH_SECRET = process.env.HELIUS_MAINNET_AUTH_SECRET;
@@ -9,6 +11,35 @@ const MAIN_WALLET_PUBLIC_KEY = process.env.MAIN_WALLET_PUBLIC_KEY;
 if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
     throw new Error("One or more critical environment variables for the webhook are not set.");
 }
+
+/**
+ * Parses a raw Solana transaction to find a memo.
+ * @param {object} tx - The raw transaction object from the Helius webhook.
+ * @returns {string|null} The memo string if found, otherwise null.
+ */
+function findMemoInTransaction(tx) {
+    try {
+        // The transaction data is base64 encoded. We need to decode it.
+        const txBuffer = Buffer.from(tx.transaction.message, 'base64');
+        const decodedTx = Transaction.from(txBuffer);
+        
+        // Find the instruction that interacts with the Memo Program.
+        const memoInstruction = decodedTx.instructions.find(
+            (ix) => ix.programId.toBase58() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'
+        );
+
+        if (memoInstruction) {
+            // The memo data is in the instruction's data buffer, decoded as a UTF-8 string.
+            const memo = memoInstruction.data.toString('utf-8');
+            return memo;
+        }
+        return null;
+    } catch (e) {
+        console.error("Error parsing transaction for memo:", e);
+        return null;
+    }
+}
+
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
@@ -23,18 +54,26 @@ export default async function handler(req, res) {
         }
 
         for (const tx of transactions) {
-            if (!tx || !tx.transaction || tx.transaction.error || !tx.description) {
+            if (!tx || !tx.transaction || tx.transaction.error) {
                 continue;
             }
             
-            const memo = tx.description;
-            if (!memo) continue;
+            // **THE DEFINITIVE FIX:** Manually parse the raw transaction to find the memo.
+            const memo = findMemoInTransaction(tx);
+            
+            if (!memo) {
+                console.log("Webhook received a transaction without a memo. Skipping.");
+                continue;
+            }
 
+            // Find the transfer information to ensure it was sent to our main wallet.
             const transferInfo = tx.tokenTransfers?.find(t => t.toUserAccount === MAIN_WALLET_PUBLIC_KEY);
-            if (!transferInfo) continue;
+            if (!transferInfo) {
+                 console.log(`Webhook received a transaction with memo "${memo}", but not to the main wallet. Skipping.`);
+                continue;
+            }
 
-            // **THE FIX:** Instead of using the memo as a document ID, we now query the collection
-            // to find the pending order that has this specific 6-digit memo.
+            // Find the pending order that matches this unique 6-digit memo.
             const ordersRef = db.collection('orders');
             const q = ordersRef.where('memo', '==', memo)
                                .where('status', '==', 'pending')
@@ -56,6 +95,8 @@ export default async function handler(req, res) {
                 });
 
                 console.log(`Order ${orderDoc.id} successfully marked as completed.`);
+            } else {
+                console.log(`Received payment with memo "${memo}", but no matching pending order was found.`);
             }
         }
         res.status(200).json({ success: true, message: "Webhook processed successfully." });
