@@ -35,7 +35,6 @@ export default function PaymentForm() {
     loadGames();
   }, []);
 
-  // Polling for Lightning payments
   useEffect(() => {
     if (!order || status !== 'pending' || form.method !== 'lightning') {
       clearInterval(pollingRef.current);
@@ -84,22 +83,23 @@ export default function PaymentForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
 
-      const newOrder = {
-          ...form,
-          depositAddress: data.depositAddress,
-          depositId: data.depositId,
-          invoice: data.invoice,
-          orderId: data.orderId,
-          btc: data.btc,
-          expiresAt: data.expiresAt,
-          status: 'pending'
-      };
-      setOrder(newOrder);
-      setStatus('pending');
-
       if (form.method === 'lightning') {
+        const newOrder = { ...form, invoice: data.invoice, orderId: data.orderId, btc: data.btc, expiresAt: data.expiresAt, status: 'pending' };
+        setOrder(newOrder);
+        setStatus('pending');
         setModals({ invoice: true });
-      } else {
+      } else { // PYUSD
+        if (!data.depositAddress || !data.memo) throw new Error('Deposit address or memo missing from response.');
+        
+        const newOrder = { 
+            ...form, 
+            depositAddress: data.depositAddress, 
+            depositId: data.depositId, 
+            memo: data.memo,
+            status: 'pending' 
+        };
+        setOrder(newOrder);
+        setStatus('pending');
         setModals({ pyusdInvoice: true });
       }
     } catch (err) {
@@ -113,73 +113,62 @@ export default function PaymentForm() {
 
   return (
     <div className="payment-form-card">
-      <h2 className="card-subtitle text-center mb-xl" style={{ color: 'var(--primary-green)' }}>Top Up Your Account</h2>
-      <form onSubmit={handleSubmit} className="form-stack">
-        {/* --- Section for Player Info --- */}
-        <div className="form-group">
-          <label htmlFor="username">Username</label>
-          <input id="username" className="input" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
-        </div>
-        <div className="form-group">
-          <label htmlFor="game">Select Game</label>
-          <select id="game" className="select" name="game" value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} required>
-            <option value="" disabled>Select a Game</option>
-            {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
-          </select>
-        </div>
-        
-        {/* --- Section for Amount --- */}
-        <div className="form-group">
-          <label htmlFor="amount">Amount (USD)</label>
-          <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
-        </div>
-        
-        {/* --- Section for Payment Method --- */}
-        <div className="form-group">
-            <label>Payment Method</label>
-            <div className="payment-method-group">
-              <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
-                <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                <div className="method-card-content">
-                  <span className="method-card-icon">⚡</span>
-                  <span className="method-card-title">Lightning</span>
-                  <span className="method-card-desc">Instant & Anonymous</span>
+        <h2 className="card-subtitle text-center mb-xl" style={{ color: 'var(--primary-green)' }}>Top Up Your Account</h2>
+        <form onSubmit={handleSubmit}>
+            <fieldset className="form-fieldset">
+                <legend className="fieldset-legend">Player & Game Info</legend>
+                <div className="form-group">
+                    <label htmlFor="username">Username</label>
+                    <input id="username" className="input" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
                 </div>
-              </label>
-              <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
-                <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                <div className="method-card-content">
-                  <span className="method-card-icon">🅿️</span>
-                  <span className="method-card-title">PYUSD</span>
-                  <span className="method-card-desc">PayPal / Venmo</span>
+                <div className="form-group">
+                    <label htmlFor="game">Select Game</label>
+                    <select id="game" className="select" name="game" value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} required>
+                        <option value="" disabled>Select a Game</option>
+                        {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
+                    </select>
                 </div>
-              </label>
-            </div>
-        </div>
+            </fieldset>
 
-        <button className="btn btn-primary btn-full-width mt-lg" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
-          {loading ? 'Generating...' : form.method === 'lightning' ? 'Generate Invoice' : 'Get Deposit Address'}
-        </button>
-      </form>
+            <fieldset className="form-fieldset">
+                <legend className="fieldset-legend">Amount & Method</legend>
+                <div className="form-group">
+                    <label htmlFor="amount">Amount (USD)</label>
+                    <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
+                </div>
+                <div className="form-group">
+                    <label>Payment Method</label>
+                    <div className="payment-method-group">
+                        <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
+                            <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                            <div className="method-card-content">
+                                <span className="method-card-icon">⚡</span>
+                                <span className="method-card-title">Lightning</span>
+                                <span className="method-card-desc">Instant & Anonymous</span>
+                            </div>
+                        </label>
+                        <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
+                            <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                            <div className="method-card-content">
+                                <span className="method-card-icon">🅿️</span>
+                                <span className="method-card-title">PYUSD</span>
+                                <span className="method-card-desc">PayPal / Venmo</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </fieldset>
 
-      {error && <div className="alert alert-danger mt-md">{error}</div>}
-
-      {/* --- All Modals Remain the Same --- */}
-      {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
-      {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
-      {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
-      
-      {modals.pyusdInvoice && (
-        <PYUSDInvoiceModal
-          order={order}
-          resetModals={resetAllModals}
-          onPaymentSuccess={() => {
-            setModals({ invoice: false, expired: false, receipt: false, pyusdInvoice: false, pyusdReceipt: true });
-            setStatus('paid');
-          }}
-        />
-      )}
-      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
+            <button className="btn btn-primary btn-full-width mt-lg" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
+                {loading ? 'Generating...' : form.method === 'lightning' ? 'Generate Invoice' : 'Get Deposit Address'}
+            </button>
+        </form>
+        {error && <div className="alert alert-danger mt-md">{error}</div>}
+        {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} setCopied={setCopied} copied={copied} resetAllModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
+        {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
+        {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
+        {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={resetAllModals} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
+        {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
     </div>
   );
 }
