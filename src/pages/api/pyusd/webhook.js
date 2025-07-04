@@ -3,7 +3,6 @@ import { db } from '../../../lib/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import bs58 from 'bs58';
 
-// --- MAINNET CONFIGURATION ---
 const HELIUS_AUTH_SECRET = process.env.HELIUS_MAINNET_AUTH_SECRET;
 const MAIN_WALLET_PUBLIC_KEY = process.env.MAIN_WALLET_PUBLIC_KEY;
 const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
@@ -15,20 +14,18 @@ if (!HELIUS_AUTH_SECRET || !MAIN_WALLET_PUBLIC_KEY) {
 
 /**
  * Parses a raw transaction from a Helius webhook to find the memo and transfer details.
- * @param {object} tx - The raw transaction object from the Helius webhook.
- * @returns {object|null} An object with { memo, destination, amount } or null if not a valid payment.
  */
 function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Decode Memo
+        // Decode Memo (base58 → UTF-8)
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
         const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
 
-        // 2. Locate transferChecked instruction
+        // Find transferChecked instruction (first byte is 12)
         const transferInstruction = instructions.find(ix =>
             accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
             ix.data &&
@@ -36,18 +33,18 @@ function parsePaymentTransaction(tx) {
         );
         if (!transferInstruction) return null;
 
-        // ✅ FIX: Use correct destination account index (accounts[2])
+        // ✅ Correct index: accounts[2] is the destination token account
         const destinationAccountIndex = transferInstruction.accounts[2];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Determine owner of the destination token account
+        // Determine token account owner (via postTokenBalances or fallback)
         let destinationOwner =
             tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             null;
 
-        // 4. Fallback: if destination address itself matches main wallet
         const destinationIsMainWallet = destinationTokenAccount === MAIN_WALLET_PUBLIC_KEY;
+
         if (!destinationOwner && destinationIsMainWallet) {
             destinationOwner = MAIN_WALLET_PUBLIC_KEY;
         }
@@ -57,21 +54,25 @@ function parsePaymentTransaction(tx) {
             return null;
         }
 
-        // 5. Decode the amount (bytes 1–8, LE)
-        const instructionData = bs58.decode(transferInstruction.data);
+        // ✅ Safe decode for amount: use Buffer to readBigUInt64LE
+        const instructionDataRaw = bs58.decode(transferInstruction.data);
+        const instructionData = Buffer.from(instructionDataRaw);
+
         const rawAmount = Number(instructionData.readBigUInt64LE(1));
-        const amount = rawAmount / 1_000_000; // PYUSD has 6 decimals
+        const amount = rawAmount / 1_000_000;
 
         return { memo, amount, destination: destinationTokenAccount };
 
-    } catch (e) {
-        console.error("Error parsing transaction:", e);
+    } catch (error) {
+        console.error("Error parsing transaction:", error);
         return null;
     }
 }
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ message: 'Method Not Allowed' });
+    }
 
     if (req.headers['authorization'] !== HELIUS_AUTH_SECRET) {
         return res.status(401).json({ success: false, message: "Unauthorized." });
@@ -97,7 +98,6 @@ export default async function handler(req, res) {
 
             const { memo, amount } = paymentDetails;
 
-            // Find matching pending order
             const snapshot = await db.collection('orders')
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
@@ -121,10 +121,10 @@ export default async function handler(req, res) {
             }
         }
 
-        res.status(200).json({ success: true, message: "Webhook processed successfully." });
+        return res.status(200).json({ success: true, message: "Webhook processed successfully." });
 
     } catch (error) {
         console.error('❌ CRITICAL PYUSD WEBHOOK ERROR:', error);
-        res.status(500).json({ success: false, message: "Internal server error." });
+        return res.status(500).json({ success: false, message: "Internal server error." });
     }
 }
