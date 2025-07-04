@@ -22,13 +22,13 @@ function parsePaymentTransaction(tx) {
     try {
         const { instructions, accountKeys } = tx.transaction.message;
 
-        // 1. Decode the Memo
+        // 1. Decode Memo
         const memoInstruction = instructions.find(ix => accountKeys[ix.programIdIndex] === MEMO_PROGRAM_ID);
         if (!memoInstruction || !memoInstruction.data) return null;
 
         const memo = bs58.decode(memoInstruction.data).toString('utf-8').trim();
 
-        // 2. Find transferChecked
+        // 2. Locate transferChecked instruction
         const transferInstruction = instructions.find(ix =>
             accountKeys[ix.programIdIndex] === TOKEN_2022_PROGRAM_ID &&
             ix.data &&
@@ -36,33 +36,33 @@ function parsePaymentTransaction(tx) {
         );
         if (!transferInstruction) return null;
 
-        const destinationAccountIndex = transferInstruction.accounts[1];
+        // ✅ FIX: Use correct destination account index (accounts[2])
+        const destinationAccountIndex = transferInstruction.accounts[2];
         const destinationTokenAccount = accountKeys[destinationAccountIndex];
 
-        // 3. Try to determine token account owner
+        // 3. Determine owner of the destination token account
         let destinationOwner =
             tx.meta?.postTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             tx.meta?.preTokenBalances?.find(t => t.accountIndex === destinationAccountIndex)?.owner ||
             null;
 
-        // 4. Accept if either:
-        // - Token account's owner is your wallet
-        // - Token account itself *is* your main wallet
-        const isDestinationValid =
-            destinationOwner === MAIN_WALLET_PUBLIC_KEY ||
-            destinationTokenAccount === MAIN_WALLET_PUBLIC_KEY;
+        // 4. Fallback: if destination address itself matches main wallet
+        const destinationIsMainWallet = destinationTokenAccount === MAIN_WALLET_PUBLIC_KEY;
+        if (!destinationOwner && destinationIsMainWallet) {
+            destinationOwner = MAIN_WALLET_PUBLIC_KEY;
+        }
 
-        if (!isDestinationValid) {
+        if (destinationOwner !== MAIN_WALLET_PUBLIC_KEY) {
             console.log(`Memo ${memo} sent to token account ${destinationTokenAccount}, but owner is ${destinationOwner}. Expected ${MAIN_WALLET_PUBLIC_KEY}. Skipping.`);
             return null;
         }
 
-        // 5. Extract amount (from byte 1–8, LE)
+        // 5. Decode the amount (bytes 1–8, LE)
         const instructionData = bs58.decode(transferInstruction.data);
         const rawAmount = Number(instructionData.readBigUInt64LE(1));
-        const amount = rawAmount / 1_000_000; // Adjust for 6 decimals (PYUSD)
+        const amount = rawAmount / 1_000_000; // PYUSD has 6 decimals
 
-        return { memo, destination: destinationOwner || destinationTokenAccount, amount };
+        return { memo, amount, destination: destinationTokenAccount };
 
     } catch (e) {
         console.error("Error parsing transaction:", e);
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
 
             const { memo, amount } = paymentDetails;
 
-            // Look for a pending order with this memo
+            // Find matching pending order
             const snapshot = await db.collection('orders')
                 .where('memo', '==', memo)
                 .where('status', '==', 'pending')
