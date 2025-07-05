@@ -42,46 +42,12 @@ const StatCard = ({ title, value, icon, color }) => (
     </div>
 );
 
-const CustomerSearch = () => {
-    const router = useRouter();
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const handleSearch = (e) => {
-        e.preventDefault();
-        if (searchTerm.trim()) {
-            router.push(`/admin/customer/${searchTerm.trim().toLowerCase()}`);
-        }
-    };
-
-    return (
-        <section className="card mb-lg">
-            <h2 className="card-header">🔎 Customer Search</h2>
-            <div className="card-body">
-                <form onSubmit={handleSearch}>
-                    <div className="form-group" style={{ display: 'flex', gap: '1rem' }}>
-                        <input
-                            type="text"
-                            className="input"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Enter exact customer username..."
-                            style={{ flexGrow: 1 }}
-                        />
-                        <button type="submit" className="btn btn-primary">Search</button>
-                    </div>
-                </form>
-            </div>
-        </section>
-    );
-};
-
-
 export default function AdminDashboard() {
     const router = useRouter();
     const [isAdmin, setIsAdmin] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
     const [orders, setOrders] = useState([]);
-    const [customers, setCustomers] = useState({}); // To store a map of username -> facebookName
+    const [customers, setCustomers] = useState({});
     const [stats, setStats] = useState({ totalRevenue: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
     const [error, setError] = useState('');
     const [orderFilter, setOrderFilter] = useState('completed');
@@ -107,7 +73,6 @@ export default function AdminDashboard() {
     useEffect(() => {
         if (!isAdmin) return;
 
-        // Fetch all customers once to create a lookup map
         const customersQuery = query(collection(db, 'customers'));
         const customerListener = onSnapshot(customersQuery, (snapshot) => {
             const customerMap = {};
@@ -166,14 +131,11 @@ export default function AdminDashboard() {
         if (!username || username === 'unknown') { setQuickViewStats(null); return; }
         if (quickViewStats?.username === username) return;
 
-        // --- THIS IS THE FIX for the pop-up position ---
-        // We add the window's scroll offset to the cursor's position
         const adjustedPosition = {
             x: position.x,
             y: position.y + window.scrollY
         };
         setQuickViewPosition(adjustedPosition);
-        // --- End of fix ---
 
         setQuickViewStats({ username, isLoading: true });
         try {
@@ -218,9 +180,7 @@ export default function AdminDashboard() {
     const columns = useMemo(() => [
         { header: 'Created', accessor: 'created', sortable: true, cell: (row) => formatTimestamp(row.created) },
         { header: 'Username', accessor: 'username', sortable: true },
-        // --- NEW COLUMN: Facebook Name ---
         { header: 'Facebook', accessor: 'facebookName', sortable: true },
-        // --- NEW COLUMN: Game ---
         { header: 'Game', accessor: 'game', sortable: true },
         { header: 'Method', accessor: 'method', sortable: true, cell: (row) => <span className={`method-badge method-${row.method || 'lightning'}`}>{row.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span> },
         { header: 'Memo', accessor: 'memo', sortable: true },
@@ -228,7 +188,6 @@ export default function AdminDashboard() {
         { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status}`}>{row.status.replace('_', ' ')}</span> },
     ], []);
 
-    // --- UPDATED: This now maps the Facebook name to each order ---
     const filteredOrders = useMemo(() => {
         const getFacebookName = (username) => customers[username.toLowerCase()] || 'N/A';
         
@@ -278,7 +237,6 @@ export default function AdminDashboard() {
                     <StatCard title="Pending Orders" value={stats.pendingOrders || 0} icon="⏳" color="var(--orange)" />
                     <StatCard title="Total Users" value={stats.totalUsers || 0} icon="👥" color="var(--purple)" />
                 </section>
-                <CustomerSearch />
                 <section className="mt-xl">
                     <h2>Recent Orders</h2>
                     <DataTable 
