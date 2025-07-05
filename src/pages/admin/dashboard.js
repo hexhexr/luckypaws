@@ -81,6 +81,7 @@ export default function AdminDashboard() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
     const [orders, setOrders] = useState([]);
+    const [customers, setCustomers] = useState({}); // To store a map of username -> facebookName
     const [stats, setStats] = useState({ totalRevenue: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
     const [error, setError] = useState('');
     const [orderFilter, setOrderFilter] = useState('completed');
@@ -105,6 +106,19 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         if (!isAdmin) return;
+
+        // Fetch all customers once to create a lookup map
+        const customersQuery = query(collection(db, 'customers'));
+        const customerListener = onSnapshot(customersQuery, (snapshot) => {
+            const customerMap = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if(data.username) {
+                    customerMap[data.username.toLowerCase()] = data.facebookName || 'N/A';
+                }
+            });
+            setCustomers(customerMap);
+        });
 
         const ordersQuery = query(collection(db, 'orders'), orderBy('created', 'desc'));
         const ordersListener = onSnapshot(ordersQuery, (snapshot) => {
@@ -145,14 +159,22 @@ export default function AdminDashboard() {
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
         const cashoutsListener = onSnapshot(query(collection(db, 'cashouts'), where('status', '==', 'completed')), (snapshot) => setStats(prev => ({ ...prev, totalCashouts: snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0) })), err => setError('Failed to load cashouts.'));
 
-        return () => { ordersListener(); usersListener(); cashoutsListener(); };
+        return () => { customerListener(); ordersListener(); usersListener(); cashoutsListener(); };
     }, [isAdmin]);
 
     const handleUsernameHover = async (username, position) => {
         if (!username || username === 'unknown') { setQuickViewStats(null); return; }
         if (quickViewStats?.username === username) return;
 
-        setQuickViewPosition(position);
+        // --- THIS IS THE FIX for the pop-up position ---
+        // We add the window's scroll offset to the cursor's position
+        const adjustedPosition = {
+            x: position.x,
+            y: position.y + window.scrollY
+        };
+        setQuickViewPosition(adjustedPosition);
+        // --- End of fix ---
+
         setQuickViewStats({ username, isLoading: true });
         try {
             const token = await firebaseAuth.currentUser.getIdToken();
@@ -196,17 +218,29 @@ export default function AdminDashboard() {
     const columns = useMemo(() => [
         { header: 'Created', accessor: 'created', sortable: true, cell: (row) => formatTimestamp(row.created) },
         { header: 'Username', accessor: 'username', sortable: true },
+        // --- NEW COLUMN: Facebook Name ---
+        { header: 'Facebook', accessor: 'facebookName', sortable: true },
+        // --- NEW COLUMN: Game ---
+        { header: 'Game', accessor: 'game', sortable: true },
         { header: 'Method', accessor: 'method', sortable: true, cell: (row) => <span className={`method-badge method-${row.method || 'lightning'}`}>{row.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span> },
         { header: 'Memo', accessor: 'memo', sortable: true },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => `$${parseFloat(row.amount || 0).toFixed(2)}` },
         { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status}`}>{row.status.replace('_', ' ')}</span> },
     ], []);
 
+    // --- UPDATED: This now maps the Facebook name to each order ---
     const filteredOrders = useMemo(() => {
-        if (orderFilter === 'all') return orders;
-        if (orderFilter === 'pending') return orders.filter(o => o.status === 'pending');
-        return orders.filter(o => ['completed', 'paid', 'unmatched_payment'].includes(o.status));
-    }, [orders, orderFilter]);
+        const getFacebookName = (username) => customers[username.toLowerCase()] || 'N/A';
+        
+        const ordersWithFacebookName = orders.map(order => ({
+            ...order,
+            facebookName: getFacebookName(order.username)
+        }));
+
+        if (orderFilter === 'all') return ordersWithFacebookName;
+        if (orderFilter === 'pending') return ordersWithFacebookName.filter(o => o.status === 'pending');
+        return ordersWithFacebookName.filter(o => ['completed', 'paid', 'unmatched_payment'].includes(o.status));
+    }, [orders, customers, orderFilter]);
 
     const filterControls = (
         <div className="radio-filter-group">
@@ -216,8 +250,7 @@ export default function AdminDashboard() {
         </div>
     );
     
-    if (dataLoading && !error) return <div className="loading-screen">Loading Dashboard...</div>;
-    if (error) return <div className="loading-screen">Error: {error}</div>
+    if (dataLoading) return <div className="loading-screen">Loading Dashboard...</div>;
 
     return (
         <div className="admin-dashboard-container">
@@ -238,8 +271,6 @@ export default function AdminDashboard() {
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
                 <section className="stats-grid">
-                    {/* --- THIS IS THE FIX --- */}
-                    {/* We add `|| 0` to each stat value to prevent the toFixed error on initial render */}
                     <StatCard title="Total Revenue" value={`$${(stats.totalRevenue || 0).toFixed(2)}`} icon="💰" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
                     <StatCard title="Total Orders" value={stats.totalOrders || 0} icon="📦" color="var(--primary-blue)" />

@@ -4,17 +4,21 @@ import React from 'react';
 export default function CustomerQuickView({ stats, position, onClose }) {
     if (!stats) return null;
 
+    // --- THIS IS THE FIX for the pop-up position ---
+    // The position is now calculated on the dashboard page.
+    // This style ensures the pop-up appears just above and to the left of the cursor.
     const style = {
         position: 'absolute',
         top: `${position.y}px`,
         left: `${position.x}px`,
-        transform: 'translate(-100%, -100%)', // Position it above and to the left of the cursor
+        transform: 'translate(-105%, -105%)', // Move it slightly away from the cursor
         zIndex: 3000,
+        pointerEvents: 'none', // Prevents the pop-up from interfering with mouse events
     };
 
     return (
         <div className="quick-view-popover" style={style}>
-            <button onClick={onClose} className="popover-close-btn">&times;</button>
+            {/* The close button is removed as it's now controlled by mouse hover */}
             <h4 className="popover-title">{stats.username}</h4>
             {stats.isLoading ? <p>Loading stats...</p> : (
                 <div className="info-section">
