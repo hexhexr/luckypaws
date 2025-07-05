@@ -75,6 +75,7 @@ const CustomerSearch = () => {
     );
 };
 
+
 export default function AdminDashboard() {
     const router = useRouter();
     const [isAdmin, setIsAdmin] = useState(false);
@@ -157,7 +158,7 @@ export default function AdminDashboard() {
             const token = await firebaseAuth.currentUser.getIdToken();
             const res = await fetch(`/api/admin/user-stats/${username}`, { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
-            if (res.ok) setQuickViewStats({ ...data.stats, username: username, isLoading: false });
+            if (res.ok) setQuickViewStats({ ...data, username: username, isLoading: false });
             else setQuickViewStats(null);
         } catch (e) {
             setQuickViewStats(null);
@@ -215,7 +216,8 @@ export default function AdminDashboard() {
         </div>
     );
     
-    if (dataLoading) return <div className="loading-screen">Loading Dashboard...</div>;
+    if (dataLoading && !error) return <div className="loading-screen">Loading Dashboard...</div>;
+    if (error) return <div className="loading-screen">Error: {error}</div>
 
     return (
         <div className="admin-dashboard-container">
@@ -236,12 +238,14 @@ export default function AdminDashboard() {
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
                 <section className="stats-grid">
-                    <StatCard title="Total Revenue" value={`$${stats.totalRevenue.toFixed(2)}`} icon="💰" color="var(--primary-green)" />
-                    <StatCard title="Total Cashouts" value={`$${stats.totalCashouts.toFixed(2)}`} icon="💸" color="var(--red-alert)" />
-                    <StatCard title="Total Orders" value={stats.totalOrders} icon="📦" color="var(--primary-blue)" />
-                    <StatCard title="Paid Orders" value={stats.paidOrders} icon="✅" color="var(--primary-green)" />
-                    <StatCard title="Pending Orders" value={stats.pendingOrders} icon="⏳" color="var(--orange)" />
-                    <StatCard title="Total Users" value={stats.totalUsers} icon="👥" color="var(--purple)" />
+                    {/* --- THIS IS THE FIX --- */}
+                    {/* We add `|| 0` to each stat value to prevent the toFixed error on initial render */}
+                    <StatCard title="Total Revenue" value={`$${(stats.totalRevenue || 0).toFixed(2)}`} icon="💰" color="var(--primary-green)" />
+                    <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
+                    <StatCard title="Total Orders" value={stats.totalOrders || 0} icon="📦" color="var(--primary-blue)" />
+                    <StatCard title="Paid Orders" value={stats.paidOrders || 0} icon="✅" color="var(--primary-green)" />
+                    <StatCard title="Pending Orders" value={stats.pendingOrders || 0} icon="⏳" color="var(--orange)" />
+                    <StatCard title="Total Users" value={stats.totalUsers || 0} icon="👥" color="var(--purple)" />
                 </section>
                 <CustomerSearch />
                 <section className="mt-xl">
