@@ -75,7 +75,6 @@ const CustomerSearch = () => {
     );
 };
 
-
 export default function AdminDashboard() {
     const router = useRouter();
     const [isAdmin, setIsAdmin] = useState(false);
@@ -221,7 +220,6 @@ export default function AdminDashboard() {
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin Dashboard</title></Head>
-            <style jsx>{/* Your existing styles here */}</style>
             <header className="admin-header">
                 <h1>Admin Dashboard</h1>
                 <nav>
