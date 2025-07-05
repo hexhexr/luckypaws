@@ -588,3 +588,22 @@ table tbody tr:hover { background-color: var(--input-bg); }
 .method-card-icon { font-size: 1.5rem; }
 .method-card-title { font-weight: 600; font-size: 1rem; }
 .method-card-desc { font-size: 0.8rem; color: var(--text-light); }
+/* Add these new rules to the bottom of src/styles/globals.css */
+
+/* -- Toast Notification -- */
+.toast-notification { position: fixed; bottom: 20px; right: 20px; display: flex; align-items: center; padding: 12px 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); z-index: 9999; min-width: 300px; border-left: 5px solid; animation: toast-in 0.5s ease; }
+@keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.toast-notification.success { background-color: var(--success-light-bg); border-color: var(--primary-green); }
+.toast-notification.warning { background-color: var(--warning-light-bg); border-color: var(--orange); }
+.toast-icon { font-size: 1.5rem; margin-right: 15px; }
+.toast-title { font-weight: bold; margin: 0; }
+.toast-message { margin: 0; color: var(--text-secondary); }
+.toast-close-btn { position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-light); }
+
+/* -- Customer Quick View Popover -- */
+.quick-view-popover { background: white; border: 1px solid var(--border-subtle); border-radius: var(--border-radius); box-shadow: var(--shadow-md); padding: var(--spacing-md); width: 280px; }
+.popover-title { margin-top: 0; font-size: 1.1rem; }
+.popover-close-btn { position: absolute; top: 5px; right: 8px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-light); }
+
+/* -- Modal Action Buttons -- */
+.modal-actions { display: flex; justify-content: flex-end; gap: 1rem; }

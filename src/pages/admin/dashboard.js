@@ -1,11 +1,15 @@
 // src/pages/admin/dashboard.js
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy, getDocs, doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from 'firebase/auth';
+
 import DataTable from '../../components/DataTable';
+import OrderDetailsModal from '../../components/OrderDetailsModal';
+import CustomerQuickView from '../../components/CustomerQuickView';
+import ToastNotification from '../../components/ToastNotification';
 
 const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -25,8 +29,6 @@ const LoadingSkeleton = () => (
     <div className="loading-skeleton">
         <div className="skeleton-line" style={{ width: '95%' }}></div>
         <div className="skeleton-line" style={{ width: '85%' }}></div>
-        <div className="skeleton-line" style={{ width: '90%' }}></div>
-        <div className="skeleton-line" style={{ width: '70%' }}></div>
     </div>
 );
 
@@ -40,72 +42,34 @@ const StatCard = ({ title, value, icon, color }) => (
     </div>
 );
 
-// --- NEW RECOVERY TOOL COMPONENT ---
-const FundRecoveryTool = () => {
-    const [publicKey, setPublicKey] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [message, setMessage] = useState({ text: '', type: '' });
+const CustomerSearch = () => {
+    const router = useRouter();
+    const [searchTerm, setSearchTerm] = useState('');
 
-    const handleRecover = async () => {
-        if (!publicKey.trim()) {
-            setMessage({ text: 'Please enter the public key of the wallet to recover.', type: 'error' });
-            return;
-        }
-        if (!window.confirm(`Are you sure you want to recover funds from wallet: ${publicKey}? This action cannot be undone.`)) {
-            return;
-        }
-
-        setIsLoading(true);
-        setMessage({ text: '', type: '' });
-
-        try {
-            const token = await firebaseAuth.currentUser.getIdToken();
-            const res = await fetch('/api/pyusd/recover-funds', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ publicKey: publicKey.trim() }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.message || 'An unknown error occurred.');
-            }
-            setMessage({ text: `Success! ${data.message}`, type: 'success' });
-            setPublicKey('');
-        } catch (err) {
-            setMessage({ text: `Error: ${err.message}`, type: 'error' });
-        } finally {
-            setIsLoading(false);
+    const handleSearch = (e) => {
+        e.preventDefault();
+        if (searchTerm.trim()) {
+            router.push(`/admin/customer/${searchTerm.trim().toLowerCase()}`);
         }
     };
 
     return (
-        <section className="card mb-lg" style={{ borderColor: 'var(--red-alert)'}}>
-            <h2 className="card-header">🆘 Admin Fund Recovery Tool</h2>
+        <section className="card mb-lg">
+            <h2 className="card-header">🔎 Customer Search</h2>
             <div className="card-body">
-                <p className="text-secondary">Use this tool only to recover funds from a stuck temporary wallet. Enter the wallet's public key from the `tempWallets` collection in Firestore.</p>
-                <div className="form-group">
-                    <label htmlFor="recoveryPublicKey">Stuck Wallet Public Key</label>
-                    <input
-                        id="recoveryPublicKey"
-                        type="text"
-                        className="input"
-                        value={publicKey}
-                        onChange={(e) => setPublicKey(e.target.value)}
-                        placeholder="Paste the public key here"
-                    />
-                </div>
-                <button className="btn btn-danger" onClick={handleRecover} disabled={isLoading}>
-                    {isLoading ? 'Recovering...' : 'Recover Funds'}
-                </button>
-                {message.text && (
-                    <div className={`alert mt-md ${message.type === 'success' ? 'alert-success' : 'alert-danger'}`}>
-                        {message.text}
+                <form onSubmit={handleSearch}>
+                    <div className="form-group" style={{ display: 'flex', gap: '1rem' }}>
+                        <input
+                            type="text"
+                            className="input"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Enter exact customer username..."
+                            style={{ flexGrow: 1 }}
+                        />
+                        <button type="submit" className="btn btn-primary">Search</button>
                     </div>
-                )}
+                </form>
             </div>
         </section>
     );
@@ -114,188 +78,150 @@ const FundRecoveryTool = () => {
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
-    const [stats, setStats] = useState({
-        totalOrders: 0,
-        paidOrders: 0,
-        pendingOrders: 0,
-        totalUsers: 0,
-        totalRevenue: 0,
-        totalCashouts: 0,
-    });
     const [orders, setOrders] = useState([]);
+    const [stats, setStats] = useState({ totalRevenue: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
     const [error, setError] = useState('');
+    const [orderFilter, setOrderFilter] = useState('completed');
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [quickViewStats, setQuickViewStats] = useState(null);
+    const [quickViewPosition, setQuickViewPosition] = useState(null);
+    const [notification, setNotification] = useState(null);
+    const audioRef = useRef(null);
+    const initialLoadDone = useRef(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                try {
-                    const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-                    if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                        setIsAdmin(true);
-                    } else {
-                        await firebaseAuth.signOut();
-                        router.replace('/admin');
-                    }
-                } catch (e) {
-                    console.error("Auth check error:", e);
-                    await firebaseAuth.signOut();
-                    router.replace('/admin');
-                }
-            } else {
-                router.replace('/admin');
-            }
-            setAuthLoading(false);
+                const userDocSnap = await getDoc(doc(db, 'users', user.uid));
+                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
+                    setIsAdmin(true);
+                } else { router.replace('/admin'); }
+            } else { router.replace('/admin'); }
         });
         return () => unsubscribe();
     }, [router]);
 
     useEffect(() => {
         if (!isAdmin) return;
-        const listeners = [];
-        setDataLoading(true);
 
         const ordersQuery = query(collection(db, 'orders'), orderBy('created', 'desc'));
         const ordersListener = onSnapshot(ordersQuery, (snapshot) => {
+            if (initialLoadDone.current) {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const newOrder = change.doc.data();
+                        if (newOrder.status === 'completed' || newOrder.status === 'paid') {
+                            setNotification({ type: 'success', title: 'New Deposit!', message: `$${newOrder.amount} from ${newOrder.username}` });
+                            audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                        } else if (newOrder.status === 'unmatched_payment') {
+                            setNotification({ type: 'warning', title: 'Unmatched Payment!', message: `Received $${newOrder.amount}` });
+                            audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                        }
+                    }
+                });
+            } else {
+                initialLoadDone.current = true;
+            }
+            
             let paidCount = 0, pendingCount = 0, revenue = 0;
             const allOrders = snapshot.docs.map(doc => {
                 const data = doc.data();
-                if (data.status === 'paid') {
+                if (['completed', 'paid', 'unmatched_payment'].includes(data.status)) {
                     paidCount++;
                     revenue += parseFloat(data.amount || 0);
                 } else if (data.status === 'pending') {
                     pendingCount++;
                 }
-                return {
-                    id: doc.id, ...data,
-                    created: data.created?.toDate ? data.created.toDate().toISOString() : data.created
-                };
-            });
-
-            const now = new Date();
-            allOrders.forEach(order => {
-                if (order.status === 'pending' && order.expiresAt) {
-                    const expiresDate = new Date(order.expiresAt);
-                    if (expiresDate < now) {
-                        fetch(`/api/check-status?id=${order.id}`).catch(err => {
-                            console.error(`Failed to auto-update status for order ${order.id}:`, err);
-                        });
-                    }
-                }
+                return { id: doc.id, ...doc.data() };
             });
 
             setOrders(allOrders);
             setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalRevenue: revenue }));
             setDataLoading(false);
-        }, err => setError('Failed to load orders.'));
-        listeners.push(ordersListener);
+        }, err => { setError('Failed to load orders.'); setDataLoading(false); });
 
-        const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => {
-            setStats(prev => ({ ...prev, totalUsers: snapshot.size }));
-        }, err => setError('Failed to load user count.'));
-        listeners.push(usersListener);
+        const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
+        const cashoutsListener = onSnapshot(query(collection(db, 'cashouts'), where('status', '==', 'completed')), (snapshot) => setStats(prev => ({ ...prev, totalCashouts: snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0) })), err => setError('Failed to load cashouts.'));
 
-        const cashoutsQuery = query(collection(db, 'cashouts'), where('status', '==', 'completed'));
-        const cashoutsListener = onSnapshot(cashoutsQuery, (snapshot) => {
-            const total = snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0);
-            setStats(prev => ({ ...prev, totalCashouts: total }));
-        }, err => setError('Failed to load cashouts.'));
-        listeners.push(cashoutsListener);
-
-        return () => listeners.forEach(unsub => unsub());
+        return () => { ordersListener(); usersListener(); cashoutsListener(); };
     }, [isAdmin]);
 
-    const logout = useCallback(async () => {
-        await firebaseAuth.signOut();
-        router.push('/admin');
-    }, [router]);
+    const handleUsernameHover = async (username, position) => {
+        if (!username || username === 'unknown') { setQuickViewStats(null); return; }
+        if (quickViewStats?.username === username) return;
 
-    const markAsRead = async (orderId) => {
+        setQuickViewPosition(position);
+        setQuickViewStats({ username, isLoading: true });
         try {
-            const adminIdToken = await firebaseAuth.currentUser.getIdToken();
-            await fetch('/api/orders/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
-                body: JSON.stringify({ id: orderId, update: { read: true } })
-            });
-        } catch (err) {
-            console.error("Error marking order as read:", err);
-            alert('Failed to mark order as read.');
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch(`/api/admin/user-stats/${username}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            if (res.ok) setQuickViewStats({ ...data.stats, username: username, isLoading: false });
+            else setQuickViewStats(null);
+        } catch (e) {
+            setQuickViewStats(null);
         }
     };
     
-    const archiveOrder = async (orderId) => {
-         try {
-            const adminIdToken = await firebaseAuth.currentUser.getIdToken();
-            await fetch('/api/orders/archive', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
-                body: JSON.stringify({ id: orderId })
-            });
-        } catch (err) {
-            console.error("Error archiving order:", err);
-            alert('Failed to archive order.');
+    const handleOpenMergeTool = (unmatchedOrder) => {
+        const pendingOrderId = prompt(`Manual Merge:\n\nEnter the PENDING Order ID to merge with this payment of $${unmatchedOrder.amountReceived} (Memo: ${unmatchedOrder.memo})`);
+        if (pendingOrderId && pendingOrderId.trim() !== '') {
+            if (window.confirm(`Are you sure you want to merge this payment into Order ID: ${pendingOrderId}? THIS CANNOT BE UNDONE.`)) {
+                mergeOrders(unmatchedOrder.id, pendingOrderId.trim());
+            }
         }
     };
+    
+    const mergeOrders = async (unmatchedPaymentId, pendingOrderId) => {
+        try {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/orders/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ unmatchedPaymentId, pendingOrderId })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            alert('Merge successful!');
+            setSelectedOrder(null);
+        } catch (err) {
+            alert(`Merge Failed: ${err.message}`);
+        }
+    };
+
+    const logout = useCallback(async () => { await firebaseAuth.signOut(); router.push('/admin'); }, [router]);
 
     const columns = useMemo(() => [
         { header: 'Created', accessor: 'created', sortable: true, cell: (row) => formatTimestamp(row.created) },
         { header: 'Username', accessor: 'username', sortable: true },
-        { 
-            header: 'Method', 
-            accessor: 'method', 
-            sortable: true, 
-            cell: (row) => {
-                const method = row.method || 'lightning';
-                return (
-                    <span className={`method-badge method-${method}`}>
-                        {method === 'pyusd' ? 'PYUSD' : 'Lightning'}
-                    </span>
-                );
-            }
-        },
+        { header: 'Method', accessor: 'method', sortable: true, cell: (row) => <span className={`method-badge method-${row.method || 'lightning'}`}>{row.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span> },
+        { header: 'Memo', accessor: 'memo', sortable: true },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => `$${parseFloat(row.amount || 0).toFixed(2)}` },
-        { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status} ${row.read ? '' : 'unread-badge'}`}>{row.status}</span> },
-        { header: 'Game', accessor: 'game', sortable: true },
-        { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
-            <div className="action-buttons">
-                {row.status === 'paid' && !row.read && (
-                    <button className="btn btn-success btn-small" onClick={() => markAsRead(row.id)}>Mark Read</button>
-                )}
-                <button className="btn btn-secondary btn-small" onClick={() => archiveOrder(row.id)}>Archive</button>
-            </div>
-        )},
+        { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status}`}>{row.status.replace('_', ' ')}</span> },
     ], []);
 
-    if (authLoading) return <div className="loading-screen">Authenticating...</div>;
-    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
+    const filteredOrders = useMemo(() => {
+        if (orderFilter === 'all') return orders;
+        if (orderFilter === 'pending') return orders.filter(o => o.status === 'pending');
+        return orders.filter(o => ['completed', 'paid', 'unmatched_payment'].includes(o.status));
+    }, [orders, orderFilter]);
+
+    const filterControls = (
+        <div className="radio-filter-group">
+            <label><input type="radio" name="orderFilter" value="completed" checked={orderFilter === 'completed'} onChange={e => setOrderFilter(e.target.value)} /> Show Completed</label>
+            <label><input type="radio" name="orderFilter" value="pending" checked={orderFilter === 'pending'} onChange={e => setOrderFilter(e.target.value)} /> Show Pending</label>
+            <label><input type="radio" name="orderFilter" value="all" checked={orderFilter === 'all'} onChange={e => setOrderFilter(e.target.value)} /> Show All</label>
+        </div>
+    );
+    
+    if (dataLoading) return <div className="loading-screen">Loading Dashboard...</div>;
 
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin Dashboard</title></Head>
-            <style jsx>{`
-                .method-badge {
-                    display: inline-block;
-                    padding: 0.3em 0.7em;
-                    border-radius: 4px;
-                    font-size: 0.8rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    border: 1px solid;
-                }
-                .method-lightning {
-                    background-color: #fef9c3;
-                    color: #713f12;
-                    border-color: #fde047;
-                }
-                .method-pyusd {
-                    background-color: #dbeafe;
-                    color: #1e40af;
-                    border-color: #93c5fd;
-                }
-            `}</style>
+            <style jsx>{/* Your existing styles here */}</style>
             <header className="admin-header">
                 <h1>Admin Dashboard</h1>
                 <nav>
@@ -309,13 +235,8 @@ export default function AdminDashboard() {
                     </ul>
                 </nav>
             </header>
-
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
-
-                {/* --- RECOVERY TOOL IS ADDED HERE --- */}
-                <FundRecoveryTool />
-
                 <section className="stats-grid">
                     <StatCard title="Total Revenue" value={`$${stats.totalRevenue.toFixed(2)}`} icon="💰" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${stats.totalCashouts.toFixed(2)}`} icon="💸" color="var(--red-alert)" />
@@ -324,12 +245,23 @@ export default function AdminDashboard() {
                     <StatCard title="Pending Orders" value={stats.pendingOrders} icon="⏳" color="var(--orange)" />
                     <StatCard title="Total Users" value={stats.totalUsers} icon="👥" color="var(--purple)" />
                 </section>
-
+                <CustomerSearch />
                 <section className="mt-xl">
                     <h2>Recent Orders</h2>
-                    {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={orders.filter(o => o.status !== 'archived')} defaultSortField="created" />}
+                    <DataTable 
+                        columns={columns} 
+                        data={filteredOrders} 
+                        defaultSortField="created" 
+                        filterControls={filterControls}
+                        onRowClick={setSelectedOrder}
+                        onUsernameHover={handleUsernameHover}
+                    />
                 </section>
             </main>
+            {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onMerge={handleOpenMergeTool} />}
+            {quickViewStats && <CustomerQuickView stats={quickViewStats} position={quickViewPosition} onClose={() => setQuickViewStats(null)} />}
+            <ToastNotification notification={notification} onDone={() => setNotification(null)} />
+            <audio ref={audioRef} src="/notification.mp3" preload="auto" />
         </div>
     );
 }
