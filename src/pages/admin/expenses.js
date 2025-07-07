@@ -12,6 +12,22 @@ const formatCurrency = (amount) => {
     return isNaN(numAmount) ? '$0.00' : `$${numAmount.toFixed(2)}`;
 };
 
+// Helper function to format date from Firestore Timestamp
+const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    if (timestamp.toDate) { // Check if it's a Firestore Timestamp
+        return timestamp.toDate().toLocaleDateString();
+    }
+    // Fallback for strings
+    try {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return date.toLocaleDateString();
+    } catch(e) {
+        return "N/A";
+    }
+};
+
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
         {[...Array(5)].map((_, i) => <div key={i} className="skeleton-line" style={{ width: `${90 - i*5}%`}}></div>)}
@@ -96,7 +112,7 @@ export default function AdminExpenses() {
     }, [router]);
 
     const columns = useMemo(() => [
-        { header: 'Date', accessor: 'date', sortable: true },
+        { header: 'Date', accessor: 'date', sortable: true, cell: (row) => formatDate(row.date) },
         { header: 'Category', accessor: 'category', sortable: true },
         { header: 'Description', accessor: 'description', sortable: true },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrency(row.amount) },
@@ -118,9 +134,9 @@ export default function AdminExpenses() {
                 <nav>
                     <ul className="admin-nav">
                         <li><a href="/admin/dashboard">Dashboard</a></li>
-                        <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
+                        <li><a href="/admin/expenses" className="active">Expenses</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
                         <li><a href="/admin/agents">Agents</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
