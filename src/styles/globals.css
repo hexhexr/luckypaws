@@ -747,3 +747,39 @@ table tbody tr:hover { background-color: var(--input-bg); }
     gap: 1rem;
     margin-top: var(--spacing-lg); /* Added margin-top */
 }
+
+/* --- Refined Amount Display --- */
+.amount-display-large {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+    color: var(--text-dark);
+}
+.amount-display-large .usd-amount {
+    font-size: 2.5rem; /* Larger font size */
+    font-weight: 700;
+    color: var(--primary-green);
+    display: block; /* Make it a block to take full width */
+    line-height: 1.2;
+}
+.amount-display-large .currency-label {
+    font-size: 1rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* --- Input Group for Copy Buttons --- */
+.input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+.input-group .input {
+    flex-grow: 1;
+    margin-bottom: 0; /* Remove margin from input inside the group */
+}
+.input-group .btn {
+    flex-shrink: 0; /* Prevent button from shrinking */
+}
