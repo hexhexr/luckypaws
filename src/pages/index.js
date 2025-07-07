@@ -1,5 +1,5 @@
 // src/pages/index.js
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -7,6 +7,13 @@ import PaymentForm from '../components/PaymentForm';
 
 export default function Home() {
   const paymentFormRef = useRef(null);
+
+  useEffect(() => {
+    // Automatically scroll to the payment form on page load
+    if (paymentFormRef.current) {
+      paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const scrollToPayment = () => {
     if (paymentFormRef.current) {
