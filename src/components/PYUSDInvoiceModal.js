@@ -53,14 +53,15 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
             <div className="modal">
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
-                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>Deposit PYUSD on Solana</h2>
+                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>PYUSD Deposit</h2>
                 
-                <div className="alert alert-warning" style={{ textAlign: 'left' }}>
-                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>6-Digit Memo</strong> in your transaction. Without it, your deposit will be lost.
+                <div className="amount-display-large mb-md">
+                    <span className="usd-amount"><strong>${order.amount}</strong></span>
+                    <span className="currency-label">USD on Solana</span>
                 </div>
 
-                <div className="info-section mt-md">
-                    <p><strong>Send Amount:</strong> <span>${order.amount} USD</span></p>
+                <div className="alert alert-warning" style={{ textAlign: 'left' }}>
+                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>6-Digit Memo</strong> in your transaction.
                 </div>
 
                 <div className="qr-container mt-md mb-md">
@@ -68,7 +69,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                 </div>
                 
                 <div className="form-group">
-                    <label>To Address (Your Main Wallet)</label>
+                    <label>To Address</label>
                     <div className="input-group">
                         <input type="text" className="input" readOnly value={order.depositAddress} />
                         <button className="btn btn-secondary" onClick={() => handleCopy(order.depositAddress, 'address')}>{copiedAddress ? 'Copied!' : 'Copy'}</button>

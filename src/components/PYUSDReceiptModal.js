@@ -10,9 +10,9 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
                 <h2 className="modal-title text-success">✅ Payment Received</h2>
 
-                <div className="amount-display mb-md">
-                    <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
-                    <span className="btc-amount">PYUSD on Solana</span>
+                <div className="amount-display-large mb-md">
+                    <span className="usd-amount"><strong>${order.amount}</strong></span>
+                    <span className="currency-label">USD on Solana</span>
                 </div>
 
                 <div className="info-section mb-md">
