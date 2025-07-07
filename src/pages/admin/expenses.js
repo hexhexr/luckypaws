@@ -34,13 +34,13 @@ export default function AdminExpenses() {
     const [error, setError] = useState('');
     
     const [expenses, setExpenses] = useState([]);
-    const [partners, setPartners] = useState([]); // State for partners
+    const [partners, setPartners] = useState([]);
     const [newExpense, setNewExpense] = useState({ 
         date: new Date().toISOString().split('T')[0], 
         category: 'General', 
         amount: '', 
         description: '',
-        paidByPartnerId: '' // New field
+        paidByPartnerId: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,19 +72,18 @@ export default function AdminExpenses() {
 
         const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
         const expensesUnsubscribe = onSnapshot(expensesQuery, (snapshot) => {
-            setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const expenseData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setExpenses(expenseData);
             setDataLoading(false);
         }, (err) => {
             setError("Failed to load expense data.");
             setDataLoading(false);
         });
 
-        // Fetch partners for the dropdown
         const partnersQuery = query(collection(db, "partners"), orderBy("name"));
         const partnersUnsubscribe = onSnapshot(partnersQuery, (snapshot) => {
             setPartners(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
-
 
         return () => {
             expensesUnsubscribe();
@@ -118,7 +117,8 @@ export default function AdminExpenses() {
             setIsSubmitting(false);
         }
     };
-
+    
+    // ... (keep handleEditExpense, handleSaveExpense, handleDeleteExpense, logout functions)
     const handleEditExpense = (expense) => {
         setEditingExpense(expense);
     };
@@ -126,8 +126,6 @@ export default function AdminExpenses() {
     const handleSaveExpense = async (updatedExpense) => {
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
-            // Note: The edit functionality does not currently support changing the "Paid By" field
-            // to prevent complex ledger adjustments. A more advanced implementation could handle this.
             const res = await fetch('/api/admin/expenses/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
@@ -143,15 +141,14 @@ export default function AdminExpenses() {
     };
 
     const handleDeleteExpense = async (expenseId) => {
-        // Deleting expenses tied to partners should be handled with care.
-        // For now, this is disabled to prevent accidental data inconsistency.
-        alert("Deletion of expenses tied to partner funds is not yet supported to ensure data integrity.");
+        alert("To maintain ledger integrity, please contact support to handle expense deletions.");
     };
     
     const logout = useCallback(async () => {
         await firebaseAuth.signOut();
         router.push('/admin');
     }, [router]);
+
 
     const filteredExpenses = useMemo(() => {
         return expenses.filter(expense => {
@@ -205,75 +202,86 @@ export default function AdminExpenses() {
                             <li><a href="/admin/dashboard">Dashboard</a></li>
                             <li><a href="/admin/expenses" className="active">Expenses</a></li>
                             <li><a href="/admin/partners">Partners</a></li>
-                            {/* ... other nav links */}
+                            <li><a href="/admin/cashouts">Cashouts</a></li>
+                            <li><a href="/admin/games">Games</a></li>
+                            <li><a href="/admin/agents">Agents</a></li>
+                            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                         </ul>
                     </nav>
                 </header>
                 <main className="admin-main-content">
                     {error && <div className="alert alert-danger mb-lg">{error}</div>}
                     
-                    <div className="expenses-layout">
-                        <div className="expense-form-column">
-                            <section className="card">
-                                <h2 className="card-header">Add New Expense</h2>
-                                <div className="card-body">
-                                    <form onSubmit={handleNewExpenseSubmit}>
-                                        <div className="form-group">
-                                            <label>Paid By</label>
-                                            <select name="paidByPartnerId" className="select" value={newExpense.paidByPartnerId} onChange={handleNewExpenseChange}>
-                                                <option value="">Office Account</option>
-                                                {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
-                                        </div>
-                                        {/* ... other form fields ... */}
-                                        <div className="form-group">
-                                            <label>Date</label>
-                                            <input type="date" name="date" className="input" value={newExpense.date} onChange={handleNewExpenseChange} required />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Category</label>
-                                            <select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required>
-                                                <option>General</option>
-                                                <option>Salary</option>
-                                                <option>Wages</option>
-                                                <option>Office Supplies</option>
-                                                <option>Rent</option>
-                                                <option>Utilities</option>
-                                                <option>Marketing</option>
-                                                <option>Other</option>
-                                            </select>
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Amount (USD)</label>
-                                            <input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/>
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Description</label>
-                                            <textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required placeholder="e.g., Monthly office rent" rows="3"></textarea>
-                                        </div>
-                                        <button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add Expense'}</button>
-                                    </form>
+                    <section className="card mb-lg">
+                        <h2 className="card-header">Add New Expense</h2>
+                        <div className="card-body">
+                            <form onSubmit={handleNewExpenseSubmit}>
+                                <div className="expense-form-grid">
+                                    <div className="form-group">
+                                        <label>Paid By</label>
+                                        <select name="paidByPartnerId" className="select" value={newExpense.paidByPartnerId} onChange={handleNewExpenseChange}>
+                                            <option value="">Office Account</option>
+                                            {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Date</label>
+                                        <input type="date" name="date" className="input" value={newExpense.date} onChange={handleNewExpenseChange} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Category</label>
+                                        <select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required>
+                                            <option>General</option>
+                                            <option>Salary</option>
+                                            <option>Wages</option>
+                                            <option>Office Supplies</option>
+                                            <option>Rent</option>
+                                            <option>Utilities</option>
+                                            <option>Marketing</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Amount (USD)</label>
+                                        <input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/>
+                                    </div>
+                                    <div className="form-group expense-form-description">
+                                        <label>Description</label>
+                                        <textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required placeholder="Provide a detailed description..." rows="4"></textarea>
+                                    </div>
+                                    <div className="form-group expense-form-submit">
+                                        <button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Expense'}</button>
+                                    </div>
                                 </div>
-                            </section>
+                            </form>
                         </div>
-                        <div className="expense-log-column">
-                             {/* ... filter and log sections ... */}
+                    </section>
+
+                    <section className="card mb-lg">
+                        <div className="card-header">
+                            <h2>Expense Log</h2>
                         </div>
-                    </div>
+                        <div className="card-body">
+                             <div className="filter-controls">
+                                <div className="form-group">
+                                    <label>Filter From</label>
+                                    <input type="date" className="input" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Filter To</label>
+                                    <input type="date" className="input" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="stat-card" style={{borderColor: 'var(--red-alert)', marginBottom: '1rem'}}>
+                                <h4 className="stat-card-title">Total for Selected Period</h4>
+                                <h2 className="stat-card-value">{formatCurrency(totalFilteredExpenses)}</h2>
+                            </div>
+                            {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" />}
+                        </div>
+                    </section>
                 </main>
             </div>
-            <style jsx>{`
-                .expenses-layout {
-                    display: grid;
-                    grid-template-columns: 350px 1fr;
-                    gap: var(--spacing-lg);
-                }
-                @media (max-width: 992px) {
-                    .expenses-layout {
-                        grid-template-columns: 1fr;
-                    }
-                }
-            `}</style>
         </>
     );
 }

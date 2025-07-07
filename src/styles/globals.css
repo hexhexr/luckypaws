@@ -819,3 +819,49 @@ table tbody tr:hover { background-color: var(--input-bg); }
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: 0.85rem;
 }
+
+/* --- New Expense Page Layout --- */
+.expense-form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-md);
+    align-items: flex-start;
+}
+
+.expense-form-description {
+    grid-column: span 4;
+}
+
+.expense-form-submit {
+    grid-column: span 4;
+}
+
+.filter-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+
+@media (max-width: 768px) {
+    .expense-form-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .expense-form-description {
+        grid-column: span 2;
+    }
+    .expense-form-submit {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 576px) {
+    .expense-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .expense-form-description,
+    .expense-form-submit {
+        grid-column: span 1;
+    }
+}
