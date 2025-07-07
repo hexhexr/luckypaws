@@ -115,8 +115,7 @@ export default function PaymentForm() {
     <div className="payment-form-card">
         <h2 className="card-subtitle text-center mb-xl" style={{ color: 'var(--primary-green)' }}>Top Up Your Account</h2>
         <form onSubmit={handleSubmit}>
-            <fieldset className="form-fieldset">
-                <legend className="fieldset-legend">Player & Game Info</legend>
+            <div className="form-grid">
                 <div className="form-group">
                     <label htmlFor="username">Username</label>
                     <input id="username" className="input" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
@@ -128,39 +127,37 @@ export default function PaymentForm() {
                         {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
                     </select>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset className="form-fieldset">
-                <legend className="fieldset-legend">Amount & Method</legend>
-                <div className="form-group">
-                    <label htmlFor="amount">Amount (USD)</label>
-                    <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
+            <div className="form-group">
+                <label>Payment Method</label>
+                <div className="payment-method-group">
+                    <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
+                        <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                        <div className="method-card-content">
+                            <span className="method-card-icon">⚡</span>
+                            <span className="method-card-title">Lightning</span>
+                            <span className="method-card-desc">Instant & Anonymous</span>
+                        </div>
+                    </label>
+                    <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
+                        <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                        <div className="method-card-content">
+                            <span className="method-card-icon">🅿️</span>
+                            <span className="method-card-title">PYUSD</span>
+                            <span className="method-card-desc">PayPal / Venmo</span>
+                        </div>
+                    </label>
                 </div>
-                <div className="form-group">
-                    <label>Payment Method</label>
-                    <div className="payment-method-group">
-                        <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
-                            <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                            <div className="method-card-content">
-                                <span className="method-card-icon">⚡</span>
-                                <span className="method-card-title">Lightning</span>
-                                <span className="method-card-desc">Instant & Anonymous</span>
-                            </div>
-                        </label>
-                        <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
-                            <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                            <div className="method-card-content">
-                                <span className="method-card-icon">🅿️</span>
-                                <span className="method-card-title">PYUSD</span>
-                                <span className="method-card-desc">PayPal / Venmo</span>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-            </fieldset>
+            </div>
+
+            <div className="form-group">
+                <label htmlFor="amount">Amount (USD)</label>
+                <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
+            </div>
 
             <button className="btn btn-primary btn-full-width mt-lg" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
-                {loading ? 'Generating...' : form.method === 'lightning' ? 'Generate Invoice' : 'Get Deposit Address'}
+                {loading ? 'Processing...' : 'Proceed to Payment'}
             </button>
         </form>
         {error && <div className="alert alert-danger mt-md">{error}</div>}
