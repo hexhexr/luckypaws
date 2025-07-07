@@ -302,6 +302,7 @@ export default function AdminCashouts() {
                         <li><a href="/admin/dashboard">Dashboard</a></li>
                         <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
+	      <li><a href="/admin/expenses">Expenses</a></li>
                         <li><a href="/admin/agents">Agents</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
