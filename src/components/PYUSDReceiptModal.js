@@ -6,13 +6,13 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
 
     return (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-            <div className="modal">
+            <div className="modal modal-compact">
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
                 <h2 className="modal-title text-success">✅ Payment Received</h2>
 
                 <div className="amount-display-large mb-md">
-                    <span className="usd-amount"><strong>${order.amount}</strong></span>
-                    <span className="currency-label">USD on Solana</span>
+                    <span className="usd-amount">${order.amount}</span>
+                    <span className="currency-label">USD</span>
                 </div>
 
                 <div className="info-section mb-md">
@@ -25,7 +25,7 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                     Your account has been credited. Thank you!
                 </p>
 
-                <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
+                <button className="btn btn-primary mt-lg" onClick={resetModals}>Done</button>
             </div>
         </div>
     );

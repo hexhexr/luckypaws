@@ -11,7 +11,7 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
         if (depositAddress) {
-            QRCodeLib.toDataURL(depositAddress, { errorCorrectionLevel: 'M', width: 180, margin: 2 })
+            QRCodeLib.toDataURL(depositAddress, { errorCorrectionLevel: 'M', width: 160, margin: 2 })
                 .then(setQrCodeDataUrl)
                 .catch(err => console.error('QR generation failed:', err));
         }
@@ -51,21 +51,21 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
 
     return (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-            <div className="modal">
+            <div className="modal modal-compact">
                 <button onClick={resetModals} className="modal-close-btn">&times;</button>
-                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>PYUSD Deposit</h2>
+                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>PYUSD on Solana</h2>
                 
                 <div className="amount-display-large mb-md">
-                    <span className="usd-amount"><strong>${order.amount}</strong></span>
-                    <span className="currency-label">USD on Solana</span>
+                    <span className="usd-amount">${order.amount}</span>
+                    <span className="currency-label">USD</span>
                 </div>
 
-                <div className="alert alert-warning" style={{ textAlign: 'left' }}>
-                    <strong>IMPORTANT:</strong> You MUST include the <strong style={{color: 'var(--red-alert)'}}>6-Digit Memo</strong> in your transaction.
+                <div className="alert alert-warning">
+                    <strong>Important:</strong> You must include the <strong>Memo</strong> below.
                 </div>
 
                 <div className="qr-container mt-md mb-md">
-                    {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="PYUSD Deposit QR Code" width={180} height={180} /> : <p>Generating QR code...</p>}
+                    {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="PYUSD Deposit QR Code" /> : <p>Loading QR...</p>}
                 </div>
                 
                 <div className="form-group">
@@ -84,8 +84,8 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                     </div>
                 </div>
 
-                <p className="text-center mt-lg" style={{fontSize: '0.9rem', color: 'var(--text-light)', opacity: 0.9}}>
-                    <span style={{fontSize: '1.5rem', display: 'block'}}>⏳</span>
+                <p className="text-center mt-md" style={{fontSize: '0.9rem', color: 'var(--text-light)'}}>
+                    <span style={{fontSize: '1.2rem', display: 'block'}}>⏳</span>
                     Waiting for payment...
                 </p>
             </div>
