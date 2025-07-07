@@ -21,7 +21,7 @@ const handler = async (req, res) => {
     
     await expenseRef.set({
       id: expenseRef.id,
-      date: date,
+      date: new Date(date), // Storing the date as a proper Date object
       category: category,
       amount: parseFloat(amount),
       description: description,
