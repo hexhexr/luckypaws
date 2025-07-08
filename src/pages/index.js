@@ -27,6 +27,19 @@ export default function Home() {
         <title>Lucky Paw's Fishing Room - Top Up & Play</title>
         <meta name="description" content="Top up your balance for thrilling online fishing games with instant Bitcoin Lightning and PYUSD payments." />
         <link rel="icon" href="/favicon.ico" />
+
+        {/* --- Open Graph / Social Media Meta Tags --- */}
+        <meta property="og:title" content="Lucky Paw's Fishing Room" />
+        <meta property="og:description" content="Top up your balance for thrilling online fishing games with instant Bitcoin Lightning and PYUSD payments." />
+        <meta property="og:image" content="/logo-preview.png" />
+        <meta property="og:url" content="https://luckypawsfishingroom.com" />
+        <meta property="og:type" content="website" />
+
+        {/* --- Twitter Card Meta Tags --- */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Lucky Paw's Fishing Room" />
+        <meta name="twitter:description" content="Top up your balance for thrilling online fishing games." />
+        <meta name="twitter:image" content="/logo-preview.png" />
       </Head>
 
       <Header />
