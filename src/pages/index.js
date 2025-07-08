@@ -9,7 +9,7 @@ export default function Home() {
   const paymentFormRef = useRef(null);
 
   useEffect(() => {
-    // Automatically scroll to the payment form on page load
+    // Automatically scroll to the payment form on page loadd
     if (paymentFormRef.current) {
       paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
