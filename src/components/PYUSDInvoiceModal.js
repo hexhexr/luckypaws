@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCodeLib from 'qrcode';
 
+// --- SVG Icons for the new design ---
+const CopyIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>;
+
 export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess }) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
     const [copiedAddress, setCopiedAddress] = useState(false);
@@ -11,9 +14,14 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     useEffect(() => {
         const depositAddress = order?.depositAddress || '';
         if (depositAddress) {
-            QRCodeLib.toDataURL(depositAddress, { errorCorrectionLevel: 'M', width: 160, margin: 2 })
-                .then(setQrCodeDataUrl)
-                .catch(err => console.error('QR generation failed:', err));
+            QRCodeLib.toDataURL(depositAddress, { 
+                errorCorrectionLevel: 'M', 
+                width: 220, 
+                margin: 2,
+                color: { dark: '#000000', light: '#FFFFFF' }
+            })
+            .then(setQrCodeDataUrl)
+            .catch(err => console.error('QR generation failed:', err));
         }
     }, [order?.depositAddress]);
 
@@ -22,11 +30,12 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
         pollingRef.current = setInterval(async () => {
              try {
                 const res = await fetch(`/api/pyusd/check-status?id=${order.depositId}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data?.status === 'completed') {
-                    clearInterval(pollingRef.current);
-                    onPaymentSuccess();
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data?.status === 'completed') {
+                        clearInterval(pollingRef.current);
+                        onPaymentSuccess();
+                    }
                 }
             } catch (err) {
                 console.error('PYUSD status polling error:', err);
@@ -50,44 +59,50 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     if (!order) return null;
 
     return (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-            <div className="modal modal-compact">
-                <button onClick={resetModals} className="modal-close-btn">&times;</button>
-                <h2 className="modal-title" style={{ color: 'var(--primary-blue)' }}>PYUSD on Solana</h2>
-                
-                <div className="amount-display-large mb-md">
-                    <span className="usd-amount">${order.amount}</span>
-                    <span className="currency-label">USD</span>
+        <div className="modal-backdrop">
+            <div className="modal-glassmorphic">
+                <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
+                <div className="modal-header">
+                    <h3>🅿️ PYUSD on Solana</h3>
                 </div>
-
-                <div className="alert alert-warning">
-                    <strong>Important:</strong> You must include the <strong>Memo</strong> below.
+                <div className="modal-content-grid">
+                     <div className="modal-col-left">
+                        <div className="modal-qr-container">
+                            {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="Solana Address QR Code" /> : <p>Loading QR...</p>}
+                        </div>
+                        <div className="alert alert-warning" style={{marginTop: '1rem'}}>
+                            <strong>Important:</strong> You must include the <strong>6-Digit Memo</strong> below.
+                        </div>
+                     </div>
+                     <div className="modal-col-right">
+                        <div className="modal-amount-display">
+                            <span className="modal-amount-usd">${order.amount} USD</span>
+                            <span className="modal-amount-alt">PYUSD</span>
+                        </div>
+                        <div className="modal-details-group">
+                            <h4>To Address</h4>
+                            <div className="modal-copy-group">
+                                <input type="text" readOnly value={order.depositAddress} />
+                                <button onClick={() => handleCopy(order.depositAddress, 'address')}>
+                                    <CopyIcon /> {copiedAddress ? 'Copied!' : 'Copy'}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="modal-details-group">
+                            <h4>Memo (Required)</h4>
+                             <div className="modal-copy-group">
+                                <input type="text" readOnly value={order.memo} />
+                                <button onClick={() => handleCopy(order.memo, 'memo')}>
+                                    <CopyIcon /> {copiedMemo ? 'Copied!' : 'Copy'}
+                                </button>
+                            </div>
+                        </div>
+                     </div>
                 </div>
-
-                <div className="qr-container mt-md mb-md">
-                    {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="PYUSD Deposit QR Code" /> : <p>Loading QR...</p>}
+                <div className="modal-footer">
+                   <p className="modal-waiting-text">⏳ Waiting for payment...</p>
+                   <button className="modal-action-button" onClick={resetModals}>Cancel</button>
                 </div>
-                
-                <div className="form-group">
-                    <label>To Address</label>
-                    <div className="input-group">
-                        <input type="text" className="input" readOnly value={order.depositAddress} />
-                        <button className="btn btn-secondary" onClick={() => handleCopy(order.depositAddress, 'address')}>{copiedAddress ? 'Copied!' : 'Copy'}</button>
-                    </div>
-                </div>
-
-                <div className="form-group">
-                    <label>6-Digit Memo (Required)</label>
-                     <div className="input-group">
-                        <input type="text" className="input" readOnly value={order.memo} />
-                        <button className="btn btn-secondary" onClick={() => handleCopy(order.memo, 'memo')}>{copiedMemo ? 'Copied!' : 'Copy'}</button>
-                    </div>
-                </div>
-
-                <p className="text-center mt-md" style={{fontSize: '0.9rem', color: 'var(--text-light)'}}>
-                    <span style={{fontSize: '1.2rem', display: 'block'}}>⏳</span>
-                    Waiting for payment...
-                </p>
             </div>
         </div>
     );

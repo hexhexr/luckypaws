@@ -3,136 +3,126 @@ import React, { useState, useEffect, useRef } from 'react';
 import QRErrorBoundary from './QRErrorBoundary';
 import QRCodeLib from 'qrcode';
 
-export default function InvoiceModal({ order, expiresAt, setCopied, copied, resetModals, isValidQRValue }) {
-  const [countdown, setCountdown] = useState(0);
-  const [isExpired, setIsExpired] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
-  const timerIntervalRef = useRef(null);
+// --- SVG Icons for the new design ---
+const ClockIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
+const CopyIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>;
 
-  // Effect for countdown timer
-  useEffect(() => {
-    // If expiresAt is not provided or invalid, treat as expired
-    if (!expiresAt || typeof expiresAt !== 'number' || expiresAt <= 0) {
-      setCountdown(0);
-      setIsExpired(true);
-      return;
-    }
+export default function InvoiceModal({ order, expiresAt, resetModals }) {
+    const [countdown, setCountdown] = useState('');
+    const [isExpired, setIsExpired] = useState(false);
+    const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+    const [copied, setCopied] = useState(false);
+    const timerIntervalRef = useRef(null);
 
-    const calculateRemaining = () => {
-      const now = Date.now(); // Current client time in milliseconds
-      // Calculate remaining time in seconds
-      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
-      setCountdown(remaining);
+    // Effect for countdown timer
+    useEffect(() => {
+        if (!expiresAt || typeof expiresAt !== 'number' || expiresAt <= 0) {
+            setCountdown('Expired');
+            setIsExpired(true);
+            return;
+        }
 
-      if (remaining <= 0) {
-        clearInterval(timerIntervalRef.current);
-        setIsExpired(true);
-      } else {
-        setIsExpired(false);
-      }
+        const calculateRemaining = () => {
+            const now = Date.now();
+            const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+            
+            if (remaining <= 0) {
+                clearInterval(timerIntervalRef.current);
+                setIsExpired(true);
+                setCountdown('Expired');
+            } else {
+                const min = Math.floor(remaining / 60);
+                const sec = String(remaining % 60).padStart(2, '0');
+                setCountdown(`${min}:${sec}`);
+                setIsExpired(false);
+            }
+        };
+
+        calculateRemaining();
+        timerIntervalRef.current = setInterval(calculateRemaining, 1000);
+
+        return () => clearInterval(timerIntervalRef.current);
+    }, [expiresAt]);
+
+    // Effect for QR code generation
+    useEffect(() => {
+        const invoiceText = order?.invoice || '';
+        if (invoiceText && !isExpired) {
+            QRCodeLib.toDataURL(invoiceText, {
+                errorCorrectionLevel: 'M',
+                width: 220,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            })
+            .then(setQrCodeDataUrl)
+            .catch(err => {
+                console.error('Failed to generate QR code:', err);
+                setQrCodeDataUrl('');
+            });
+        } else {
+            setQrCodeDataUrl('');
+        }
+    }, [order?.invoice, isExpired]);
+
+    const handleCopyToClipboard = () => {
+        const text = order?.invoice || '';
+        if (!text || isExpired) return;
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }).catch(err => {
+            console.error('Failed to copy invoice:', err);
+        });
     };
 
-    // Set initial countdown immediately
-    calculateRemaining();
-    // Set up interval to update countdown every second
-    timerIntervalRef.current = setInterval(calculateRemaining, 1000);
+    if (!order) return null;
 
-    // Cleanup function to clear interval when component unmounts or deps change
-    return () => {
-      clearInterval(timerIntervalRef.current);
-    };
-  }, [expiresAt]); // Re-run effect if expiresAt changes
-
-  // Effect for QR code generation
-  useEffect(() => {
-    const invoiceText = order?.invoice || '';
-    if (invoiceText && isValidQRValue(invoiceText) && !isExpired) { // Only generate QR if valid and not expired
-      QRCodeLib.toDataURL(invoiceText, {
-        errorCorrectionLevel: 'M',
-        width: 140,
-        margin: 2,
-      })
-      .then(url => {
-        setQrCodeDataUrl(url);
-      })
-      .catch(err => {
-        console.error('Failed to generate QR code data URL in InvoiceModal:', err);
-        setQrCodeDataUrl('');
-      });
-    } else {
-      setQrCodeDataUrl(''); // Clear QR if no invoice, invalid, or expired
-    }
-  }, [order?.invoice, isValidQRValue, isExpired]); // Add isExpired to dependencies for QR generation
-
-  const formatTime = sec => {
-    if (sec < 0) return '0:00';
-    const min = Math.floor(sec / 60);
-    const s = String(sec % 60).padStart(2, '0');
-    return `${min}:${s}`;
-  };
-
-  const handleCopyToClipboard = () => {
-    const text = order?.invoice || '';
-    if (!text || isExpired) return; // Prevent copying if expired
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(err => {
-        console.error('Failed to copy in InvoiceModal:', err);
-    });
-  };
-
-  if (!order) return null; // Don't render if no order data
-
-  const invoiceText = order.invoice || '';
-
-  return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-      <div className="modal">
-        <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-        <h2 className="modal-title" style={{ color: 'var(--primary-green)' }}>Complete Payment</h2>
-
-        <div className="invoice-countdown" data-testid="countdown-timer">
-          {isExpired ? (
-            <span style={{color: 'red', fontWeight: 'bold'}}>Invoice Expired!</span>
-          ) : (
-            `Expires in: ${formatTime(countdown)}`
-          )}
+    return (
+        <div className="modal-backdrop">
+            <div className="modal-glassmorphic">
+                <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
+                <div className="modal-header">
+                    <h3>⚡ Complete Your Payment</h3>
+                </div>
+                <div className="modal-content-grid">
+                    <div className="modal-col-left">
+                         <QRErrorBoundary fallback={<p className="alert alert-danger">⚠️ Could not display QR code.</p>}>
+                            <div className="modal-qr-container">
+                                {qrCodeDataUrl && !isExpired ? (
+                                    <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" />
+                                ) : (
+                                    <div className="modal-qr-expired">QR Expired</div>
+                                )}
+                            </div>
+                        </QRErrorBoundary>
+                        <button className="modal-copy-button" onClick={handleCopyToClipboard} disabled={isExpired}>
+                            <CopyIcon /> {copied ? 'Copied!' : 'Copy Invoice'}
+                        </button>
+                    </div>
+                    <div className="modal-col-right">
+                        <div className="modal-amount-display">
+                            <span className="modal-amount-usd">${order.amount ?? '0.00'} USD</span>
+                            <span className="modal-amount-alt">{order.btc ?? '0.00000000'} BTC</span>
+                        </div>
+                        <div className="modal-details-group">
+                             <h4>Order Details</h4>
+                             <p><strong>Game:</strong><span>{order.game}</span></p>
+                             <p><strong>Username:</strong><span>{order.username}</span></p>
+                             <p><strong>Order ID:</strong><span>{order.orderId}</span></p>
+                        </div>
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <div className={`modal-timer ${isExpired ? 'expired' : ''}`}>
+                        <ClockIcon />
+                        <span>{countdown}</span>
+                    </div>
+                    <button className="modal-action-button" onClick={resetModals}>Cancel</button>
+                </div>
+            </div>
         </div>
-
-        <div className="amount-display mb-md">
-          <span className="usd-amount">${order.amount ?? '0.00'} USD</span>
-          <span className="btc-amount">{order.btc ?? '0.00000000'} BTC</span>
-        </div>
-
-        <QRErrorBoundary
-          fallback={<p className="alert alert-danger">⚠️ Could not display QR code. Please copy the invoice text below.</p>}
-        >
-          <div className="qr-container mb-md">
-            {qrCodeDataUrl && !isExpired ? ( // Only show QR if data exists and not expired
-              <img src={qrCodeDataUrl} alt="Lightning Invoice QR Code" width={140} height={140} />
-            ) : isExpired ? (
-              <p className="alert alert-danger">QR code expired.</p>
-            ) : (
-              isValidQRValue(invoiceText) ? <p>Generating QR code...</p> : <p className="alert alert-warning">Invalid invoice data for QR.</p>
-            )}
-            {isValidQRValue(invoiceText) && (
-              <p className="qr-text">{invoiceText}</p>
-            )}
-          </div>
-        </QRErrorBoundary>
-
-        <button
-          className="btn btn-primary"
-          onClick={handleCopyToClipboard}
-          disabled={!isValidQRValue(invoiceText) || isExpired}
-        >
-          {copied ? 'Copied!' : 'Copy Invoice'}
-        </button>
-
-        <p className="text-center mt-sm" style={{fontSize: '0.75rem', color: 'var(--text-light)', opacity: 0.8}}>Order ID: {order.orderId}</p>
-
-      </div>
-    </div>
-  );
+    );
 }

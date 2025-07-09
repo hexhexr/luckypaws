@@ -1,30 +1,51 @@
 // src/components/ReceiptModal.js
 import React from 'react';
 
-export default function ReceiptModal({ order, resetModals, shorten }) {
+const ExplorerIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>;
+
+export default function ReceiptModal({ order, resetModals }) {
   if (!order) return null;
 
+  // Function to create a link to a Lightning transaction explorer
+  const getExplorerLink = (txId) => {
+      if (!txId) return null;
+      // Using a generic explorer, replace with a specific one if you prefer
+      return `https://mempool.space/tx/${txId}`;
+  }
+
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-      <div className="modal">
-        <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-        <h2 className="modal-title text-success">✅ Payment Received</h2>
-
-        <div className="amount-display mb-md">
-          <span className="usd-amount"><strong>${order.amount}</strong> USD</span>
-          <span className="btc-amount">{order.btc} BTC</span>
+    <div className="modal-backdrop">
+        <div className="modal-glassmorphic receipt">
+            <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
+            <div className="modal-receipt-header">
+                <div className="modal-receipt-icon">
+                    <svg viewBox="0 0 52 52">
+                        <circle className="receipt-circle-bg" cx="26" cy="26" r="25" fill="none"/>
+                        <circle className="receipt-circle" cx="26" cy="26" r="25" fill="none"/>
+                        <path className="receipt-checkmark" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                    </svg>
+                </div>
+                <h2>Payment Received!</h2>
+            </div>
+            <div className="modal-receipt-content">
+                <div className="modal-amount-display receipt">
+                    <span className="modal-amount-usd">${order.amount} USD</span>
+                    <span className="modal-amount-alt">{order.btc} BTC</span>
+                </div>
+                <div className="modal-details-group receipt">
+                    <p><strong>Game:</strong><span>{order.game}</span></p>
+                    <p><strong>Username:</strong><span>{order.username}</span></p>
+                    {order.paymentGatewayId && getExplorerLink(order.paymentGatewayId) && (
+                         <p><strong>Transaction:</strong>
+                            <a href={getExplorerLink(order.paymentGatewayId)} target="_blank" rel="noopener noreferrer">
+                                View on Explorer <ExplorerIcon />
+                            </a>
+                        </p>
+                    )}
+                </div>
+                <button className="modal-action-button primary" onClick={resetModals}>✨ Awesome!</button>
+            </div>
         </div>
-
-        <div className="info-section mb-md">
-          <p><strong>Game:</strong> <span>{order.game}</span></p>
-          <p><strong>Username:</strong> <span>{order.username}</span></p>
-          <p><strong>Order ID:</strong> <span>{order.orderId}</span></p>
-        </div>
-        <div className="short-invoice-display">
-          <strong>Invoice:</strong> {shorten(order.invoice)}
-        </div>
-        <button className="btn btn-primary mt-md" onClick={resetModals}>Done</button>
-      </div>
     </div>
   );
 }

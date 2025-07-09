@@ -3,12 +3,20 @@ import React from 'react';
 
 export default function ExpiredModal({ resetModals }) {
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) resetModals(); }}>
-      <div className="modal">
-        <button onClick={resetModals} className="modal-close-btn" aria-label="Close modal">&times;</button>
-        <h2 className="modal-title text-danger">⚠️ Invoice Expired</h2>
-        <p className="text-center">The invoice has expired. Please generate a new one.</p>
-        <button className="btn btn-primary mt-md" onClick={() => { resetModals(); }}>Generate New Invoice</button>
+    <div className="modal-backdrop">
+      <div className="modal-glassmorphic">
+        <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
+        <div className="modal-header expired">
+            <h3>⚠️ Invoice Expired</h3>
+        </div>
+        <div className="modal-receipt-content">
+            <p style={{ textAlign: 'center', margin: '2rem 0' }}>
+                The payment time limit has passed. Please create a new invoice to complete your top-up.
+            </p>
+            <button className="modal-action-button primary" onClick={resetModals}>
+                Create New Invoice
+            </button>
+        </div>
       </div>
     </div>
   );
