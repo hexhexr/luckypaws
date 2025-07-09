@@ -4,7 +4,7 @@ import React from 'react';
 export default function ExpiredModal({ resetModals }) {
   return (
     <div className="modal-backdrop" onClick={resetModals}>
-      <div className="modal-glassmorphic" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-glassmorphic receipt" onClick={(e) => e.stopPropagation()}>
         <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
         <div className="modal-header expired">
             <h3>⚠️ Invoice Expired</h3>
