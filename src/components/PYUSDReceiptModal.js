@@ -6,15 +6,14 @@ const ExplorerIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill=
 export default function PYUSDReceiptModal({ order, resetModals }) {
     if (!order) return null;
 
-    // Function to create a link to the Solscan explorer
     const getExplorerLink = (signature) => {
         if (!signature) return null;
         return `https://solscan.io/tx/${signature}`;
     }
 
     return (
-        <div className="modal-backdrop">
-            <div className="modal-glassmorphic receipt">
+        <div className="modal-backdrop" onClick={resetModals}>
+            <div className="modal-glassmorphic receipt" onClick={(e) => e.stopPropagation()}>
                 <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
                  <div className="modal-receipt-header">
                     <div className="modal-receipt-icon">
@@ -34,7 +33,7 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                     <div className="modal-details-group receipt">
                         <p><strong>Game:</strong><span>{order.game}</span></p>
                         <p><strong>Username:</strong><span>{order.username}</span></p>
-                         {order.transactionSignature && getExplorerLink(order.transactionSignature) && (
+                        {getExplorerLink(order.transactionSignature) && (
                             <p><strong>Transaction:</strong>
                                 <a href={getExplorerLink(order.transactionSignature)} target="_blank" rel="noopener noreferrer">
                                     View on Solscan <ExplorerIcon />

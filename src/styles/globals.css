@@ -325,7 +325,7 @@ label {
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
 
-/* --- Modals --- */
+/* --- Modals (OLD - Overridden by new styles below) --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -346,19 +346,13 @@ label {
     box-shadow: var(--shadow-lg);
     position: relative;
     max-width: 90%;
-    width: 500px; /* Increased width slightly for details modal */
-    text-align: left; /* Changed to left for info sections */
+    width: 500px;
+    text-align: left;
     animation: modalFadeIn 0.3s ease-out forwards;
 }
 @keyframes modalFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
 }
 .modal-close-btn {
     position: absolute;
@@ -376,7 +370,7 @@ label {
     font-size: 1.75rem;
     margin-bottom: var(--spacing-md);
     font-weight: 600;
-    text-align: center; /* Keep title centered */
+    text-align: center;
 }
 
 /* --- Header & Footer --- */
@@ -547,7 +541,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     .admin-nav { flex-direction: column; width: 100%; align-items: stretch; }
 }
 
-/* --- Invoice/Payment Specifics --- */
+/* --- Invoice/Payment Specifics (OLD - Overridden by new styles) --- */
 .payment-form-card { background-color: var(--card-bg); padding: var(--spacing-xl); border-radius: var(--border-radius-md); box-shadow: var(--shadow-lg); margin: 0 auto; }
 .invoice-countdown { font-size: 1rem; color: var(--danger-color); margin-bottom: var(--spacing-md); font-weight: bold; }
 .amount-display { background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-md); margin-bottom: var(--spacing-md); color: var(--text-dark); }
@@ -622,12 +616,12 @@ table tbody tr:hover { background-color: var(--input-bg); }
 /* --- Status Badge for Unmatched Payments --- */
 .status-unmatched_payment {
     background-color: var(--warning-light-bg);
-    color: #b45309; /* A darker orange/brown for better readability */
+    color: #b45309;
     border: 1px solid var(--orange);
     font-weight: bold;
 }
 .status-unmatched_payment::before {
-    content: '⚠️'; /* A warning icon to draw attention */
+    content: '⚠️';
 }
 
 
@@ -637,14 +631,14 @@ table tbody tr:hover { background-color: var(--input-bg); }
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--spacing-md);
-    flex-wrap: wrap; /* Allows controls to stack on small screens */
+    flex-wrap: wrap;
     gap: var(--spacing-md);
 }
 
 .search-pagination-controls {
     display: flex;
     align-items: center;
-    gap: var(--spacing-lg); /* Space between search and per-page */
+    gap: var(--spacing-lg);
 }
 
 .filter-group {
@@ -654,14 +648,14 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 
 .filter-group label {
-    margin-bottom: 0; /* Override default label margin */
+    margin-bottom: 0;
     font-weight: 500;
     white-space: nowrap;
 }
 
 .input.input-small, .select.select-small {
-    width: auto; /* Allow input to size to its content */
-    min-width: 150px; /* Give it a minimum decent width */
+    width: auto;
+    min-width: 150px;
     margin-bottom: 0;
 }
 
@@ -698,14 +692,8 @@ table tbody tr:hover { background-color: var(--input-bg); }
     animation: toast-in 0.5s ease;
 }
 @keyframes toast-in {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 .toast-notification.success { background-color: var(--success-light-bg); border-color: var(--primary-green); }
 .toast-notification.warning { background-color: var(--warning-light-bg); border-color: var(--orange); }
@@ -745,7 +733,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    margin-top: var(--spacing-lg); /* Added margin-top */
+    margin-top: var(--spacing-lg);
 }
 
 /* --- Refined Amount Display --- */
@@ -759,10 +747,10 @@ table tbody tr:hover { background-color: var(--input-bg); }
     color: var(--text-dark);
 }
 .amount-display-large .usd-amount {
-    font-size: 2.5rem; /* Larger font size */
+    font-size: 2.5rem;
     font-weight: 700;
     color: var(--primary-green);
-    display: block; /* Make it a block to take full width */
+    display: block;
     line-height: 1.2;
 }
 .amount-display-large .currency-label {
@@ -778,43 +766,37 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 .input-group .input {
     flex-grow: 1;
-    margin-bottom: 0; /* Remove margin from input inside the group */
+    margin-bottom: 0;
 }
 .input-group .btn {
-    flex-shrink: 0; /* Prevent button from shrinking */
+    flex-shrink: 0;
 }
 
 /* --- Compact Modal Styles --- */
 .modal.modal-compact {
-    width: 420px; /* A more compact width */
+    width: 420px;
     padding-top: var(--spacing-lg);
     padding-bottom: var(--spacing-lg);
 }
-
 .modal.modal-compact .modal-title {
-    font-size: 1.5rem; /* Slightly smaller title */
+    font-size: 1.5rem;
     margin-bottom: var(--spacing-md);
 }
-
 .modal.modal-compact .amount-display-large {
-    padding: var(--spacing-md); /* Reduced padding */
+    padding: var(--spacing-md);
     margin-bottom: var(--spacing-md);
 }
-
 .modal.modal-compact .amount-display-large .usd-amount {
-    font-size: 2.25rem; /* Slightly smaller amount font */
+    font-size: 2.25rem;
 }
-
 .modal.modal-compact .qr-container {
     margin-top: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
 }
-
 .modal.modal-compact .qr-container img {
-    width: 160px; /* Adjusted QR size */
+    width: 160px;
     height: 160px;
 }
-
 .modal.modal-compact .alert {
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: 0.85rem;
@@ -827,22 +809,18 @@ table tbody tr:hover { background-color: var(--input-bg); }
     gap: var(--spacing-md);
     align-items: flex-start;
 }
-
 .expense-form-description {
     grid-column: span 4;
 }
-
 .expense-form-submit {
     grid-column: span 4;
 }
-
 .filter-controls {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
 }
-
 
 @media (max-width: 768px) {
     .expense-form-grid {
@@ -865,8 +843,9 @@ table tbody tr:hover { background-color: var(--input-bg); }
         grid-column: span 1;
     }
 }
+
 /* ==================================================
-   ✅ New Glass-Morphic Modal Styles
+   ✅ Corrected Glass-Morphic Modal Styles V2
    ================================================== */
 
 .modal-backdrop {
@@ -879,7 +858,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 2000; /* Ensure it's above other content */
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     padding: 1rem;
@@ -892,15 +871,15 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 
 .modal-glassmorphic {
-    width: 100%;
-    max-width: 680px;
-    background: rgba(255, 255, 255, 0.1);
+    width: 90%; /* Responsive width */
+    max-width: 640px; /* Max width for desktop */
+    background: rgba(30, 41, 59, 0.75); /* Darker, more contrasted glass */
     border-radius: 16px;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     border: 1px solid rgba(255, 255, 255, 0.18);
     position: relative;
     color: #fff;
-    padding: 2rem;
+    padding: 1.5rem; /* Adjusted padding */
     animation: slideInUp 0.4s ease-out forwards;
 }
 
@@ -911,20 +890,21 @@ table tbody tr:hover { background-color: var(--input-bg); }
 
 .modal-close-button {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 0.75rem;
+    right: 0.75rem;
     background: rgba(255, 255, 255, 0.2);
     border: none;
     color: #fff;
     font-size: 1.5rem;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     line-height: 1;
+    z-index: 10;
     transition: background-color 0.2s ease;
 }
 .modal-close-button:hover {
@@ -936,7 +916,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     margin-bottom: 1.5rem;
 }
 .modal-header h3 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 600;
     color: #fff;
     display: flex;
@@ -950,13 +930,14 @@ table tbody tr:hover { background-color: var(--input-bg); }
 
 .modal-content-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+    grid-template-columns: 220px 1fr; /* Fixed QR size, flexible right side */
+    gap: 1.5rem;
 }
 
 .modal-col-left, .modal-col-right {
     display: flex;
     flex-direction: column;
+    gap: 1rem;
 }
 
 .modal-qr-container {
@@ -966,12 +947,15 @@ table tbody tr:hover { background-color: var(--input-bg); }
     display: flex;
     align-items: center;
     justify-content: center;
-    aspect-ratio: 1 / 1;
+    width: 220px; /* Fixed width */
+    height: 220px; /* Fixed height */
+    margin: 0 auto; /* Center in its column */
 }
 .modal-qr-container img {
     width: 100%;
     height: 100%;
     border-radius: 6px;
+    object-fit: contain; /* Ensure QR code fits */
 }
 .modal-qr-expired {
     color: var(--danger-color);
@@ -979,7 +963,6 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 
 .modal-copy-button {
-    margin-top: 1rem;
     background: rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: #fff;
@@ -993,7 +976,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     justify-content: center;
     gap: 0.5rem;
 }
-.modal-copy-button:hover {
+.modal-copy-button:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.3);
 }
 .modal-copy-button:disabled {
@@ -1006,17 +989,16 @@ table tbody tr:hover { background-color: var(--input-bg); }
     padding: 1rem;
     border-radius: 12px;
     text-align: center;
-    margin-bottom: 1.5rem;
 }
 .modal-amount-display .modal-amount-usd {
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 700;
     color: #fff;
     display: block;
     line-height: 1.1;
 }
 .modal-amount-display .modal-amount-alt {
-    font-size: 1rem;
+    font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.7);
 }
 
@@ -1027,169 +1009,90 @@ table tbody tr:hover { background-color: var(--input-bg); }
     flex-grow: 1;
 }
 .modal-details-group h4 {
-    margin-top: 0;
-    margin-bottom: 0.75rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.8);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-top: 0; margin-bottom: 0.75rem; font-size: 1rem; font-weight: 600;
+    color: rgba(255, 255, 255, 0.8); border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     padding-bottom: 0.5rem;
 }
-.modal-details-group p {
-    display: flex;
-    justify-content: space-between;
-    margin: 0.5rem 0;
-    font-size: 0.9rem;
-}
-.modal-details-group p span {
-    color: rgba(255, 255, 255, 0.8);
-    font-weight: 500;
-}
+.modal-details-group p { display: flex; justify-content: space-between; margin: 0.5rem 0; font-size: 0.9rem; }
+.modal-details-group p span { color: rgba(255, 255, 255, 0.8); font-weight: 500; }
 
-.modal-copy-group {
-    display: flex;
-    gap: 0.5rem;
-}
+.modal-copy-group { display: flex; gap: 0.5rem; }
 .modal-copy-group input {
-    flex-grow: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-radius: 6px;
-    padding: 0.5rem 0.75rem;
+    flex-grow: 1; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem;
     font-family: var(--font-family-mono);
-    font-size: 0.85rem;
 }
 .modal-copy-group button {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0 0.75rem;
+    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center;
+    gap: 0.25rem; padding: 0 0.5rem; font-size: 0.8rem;
 }
 
 .modal-footer {
-    margin-top: 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    margin-top: 1.5rem; display: flex; justify-content: space-between;
+    align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.18);
     padding-top: 1rem;
 }
 
-.modal-timer {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 500;
-}
-.modal-timer.expired {
-    color: var(--orange);
-}
+.modal-timer { display: flex; align-items: center; gap: 0.5rem; font-weight: 500; }
+.modal-timer.expired { color: var(--orange); }
 
 .modal-action-button {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff;
-    font-weight: 600;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
+    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff; font-weight: 600; padding: 0.75rem 1.5rem; border-radius: 8px;
+    cursor: pointer; transition: background-color 0.2s ease;
 }
-.modal-action-button:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-.modal-action-button.primary {
-    background: var(--primary-green);
-    border-color: var(--primary-green);
-}
-.modal-action-button.primary:hover {
-    background: var(--green-dark);
-}
-
-.modal-waiting-text {
-    font-style: italic;
-    color: rgba(255, 255, 255, 0.8);
-}
+.modal-action-button:hover { background: rgba(255, 255, 255, 0.3); }
+.modal-action-button.primary { background: var(--primary-green); border-color: var(--primary-green); }
+.modal-action-button.primary:hover { background: var(--green-dark); }
+.modal-waiting-text { font-style: italic; color: rgba(255, 255, 255, 0.8); }
 
 /* --- Receipt Specific Styles --- */
-.modal-glassmorphic.receipt {
-    max-width: 480px;
-}
-.modal-receipt-header {
-    text-align: center;
-}
-.modal-receipt-header h2 {
-    font-size: 2rem;
-    font-weight: 600;
-    color: #fff;
-    margin: 0.5rem 0 1.5rem 0;
-}
-.modal-receipt-icon {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto;
-}
-.modal-receipt-icon .receipt-circle-bg {
-    stroke-width: 3;
-    stroke: rgba(0, 200, 83, 0.2);
-}
+.modal-glassmorphic.receipt { max-width: 420px; } /* Smaller width for receipt */
+.modal-receipt-header { text-align: center; }
+.modal-receipt-header h2 { font-size: 1.75rem; margin: 0.5rem 0 1.5rem 0; }
+.modal-receipt-icon { width: 70px; height: 70px; margin: 0 auto; }
+.modal-receipt-icon .receipt-circle-bg { stroke-width: 3; stroke: rgba(0, 200, 83, 0.2); }
 .modal-receipt-icon .receipt-circle {
-    stroke-width: 3;
-    stroke: var(--primary-green);
-    stroke-linecap: round;
-    stroke-dasharray: 157, 157;
-    stroke-dashoffset: 157;
-    transform-origin: center;
+    stroke-width: 3; stroke: var(--primary-green); stroke-linecap: round;
+    stroke-dasharray: 157, 157; stroke-dashoffset: 157;
     animation: circle-anim 0.7s ease-out forwards;
 }
 .modal-receipt-icon .receipt-checkmark {
-    stroke-width: 4;
-    stroke: var(--primary-green);
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 48, 48;
-    stroke-dashoffset: 48;
+    stroke-width: 4; stroke: #fff; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 48, 48; stroke-dashoffset: 48;
     animation: checkmark-anim 0.3s ease-out 0.6s forwards;
 }
 @keyframes circle-anim { to { stroke-dashoffset: 0; } }
 @keyframes checkmark-anim { to { stroke-dashoffset: 0; } }
 
-.modal-receipt-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-.modal-amount-display.receipt {
-    margin-bottom: 0;
-}
-.modal-details-group.receipt {
-    flex-grow: 0;
-}
+.modal-receipt-content { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.modal-amount-display.receipt { margin-bottom: 0; }
+.modal-details-group.receipt { flex-grow: 0; }
 .modal-details-group.receipt a {
-    color: #fff;
-    text-decoration: underline;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+    color: #fff; text-decoration: underline; display: inline-flex;
+    align-items: center; gap: 0.25rem; font-weight: normal;
 }
-
+.modal-details-group.receipt a:hover { color: var(--green-light); }
 
 /* --- Mobile Responsiveness --- */
-@media (max-width: 768px) {
+@media (max-width: 680px) {
     .modal-glassmorphic {
-        width: 90%;
-        max-width: 480px; /* Limit width on smaller tablets */
-        padding: 1.5rem;
+        padding: 1rem;
+        width: 95%; /* Use more screen width on mobile */
     }
     .modal-content-grid {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
+        grid-template-columns: 1fr; /* Stack columns on mobile */
+        gap: 1rem;
+    }
+    .modal-qr-container {
+        width: 180px; /* Smaller QR on mobile */
+        height: 180px;
+    }
+    .modal-header h3 {
+        font-size: 1.25rem;
+    }
+    .modal-amount-display .modal-amount-usd {
+        font-size: 1.75rem;
     }
 }

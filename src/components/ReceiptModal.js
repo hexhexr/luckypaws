@@ -6,16 +6,15 @@ const ExplorerIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill=
 export default function ReceiptModal({ order, resetModals }) {
   if (!order) return null;
 
-  // Function to create a link to a Lightning transaction explorer
   const getExplorerLink = (txId) => {
-      if (!txId) return null;
-      // Using a generic explorer, replace with a specific one if you prefer
+      // A simple fallback for mock IDs, can be made more robust
+      if (!txId || txId.startsWith('mock_')) return null;
       return `https://mempool.space/tx/${txId}`;
   }
 
   return (
-    <div className="modal-backdrop">
-        <div className="modal-glassmorphic receipt">
+    <div className="modal-backdrop" onClick={resetModals}>
+        <div className="modal-glassmorphic receipt" onClick={(e) => e.stopPropagation()}>
             <button onClick={resetModals} className="modal-close-button" aria-label="Close modal">×</button>
             <div className="modal-receipt-header">
                 <div className="modal-receipt-icon">
@@ -35,7 +34,7 @@ export default function ReceiptModal({ order, resetModals }) {
                 <div className="modal-details-group receipt">
                     <p><strong>Game:</strong><span>{order.game}</span></p>
                     <p><strong>Username:</strong><span>{order.username}</span></p>
-                    {order.paymentGatewayId && getExplorerLink(order.paymentGatewayId) && (
+                    {getExplorerLink(order.paymentGatewayId) && (
                          <p><strong>Transaction:</strong>
                             <a href={getExplorerLink(order.paymentGatewayId)} target="_blank" rel="noopener noreferrer">
                                 View on Explorer <ExplorerIcon />
