@@ -12,25 +12,25 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
     }
 
     return (
-        <div className="modal-backdrop" onClick={resetModals}>
-            <div className="modal-glassmorphic receipt" onClick={(e) => e.stopPropagation()}>
-                <button onClick={resetModals} className="modal-close-button">×</button>
-                 <div className="modal-receipt-header">
-                    <div className="modal-receipt-icon">
+        <div className="modal-backdrop-v4" onClick={resetModals}>
+            <div className="modal-glassmorphic-v4 receipt" onClick={(e) => e.stopPropagation()}>
+                <button onClick={resetModals} className="modal-close-button-v4">×</button>
+                 <div className="modal-receipt-header-v4">
+                    <div className="modal-receipt-icon-v4">
                         <svg viewBox="0 0 52 52">
-                            <circle className="receipt-circle-bg" cx="26" cy="26" r="25"/>
-                            <circle className="receipt-circle" cx="26" cy="26" r="25"/>
-                            <path className="receipt-checkmark" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                            <circle className="receipt-circle-bg-v4" cx="26" cy="26" r="25"/>
+                            <circle className="receipt-circle-v4" cx="26" cy="26" r="25"/>
+                            <path className="receipt-checkmark-v4" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
                         </svg>
                     </div>
                     <h2>Payment Received!</h2>
                 </div>
-                <div className="modal-receipt-content">
-                    <div className="modal-amount-display receipt">
-                        <span className="modal-amount-usd">${order.amount}</span>
-                        <span className="modal-amount-alt">PYUSD</span>
+                <div className="modal-receipt-content-v4">
+                    <div className="modal-amount-display-v4 receipt">
+                        <span className="modal-amount-usd-v4">${order.amount}</span>
+                        <span className="modal-amount-alt-v4">PYUSD</span>
                     </div>
-                    <div className="modal-details-group receipt">
+                    <div className="modal-details-group-v4 receipt">
                         <p><strong>Game:</strong><span>{order.game}</span></p>
                         <p><strong>Username:</strong><span>{order.username}</span></p>
                         {getExplorerLink(order.transactionSignature) && (
@@ -41,7 +41,7 @@ export default function PYUSDReceiptModal({ order, resetModals }) {
                             </p>
                         )}
                     </div>
-                    <button className="modal-action-button primary" onClick={resetModals}>✨ Awesome!</button>
+                    <button className="modal-action-button-v4 primary" onClick={resetModals}>✨ Awesome!</button>
                 </div>
             </div>
         </div>

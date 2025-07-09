@@ -55,38 +55,35 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
     if (!order) return null;
 
     return (
-        <div className="modal-backdrop" onClick={resetModals}>
-            <div className="modal-glassmorphic" onClick={(e) => e.stopPropagation()}>
-                <button onClick={resetModals} className="modal-close-button">×</button>
-                <div className="modal-header">
+        <div className="modal-backdrop-v4" onClick={resetModals}>
+            <div className="modal-glassmorphic-v4" onClick={(e) => e.stopPropagation()}>
+                <button onClick={resetModals} className="modal-close-button-v4">×</button>
+                <div className="modal-header-v4">
                     <h3>🅿️ PYUSD on Solana</h3>
                 </div>
-                <div className="modal-content-grid">
-                     <div className="modal-col-left">
-                        <div className="modal-qr-container">
+                <div className="modal-content-grid-v4">
+                     <div className="modal-col-left-v4">
+                        <div className="modal-qr-container-v4">
                             {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="Solana Address" /> : <p>Loading QR</p>}
                         </div>
-                         <div className="alert alert-warning" style={{marginTop: '1rem', textAlign: 'center', fontSize: '0.8rem', padding: '0.5rem'}}>
-                            <strong>Important:</strong> Memo is required for payment.
-                        </div>
                      </div>
-                     <div className="modal-col-right">
-                        <div className="modal-amount-display">
-                            <span className="modal-amount-usd">${order.amount}</span>
-                            <span className="modal-amount-alt">PYUSD</span>
+                     <div className="modal-col-right-v4">
+                        <div className="modal-amount-display-v4">
+                            <span className="modal-amount-usd-v4">${order.amount}</span>
+                            <span className="modal-amount-alt-v4">PYUSD</span>
                         </div>
-                        <div className="modal-details-group compact">
+                        <div className="modal-details-group-v4 compact">
                             <h4>To Address</h4>
-                            <div className="modal-copy-group">
+                            <div className="modal-copy-group-v4">
                                 <input type="text" readOnly value={order.depositAddress} />
                                 <button onClick={() => handleCopy(order.depositAddress, 'address')}>
                                     {copiedAddress ? '✓' : <CopyIcon />}
                                 </button>
                             </div>
                         </div>
-                        <div className="modal-details-group compact">
+                        <div className="modal-details-group-v4 compact">
                             <h4>Memo (Required)</h4>
-                             <div className="modal-copy-group">
+                             <div className="modal-copy-group-v4">
                                 <input type="text" readOnly value={order.memo} />
                                 <button onClick={() => handleCopy(order.memo, 'memo')}>
                                     {copiedMemo ? '✓' : <CopyIcon />}
@@ -95,9 +92,12 @@ export default function PYUSDInvoiceModal({ order, resetModals, onPaymentSuccess
                         </div>
                      </div>
                 </div>
-                <div className="modal-footer">
-                   <p className="modal-waiting-text">⏳ Waiting for payment...</p>
-                   <button className="modal-action-button" onClick={resetModals}>Cancel</button>
+                <div className="alert alert-warning" style={{margin: '0.75rem 0', textAlign: 'center', fontSize: '0.8rem', padding: '0.5rem'}}>
+                    <strong>Important:</strong> Memo is required for payment.
+                </div>
+                <div className="modal-footer-v4">
+                   <p className="modal-waiting-text-v4">⏳ Waiting for payment...</p>
+                   <button className="modal-action-button-v4" onClick={resetModals}>Cancel</button>
                 </div>
             </div>
         </div>
