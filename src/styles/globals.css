@@ -845,159 +845,99 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 
 /* ==================================================
-   ✅ Final Corrected Glass-Morphic Modal Styles V3
+   ✅ Final Corrected Glass-Morphic Modal Styles V4
    ================================================== */
 
 .modal-backdrop {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background-color: rgba(10, 25, 47, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: 1rem;
-    animation: fadeIn 0.3s ease-out forwards;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 2000; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+    padding: 1rem; animation: fadeIn 0.3s ease-out forwards;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-glassmorphic {
-    width: 95%;
-    max-width: 580px; /* Reduced max-width */
-    background: rgba(30, 41, 59, 0.8);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    width: 95%; max-width: 520px;
+    background: rgba(30, 41, 59, 0.85);
+    border-radius: 16px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    position: relative;
-    color: #fff;
-    padding: 1.5rem;
+    position: relative; color: #fff; padding: 1rem;
     animation: slideInUp 0.4s ease-out forwards;
 }
-@keyframes slideInUp { from { transform: translateY(30px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes slideInUp { from { transform: translateY(20px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 
 .modal-close-button {
-    position: absolute; top: 0.75rem; right: 0.75rem;
+    position: absolute; top: 0.5rem; right: 0.5rem;
     background: rgba(255, 255, 255, 0.15); border: none;
-    color: #fff; font-size: 1.5rem; width: 32px; height: 32px;
+    color: #fff; font-size: 1.25rem; width: 28px; height: 28px;
     border-radius: 50%; cursor: pointer; display: flex;
     align-items: center; justify-content: center; line-height: 1;
     z-index: 10; transition: background-color 0.2s ease;
 }
 .modal-close-button:hover { background: rgba(255, 255, 255, 0.25); }
 
-.modal-header { text-align: center; margin-bottom: 1rem; }
-.modal-header h3 {
-    font-size: 1.25rem; font-weight: 600; color: #fff;
-    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-}
+.modal-header { text-align: center; margin-bottom: 1rem; padding: 0 1.5rem; }
+.modal-header h3 { font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
 .modal-header.expired h3 { color: var(--orange); }
 
-.modal-content-grid { display: grid; grid-template-columns: 200px 1fr; gap: 1.5rem; }
-.modal-col-left, .modal-col-right { display: flex; flex-direction: column; gap: 1rem; }
+.modal-content-grid { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; }
+.modal-col-left, .modal-col-right { display: flex; flex-direction: column; gap: 0.75rem; }
 
-.modal-qr-container {
-    background: #fff; border-radius: 12px; padding: 0.75rem;
-    display: flex; align-items: center; justify-content: center;
-    width: 200px; height: 200px; margin: 0 auto;
-}
-.modal-qr-container img { width: 100%; height: 100%; border-radius: 6px; }
-.modal-qr-expired { color: var(--danger-color); font-weight: bold; }
+.modal-qr-container { background: #fff; border-radius: 12px; padding: 0.5rem; display: flex; align-items: center; justify-content: center; width: 180px; height: 180px; margin: 0 auto; }
+.modal-qr-container img { width: 100%; height: 100%; border-radius: 8px; }
+.modal-qr-expired { color: var(--danger-color); font-weight: bold; text-align: center; align-self: center; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
 
-.modal-copy-button {
-    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff; font-weight: 500; padding: 0.6rem; border-radius: 8px;
-    cursor: pointer; transition: background-color 0.2s ease;
-    display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.9rem;
-}
+.modal-copy-button { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; font-weight: 500; padding: 0.6rem; border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.85rem; }
 .modal-copy-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.3); }
 .modal-copy-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .modal-amount-display { background: rgba(0, 0, 0, 0.2); padding: 0.75rem; border-radius: 12px; text-align: center; }
-.modal-amount-display .modal-amount-usd { font-size: 1.75rem; font-weight: 700; display: block; line-height: 1.1; }
-.modal-amount-display .modal-amount-alt { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); }
+.modal-amount-display .modal-amount-usd { font-size: 1.5rem; font-weight: 700; display: block; line-height: 1.1; }
+.modal-amount-display .modal-amount-alt { font-size: 0.8rem; color: rgba(255, 255, 255, 0.7); }
 
-.modal-details-group { background: rgba(0, 0, 0, 0.2); padding: 0.75rem 1rem; border-radius: 12px; flex-grow: 1; }
-.modal-details-group h4 {
-    margin-top: 0; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600;
-    color: rgba(255, 255, 255, 0.8); border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    padding-bottom: 0.5rem;
-}
-.modal-details-group p { display: flex; justify-content: space-between; margin: 0.4rem 0; font-size: 0.85rem; }
-.modal-details-group p span { color: rgba(255, 255, 255, 0.8); font-weight: 500; }
+.modal-details-group { background: rgba(0, 0, 0, 0.2); padding: 0.75rem; border-radius: 12px; flex-grow: 1; }
+.modal-details-group.compact { padding: 0.5rem 0.75rem; }
+.modal-details-group p { display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0; font-size: 0.85rem; }
+.modal-details-group p span { color: rgba(255, 255, 255, 0.9); font-weight: 500; text-align: right; word-break: break-all; }
 
-.modal-copy-group { display: flex; gap: 0.5rem; }
-.modal-copy-group input {
-    flex-grow: 1; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem;
-    font-family: var(--font-family-mono);
-}
-.modal-copy-group button {
-    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center;
-    gap: 0.25rem; padding: 0 0.5rem; font-size: 0.8rem;
-}
+.modal-copy-group { display: flex; gap: 0.5rem; align-items: center; }
+.modal-copy-group input { flex-grow: 1; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem; font-family: var(--font-family-mono); }
+.modal-copy-group button { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.5rem; flex-shrink: 0; }
 
-.modal-footer {
-    margin-top: 1.5rem; display: flex; justify-content: space-between;
-    align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.18);
-    padding-top: 1rem;
-}
-
+.modal-footer { margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.18); padding-top: 1rem; }
 .modal-timer { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
 .modal-timer.expired { color: var(--orange); }
 
-.modal-action-button {
-    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #fff; font-weight: 600; padding: 0.6rem 1.25rem; border-radius: 8px;
-    cursor: pointer; transition: background-color 0.2s ease; font-size: 0.9rem;
-}
+.modal-action-button { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; font-weight: 600; padding: 0.6rem 1.25rem; border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; font-size: 0.9rem; }
 .modal-action-button:hover { background: rgba(255, 255, 255, 0.3); }
 .modal-action-button.primary { background: var(--primary-green); border-color: var(--primary-green); }
 .modal-action-button.primary:hover { background: var(--green-dark); }
 .modal-waiting-text { font-style: italic; color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; }
 
 /* --- Receipt Specific Styles --- */
-.modal-glassmorphic.receipt { max-width: 400px; }
+.modal-glassmorphic.receipt { max-width: 380px; }
 .modal-receipt-header { text-align: center; }
 .modal-receipt-header h2 { font-size: 1.5rem; margin: 0.5rem 0 1rem 0; }
-.modal-receipt-icon { width: 60px; height: 60px; margin: 0 auto; }
-.modal-receipt-icon .receipt-circle-bg { stroke-width: 3; stroke: rgba(0, 200, 83, 0.2); fill: transparent; }
-.modal-receipt-icon .receipt-circle {
-    stroke: var(--primary-green); stroke-width: 3; stroke-linecap: round;
-    stroke-dasharray: 157, 157; stroke-dashoffset: 157;
-    animation: circle-anim 0.7s ease-out forwards; fill: transparent;
-}
-.modal-receipt-icon .receipt-checkmark {
-    stroke: #fff; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
-    stroke-dasharray: 48, 48; stroke-dashoffset: 48;
-    animation: checkmark-anim 0.3s ease-out 0.6s forwards; fill: transparent;
-}
+.modal-receipt-icon { width: 52px; height: 52px; margin: 0 auto 0.5rem auto; }
+.modal-receipt-icon svg { width: 100%; height: 100%; }
+.modal-receipt-icon .receipt-circle-bg { fill: rgba(0, 200, 83, 0.2); }
+.modal-receipt-icon .receipt-circle { stroke: var(--primary-green); stroke-width: 3; stroke-linecap: round; fill: transparent; stroke-dasharray: 157; stroke-dashoffset: 157; animation: circle-anim 0.7s ease-out forwards; }
+.modal-receipt-icon .receipt-checkmark { stroke: #fff; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: transparent; stroke-dasharray: 48; stroke-dashoffset: 48; animation: checkmark-anim 0.3s ease-out 0.6s forwards; }
 @keyframes circle-anim { to { stroke-dashoffset: 0; } }
 @keyframes checkmark-anim { to { stroke-dashoffset: 0; } }
 
-.modal-receipt-content { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.modal-receipt-content { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
 .modal-amount-display.receipt { margin-bottom: 0; }
 .modal-details-group.receipt { flex-grow: 0; }
-.modal-details-group.receipt a {
-    color: #fff; text-decoration: underline; display: inline-flex;
-    align-items: center; gap: 0.25rem; font-weight: normal;
-}
+.modal-details-group.receipt a { color: #fff; text-decoration: underline; display: inline-flex; align-items: center; gap: 0.25rem; font-weight: normal; }
 .modal-details-group.receipt a:hover { color: var(--green-light); }
 
 /* --- Mobile Responsiveness --- */
 @media (max-width: 600px) {
-    .modal-glassmorphic {
-        padding: 1rem; width: 95%;
-    }
-    .modal-content-grid {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    .modal-qr-container {
-        width: 160px; height: 160px;
-    }
-    .modal-header h3 { font-size: 1.15rem; }
-    .modal-amount-display .modal-amount-usd { font-size: 1.5rem; }
+    .modal-glassmorphic { padding: 1rem; width: 95%; }
+    .modal-content-grid { grid-template-columns: 1fr; gap: 1rem; }
+    .modal-qr-container { width: 150px; height: 150px; }
+    .modal-header h3 { font-size: 1.1rem; }
+    .modal-amount-display .modal-amount-usd { font-size: 1.4rem; }
 }
