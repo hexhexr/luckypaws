@@ -23,6 +23,7 @@
     --text-light: #666;
     --text-white: #fff;
     --text-secondary: #555;
+    /* --- FIX: Added global text color classes --- */
     --text-success: var(--primary-green);
     --text-danger: var(--red-alert);
 
@@ -124,6 +125,7 @@ p {
     margin-bottom: var(--spacing-md);
 }
 
+/* --- FIX: Added Global Text Color Classes --- */
 .text-success { color: var(--text-success) !important; }
 .text-danger { color: var(--text-danger) !important; }
 .text-center { text-align: center; }
@@ -237,6 +239,7 @@ label {
     grid-column: 1 / -1;
 }
 
+/* --- FIX: Styles for Form Fieldset --- */
 .form-fieldset {
     border: 1px solid var(--border-subtle);
     border-radius: var(--border-radius);
@@ -322,344 +325,59 @@ label {
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
 
-/* ==================================================
-   ✅ UNIFIED & POLISHED INVOICE/RECEIPT MODAL STYLES
-   ================================================== */
-
-/* --- Base Modal Backdrop --- */
-.modal-backdrop {
+/* --- Modals --- */
+.modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(10, 25, 47, 0.7); /* Dark blue overlay */
+    background-color: rgba(0, 0, 0, 0.7);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 2000;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
-    padding: 1rem;
-    animation: modal-fade-in 0.3s ease-out forwards;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
 }
-
-@keyframes modal-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-/* --- Main Glassmorphic Modal Container --- */
-.modal-container {
-    width: 100%;
-    max-width: 420px; /* Optimal width for payment details */
-    background: rgba(23, 30, 44, 0.85); /* Darker, more solid background */
-    border-radius: 16px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+.modal {
+    background: var(--card-bg);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    box-shadow: var(--shadow-lg);
     position: relative;
-    color: #f9fafb; /* Light text for dark background */
-    padding: 1.5rem;
-    animation: modal-slide-in 0.4s ease-out forwards;
+    max-width: 90%;
+    width: 500px; /* Increased width slightly for details modal */
+    text-align: left; /* Changed to left for info sections */
+    animation: modalFadeIn 0.3s ease-out forwards;
 }
-
-@keyframes modal-slide-in {
+@keyframes modalFadeIn {
     from {
-        transform: translateY(20px) scale(0.98);
         opacity: 0;
+        transform: scale(0.95);
     }
     to {
-        transform: translateY(0) scale(1);
         opacity: 1;
+        transform: scale(1);
     }
 }
-
-/* --- Modal Close Button --- */
-.modal-close-button {
+.modal-close-btn {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    background: rgba(255, 255, 255, 0.1);
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    background: none;
     border: none;
-    color: #e5e7eb;
-    font-size: 1.25rem;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
+    color: var(--text-light);
+    font-size: 1.8rem;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    padding: var(--spacing-xs);
     line-height: 1;
-    z-index: 10;
-    transition: background-color 0.2s ease;
 }
-
-.modal-close-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-/* --- Modal Header --- */
-.modal-header {
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-.modal-header h3 {
-    color: var(--text-white);
-    font-size: 1.25rem;
+.modal-title {
+    font-size: 1.75rem;
+    margin-bottom: var(--spacing-md);
     font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem; /* Space between icon and text */
-    margin: 0;
+    text-align: center; /* Keep title centered */
 }
-
-/* --- Invoice/Payment Content Grid --- */
-.modal-payment-grid {
-    display: grid;
-    grid-template-columns: 1fr; /* Default to a single column */
-    gap: 1.5rem;
-}
-
-/* --- QR Code & Expired State --- */
-.modal-qr-section {
-    background: #fff;
-    border-radius: 12px;
-    padding: 0.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 180px; /* Slightly larger for better scanning */
-    height: 180px;
-    margin: 0 auto;
-}
-
-.modal-qr-section img {
-    width: 100%;
-    height: 100%;
-    border-radius: 8px;
-}
-
-.modal-qr-expired {
-    color: var(--orange);
-    font-weight: bold;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    font-size: 1.2rem;
-}
-
-
-/* --- Payment Details Section --- */
-.modal-details-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.modal-amount-display {
-    background: rgba(0, 0, 0, 0.25);
-    padding: 1rem;
-    border-radius: 12px;
-    text-align: center;
-}
-
-.modal-amount-display .amount-primary {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--text-white);
-    display: block;
-    line-height: 1.1;
-}
-
-.modal-amount-display .amount-secondary {
-    font-size: 0.9rem;
-    color: #9ca3af; /* Subdued secondary text color */
-}
-
-/* --- Group for Copyable Input --- */
-.modal-copy-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.modal-copy-group label {
-    font-size: 0.8rem;
-    color: #d1d5db;
-    font-weight: 500;
-    margin-bottom: 0;
-}
-
-.modal-copy-group .input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.modal-copy-group input {
-    flex-grow: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-radius: 8px;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.9rem;
-    font-family: var(--font-family-mono);
-    margin: 0;
-}
-
-.modal-copy-group button {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    color: #fff;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.6rem;
-    flex-shrink: 0;
-    transition: background-color 0.2s;
-}
-
-.modal-copy-group button:hover {
-    background: rgba(255, 255, 255, 0.25);
-}
-
-/* --- Footer for Timer and Actions --- */
-.modal-footer {
-    margin-top: 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 1rem;
-}
-
-.modal-timer {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #9ca3af;
-}
-
-.modal-timer.expired {
-    color: var(--orange);
-}
-
-/* --- Receipt Specific Styles --- */
-.modal-container.receipt {
-    max-width: 380px; /* More compact for receipts */
-}
-
-.modal-receipt-header {
-    text-align: center;
-    margin-bottom: 1rem;
-}
-
-.modal-receipt-icon {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto 0.75rem auto;
-}
-
-.modal-receipt-icon svg {
-    width: 100%;
-    height: 100%;
-}
-
-/* --- SVG Checkmark Animation --- */
-.receipt-circle-bg { fill: rgba(0, 200, 83, 0.2); }
-.receipt-circle {
-    stroke: var(--primary-green);
-    stroke-width: 3;
-    stroke-linecap: round;
-    fill: transparent;
-    stroke-dasharray: 157;
-    stroke-dashoffset: 157;
-    animation: circle-anim 0.7s ease-out forwards;
-}
-.receipt-checkmark {
-    stroke: #fff;
-    stroke-width: 4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    fill: transparent;
-    stroke-dasharray: 48;
-    stroke-dashoffset: 48;
-    animation: checkmark-anim 0.3s ease-out 0.6s forwards;
-}
-
-@keyframes circle-anim { to { stroke-dashoffset: 0; } }
-@keyframes checkmark-anim { to { stroke-dashoffset: 0; } }
-
-.modal-receipt-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.modal-info-group {
-    background: rgba(0, 0, 0, 0.25);
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-}
-
-.modal-info-group p {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 0.6rem 0;
-    font-size: 0.9rem;
-    color: #d1d5db;
-}
-
-.modal-info-group p strong {
-    font-weight: 500;
-    color: #9ca3af;
-}
-
-.modal-info-group a {
-    color: #93c5fd; /* Light blue for links */
-    text-decoration: underline;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-weight: normal;
-}
-.modal-info-group a:hover {
-    color: var(--text-white);
-}
-
-.modal-action-button {
-    background: var(--primary-green);
-    border: none;
-    color: var(--text-white);
-    font-weight: 600;
-    padding: 0.8rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    font-size: 1rem;
-    width: 100%;
-}
-
-.modal-action-button:hover {
-    background: var(--green-dark);
-}
-
-/* ==================================================
-   END OF NEW MODAL STYLES
-   ================================================== */
-
 
 /* --- Header & Footer --- */
 .main-header {
@@ -831,6 +549,15 @@ table tbody tr:hover { background-color: var(--input-bg); }
 
 /* --- Invoice/Payment Specifics --- */
 .payment-form-card { background-color: var(--card-bg); padding: var(--spacing-xl); border-radius: var(--border-radius-md); box-shadow: var(--shadow-lg); margin: 0 auto; }
+.invoice-countdown { font-size: 1rem; color: var(--danger-color); margin-bottom: var(--spacing-md); font-weight: bold; }
+.amount-display { background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-md); margin-bottom: var(--spacing-md); color: var(--text-dark); }
+.amount-display .usd-amount { font-size: 1.8rem; font-weight: 700; color: var(--primary-green); }
+.amount-display .btc-amount { font-size: 0.9rem; color: var(--text-light); }
+.qr-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--spacing-md); background-color: #fff; border-radius: var(--border-radius); margin-bottom: var(--spacing-md); border: 1px solid var(--border-subtle); }
+.qr-text { font-size: 0.75rem; word-break: break-all; margin-top: var(--spacing-sm); color: var(--text-dark); font-weight: 500; }
+.info-section p { margin: var(--spacing-xs) 0; font-size: 0.95rem; display: flex; justify-content: space-between; }
+.info-section p span { text-align: right; }
+.short-invoice-display { font-size: 0.85rem; color: var(--text-light); word-break: break-all; margin-bottom: var(--spacing-md); text-align: center; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm); }
 
 .method-badge {
     display: inline-block;
@@ -852,6 +579,7 @@ table tbody tr:hover { background-color: var(--input-bg); }
     border-color: #93c5fd;
 }
 
+/* --- FIX: Styles for Redesigned Payment Method Selection --- */
 .payment-method-group { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); }
 .payment-method-card {
     border: 2px solid var(--border-color);
@@ -1001,13 +729,95 @@ table tbody tr:hover { background-color: var(--input-bg); }
     margin-top: 0;
     font-size: 1.1rem;
 }
+.popover-close-btn {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-light);
+}
 
 /* -- Modal Action Buttons -- */
 .modal-actions {
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    margin-top: var(--spacing-lg);
+    margin-top: var(--spacing-lg); /* Added margin-top */
+}
+
+/* --- Refined Amount Display --- */
+.amount-display-large {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+    color: var(--text-dark);
+}
+.amount-display-large .usd-amount {
+    font-size: 2.5rem; /* Larger font size */
+    font-weight: 700;
+    color: var(--primary-green);
+    display: block; /* Make it a block to take full width */
+    line-height: 1.2;
+}
+.amount-display-large .currency-label {
+    font-size: 1rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* --- Input Group for Copy Buttons --- */
+.input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+.input-group .input {
+    flex-grow: 1;
+    margin-bottom: 0; /* Remove margin from input inside the group */
+}
+.input-group .btn {
+    flex-shrink: 0; /* Prevent button from shrinking */
+}
+
+/* --- Compact Modal Styles --- */
+.modal.modal-compact {
+    width: 420px; /* A more compact width */
+    padding-top: var(--spacing-lg);
+    padding-bottom: var(--spacing-lg);
+}
+
+.modal.modal-compact .modal-title {
+    font-size: 1.5rem; /* Slightly smaller title */
+    margin-bottom: var(--spacing-md);
+}
+
+.modal.modal-compact .amount-display-large {
+    padding: var(--spacing-md); /* Reduced padding */
+    margin-bottom: var(--spacing-md);
+}
+
+.modal.modal-compact .amount-display-large .usd-amount {
+    font-size: 2.25rem; /* Slightly smaller amount font */
+}
+
+.modal.modal-compact .qr-container {
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.modal.modal-compact .qr-container img {
+    width: 160px; /* Adjusted QR size */
+    height: 160px;
+}
+
+.modal.modal-compact .alert {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.85rem;
 }
 
 /* --- New Expense Page Layout --- */
