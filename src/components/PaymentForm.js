@@ -161,7 +161,7 @@ export default function PaymentForm() {
             </button>
         </form>
         {error && <div className="alert alert-danger mt-md">{error}</div>}
-        {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} setCopied={setCopied} copied={copied} resetAllModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
+        {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
         {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
         {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
         {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={resetAllModals} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
