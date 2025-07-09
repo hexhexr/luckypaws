@@ -317,23 +317,21 @@ label {
 .alert-danger::before { content: '❌'; }
 .alert-success { background-color: var(--success-light-bg); color: var(--text-success); border-color: var(--success-color); }
 .alert-success::before { content: '✅'; }
-.alert-warning { background-color: var(--warning-light-bg); color: var(--warning-color); border-color: var(--warning-color); }
+.alert-warning { background-color: var(--warning-light-bg); color: #856404; border-color: var(--yellow-warning); }
 .alert-warning::before { content: '⚠️'; }
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
 
 /* ==================================================
-   ✅ UNIFIED & POLISHED INVOICE/RECEIPT MODAL STYLES
+   ✅ REFINED AND CORRECTED V4 MODAL STYLES
    ================================================== */
-
-/* --- Base Modal Backdrop --- */
-.modal-backdrop {
+.modal-backdrop-v4 {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(10, 25, 47, 0.7); /* Dark blue overlay */
+    background-color: rgba(10, 25, 47, 0.7);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -341,29 +339,32 @@ label {
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
     padding: 1rem;
-    animation: modal-fade-in 0.3s ease-out forwards;
+    animation: fadeIn-v4 0.3s ease-out forwards;
 }
 
-@keyframes modal-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+@keyframes fadeIn-v4 {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
-/* --- Main Glassmorphic Modal Container --- */
-.modal-container {
-    width: 100%;
-    max-width: 420px; /* Optimal width for payment details */
-    background: rgba(23, 30, 44, 0.85); /* Darker, more solid background */
+.modal-glassmorphic-v4 {
+    width: 95%;
+    max-width: 500px;
+    background: rgba(17, 24, 39, 0.85);
     border-radius: 16px;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     border: 1px solid rgba(255, 255, 255, 0.1);
     position: relative;
-    color: #f9fafb; /* Light text for dark background */
-    padding: 1.5rem;
-    animation: modal-slide-in 0.4s ease-out forwards;
+    color: #f9fafb;
+    padding: 1.25rem;
+    animation: slideInUp-v4 0.4s ease-out forwards;
 }
 
-@keyframes modal-slide-in {
+@keyframes slideInUp-v4 {
     from {
         transform: translateY(20px) scale(0.98);
         opacity: 0;
@@ -374,17 +375,16 @@ label {
     }
 }
 
-/* --- Modal Close Button --- */
-.modal-close-button {
+.modal-close-button-v4 {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+    top: 0.5rem;
+    right: 0.5rem;
     background: rgba(255, 255, 255, 0.1);
     border: none;
     color: #e5e7eb;
     font-size: 1.25rem;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -395,198 +395,290 @@ label {
     transition: background-color 0.2s ease;
 }
 
-.modal-close-button:hover {
+.modal-close-button-v4:hover {
     background: rgba(255, 255, 255, 0.2);
 }
 
-/* --- Modal Header --- */
-.modal-header {
+.modal-header-v4 {
     text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
+    padding: 0 1.5rem;
 }
 
-.modal-header h3 {
-    color: var(--text-white);
-    font-size: 1.25rem;
+.modal-header-v4 h3 {
+    font-size: 1.1rem;
     font-weight: 600;
+    color: var(--text-white);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem; /* Space between icon and text */
-    margin: 0;
+    gap: 0.5rem;
 }
 
-/* --- Invoice/Payment Content Grid --- */
-.modal-payment-grid {
+.modal-header-v4.expired h3 {
+    color: var(--orange);
+}
+
+.modal-content-grid-v4 {
     display: grid;
-    grid-template-columns: 1fr; /* Default to a single column */
-    gap: 1.5rem;
+    grid-template-columns: 160px 1fr;
+    gap: 1rem;
+    align-items: center;
 }
 
-/* --- QR Code & Expired State --- */
-.modal-qr-section {
+.modal-col-left-v4,
+.modal-col-right-v4 {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.modal-qr-container-v4 {
     background: #fff;
     border-radius: 12px;
-    padding: 0.75rem;
+    padding: 0.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 180px; /* Slightly larger for better scanning */
-    height: 180px;
+    width: 160px;
+    height: 160px;
     margin: 0 auto;
 }
 
-.modal-qr-section img {
+.modal-qr-container-v4 img {
     width: 100%;
     height: 100%;
     border-radius: 8px;
 }
 
-.modal-qr-expired {
-    color: var(--orange);
+.modal-qr-expired-v4 {
+    color: var(--red-alert);
     font-weight: bold;
     text-align: center;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    font-size: 1.2rem;
 }
 
+.modal-invoice-text-v4 {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: #d1d5db;
+    text-align: center;
+    font-family: var(--font-family-mono);
+    word-break: break-all;
+    margin-top: 1rem;
+}
 
-/* --- Payment Details Section --- */
-.modal-details-section {
+.modal-copy-button-v4 {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #e5e7eb;
+    font-weight: 500;
+    padding: 0.6rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
     display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
 }
 
-.modal-amount-display {
-    background: rgba(0, 0, 0, 0.25);
-    padding: 1rem;
+.modal-copy-button-v4:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.modal-copy-button-v4:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.modal-amount-display-v4 {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.75rem;
     border-radius: 12px;
     text-align: center;
 }
 
-.modal-amount-display .amount-primary {
-    font-size: 2rem;
+.modal-amount-display-v4 .modal-amount-usd-v4 {
+    font-size: 1.5rem;
     font-weight: 700;
-    color: var(--text-white);
     display: block;
     line-height: 1.1;
+    color: var(--text-white);
 }
 
-.modal-amount-display .amount-secondary {
-    font-size: 0.9rem;
-    color: #9ca3af; /* Subdued secondary text color */
-}
-
-/* --- Group for Copyable Input --- */
-.modal-copy-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.modal-copy-group label {
+.modal-amount-display-v4 .modal-amount-alt-v4 {
     font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+.modal-details-group-v4 {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.75rem;
+    border-radius: 12px;
+    flex-grow: 1;
+}
+
+.modal-details-group-v4.compact {
+    padding: 0.5rem 0.75rem;
+}
+
+.modal-details-group-v4 p {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+}
+
+.modal-details-group-v4 p strong {
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+.modal-details-group-v4 p span {
     color: #d1d5db;
     font-weight: 500;
-    margin-bottom: 0;
+    text-align: right;
+    word-break: break-all;
+    padding-left: 0.5rem;
 }
 
-.modal-copy-group .input-wrapper {
+.modal-copy-group-v4 {
     display: flex;
-    align-items: center;
     gap: 0.5rem;
+    align-items: center;
 }
 
-.modal-copy-group input {
+.modal-copy-group-v4 input {
     flex-grow: 1;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #fff;
-    border-radius: 8px;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.9rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
     font-family: var(--font-family-mono);
-    margin: 0;
 }
 
-.modal-copy-group button {
+.modal-copy-group-v4 button {
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
     color: #fff;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.6rem;
+    padding: 0.5rem;
     flex-shrink: 0;
-    transition: background-color 0.2s;
 }
 
-.modal-copy-group button:hover {
+.modal-copy-group-v4 button:hover {
     background: rgba(255, 255, 255, 0.25);
 }
 
-/* --- Footer for Timer and Actions --- */
-.modal-footer {
-    margin-top: 1.5rem;
+.modal-footer-v4 {
+    margin-top: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 1rem;
+    padding-top: 0.75rem;
 }
 
-.modal-timer {
+.modal-timer-v4 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.85rem;
     color: #9ca3af;
 }
 
-.modal-timer.expired {
+.modal-timer-v4.expired {
     color: var(--orange);
 }
 
+.modal-action-button-v4 {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e5e7eb;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 0.85rem;
+}
+
+.modal-action-button-v4:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-action-button-v4.primary {
+    background: var(--primary-green);
+    border-color: var(--primary-green);
+    color: #fff;
+}
+
+.modal-action-button-v4.primary:hover {
+    background: var(--green-dark);
+}
+
+.modal-waiting-text-v4 {
+    font-style: italic;
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+
 /* --- Receipt Specific Styles --- */
-.modal-container.receipt {
-    max-width: 380px; /* More compact for receipts */
+.modal-glassmorphic-v4.receipt {
+    max-width: 360px;
 }
 
-.modal-receipt-header {
+.modal-receipt-header-v4 {
     text-align: center;
-    margin-bottom: 1rem;
 }
 
-.modal-receipt-icon {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto 0.75rem auto;
+.modal-receipt-header-v4 h2 {
+    font-size: 1.25rem;
+    margin: 0.5rem 0 0.75rem 0;
+    color: var(--text-white);
 }
 
-.modal-receipt-icon svg {
+.modal-receipt-icon-v4 {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 0.5rem auto;
+}
+
+.modal-receipt-icon-v4 svg {
     width: 100%;
     height: 100%;
 }
 
-/* --- SVG Checkmark Animation --- */
-.receipt-circle-bg { fill: rgba(0, 200, 83, 0.2); }
-.receipt-circle {
+.receipt-circle-bg-v4 {
+    fill: rgba(0, 200, 83, 0.2);
+}
+
+.receipt-circle-v4 {
     stroke: var(--primary-green);
     stroke-width: 3;
     stroke-linecap: round;
     fill: transparent;
     stroke-dasharray: 157;
     stroke-dashoffset: 157;
-    animation: circle-anim 0.7s ease-out forwards;
+    animation: circle-anim-v4 0.7s ease-out forwards;
 }
-.receipt-checkmark {
+
+.receipt-checkmark-v4 {
     stroke: #fff;
     stroke-width: 4;
     stroke-linecap: round;
@@ -594,72 +686,77 @@ label {
     fill: transparent;
     stroke-dasharray: 48;
     stroke-dashoffset: 48;
-    animation: checkmark-anim 0.3s ease-out 0.6s forwards;
+    animation: checkmark-anim-v4 0.3s ease-out 0.6s forwards;
 }
 
-@keyframes circle-anim { to { stroke-dashoffset: 0; } }
-@keyframes checkmark-anim { to { stroke-dashoffset: 0; } }
+@keyframes circle-anim-v4 {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
 
-.modal-receipt-content {
+@keyframes checkmark-anim-v4 {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.modal-receipt-content-v4 {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
 }
 
-.modal-info-group {
-    background: rgba(0, 0, 0, 0.25);
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
+.modal-amount-display-v4.receipt {
+    margin-bottom: 0;
 }
 
-.modal-info-group p {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 0.6rem 0;
-    font-size: 0.9rem;
-    color: #d1d5db;
+.modal-details-group-v4.receipt {
+    flex-grow: 0;
 }
 
-.modal-info-group p strong {
-    font-weight: 500;
+.modal-details-group-v4.receipt p span {
+    word-break: normal;
+}
+
+.modal-details-group-v4.receipt a {
     color: #9ca3af;
-}
-
-.modal-info-group a {
-    color: #93c5fd; /* Light blue for links */
     text-decoration: underline;
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
     font-weight: normal;
 }
-.modal-info-group a:hover {
-    color: var(--text-white);
+
+.modal-details-group-v4.receipt a:hover {
+    color: #e5e7eb;
 }
 
-.modal-action-button {
-    background: var(--primary-green);
-    border: none;
-    color: var(--text-white);
-    font-weight: 600;
-    padding: 0.8rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    font-size: 1rem;
-    width: 100%;
-}
-
-.modal-action-button:hover {
-    background: var(--green-dark);
+@media (max-width: 600px) {
+    .modal-glassmorphic-v4 {
+        padding: 1rem;
+        width: 95%;
+    }
+    .modal-content-grid-v4 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .modal-qr-container-v4 {
+        width: 150px;
+        height: 150px;
+    }
+    .modal-header-v4 h3 {
+        font-size: 1.1rem;
+    }
+    .modal-amount-display-v4 .modal-amount-usd-v4 {
+        font-size: 1.4rem;
+    }
 }
 
 /* ==================================================
-   END OF NEW MODAL STYLES
+   REST OF YOUR EXISTING CSS
    ================================================== */
-
 
 /* --- Header & Footer --- */
 .main-header {
