@@ -45,10 +45,28 @@ export default function Header() {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             padding: var(--spacing-sm) 0;
         }
+        .header-content {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .logo-link {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
+        }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
             font-size: 1.1rem;
+        }
+        .main-nav ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          gap: var(--spacing-lg);
+          align-items: center;
         }
         .main-nav a {
             padding: var(--spacing-sm) 0;
@@ -60,8 +78,28 @@ export default function Header() {
         .main-nav a:hover {
             color: var(--text-white);
         }
-        .menu-toggle span {
-            background-color: var(--text-white);
+
+        /* --- Mobile Navigation Styles --- */
+        @media (max-width: 768px) {
+          .main-nav {
+            display: none; /* Hide nav by default on mobile */
+            position: absolute;
+            top: 100%; /* Position it right below the header */
+            left: 0;
+            width: 100%;
+            background-color: #1f2937; /* A solid background for the dropdown */
+            padding: var(--spacing-md);
+            box-shadow: var(--shadow-lg);
+          }
+          .main-nav.open {
+            display: flex; /* Show the nav when open */
+            flex-direction: column;
+          }
+          .main-nav ul {
+            flex-direction: column;
+            width: 100%;
+            align-items: flex-start;
+          }
         }
       `}</style>
     </header>

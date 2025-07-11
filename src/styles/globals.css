@@ -943,16 +943,54 @@ table tbody tr:hover { background-color: var(--input-bg); }
 .loading-skeleton { padding: var(--spacing-lg); background-color: var(--card-bg); border-radius: var(--border-radius-md); }
 .skeleton-line { height: 1.5em; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; border-radius: 4px; margin-bottom: var(--spacing-sm); }
 @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.menu-toggle { display: none; cursor: pointer; background: none; border: none; z-index: 1001; }
+
+/* --- FIX: Complete Mobile Navigation Styles --- */
+.menu-toggle { 
+    display: none; 
+    cursor: pointer; 
+    background: none; 
+    border: none; 
+    z-index: 1001; 
+    padding: 0;
+}
 @media (max-width: 768px) {
-    .menu-toggle { display: flex; flex-direction: column; gap: 5px; width: 30px; height: 25px; justify-content: center; }
-    .menu-toggle span { display: block; width: 100%; height: 3px; background-color: var(--text-dark); border-radius: 2px; transition: all 0.3s ease-in-out; }
-    .public-theme .menu-toggle span { background-color: var(--text-white); }
-    .menu-toggle.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
-    .menu-toggle.open span:nth-child(2) { opacity: 0; }
-    .menu-toggle.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
-    .admin-header { flex-direction: column; align-items: flex-start; }
-    .admin-nav { flex-direction: column; width: 100%; align-items: stretch; }
+    .menu-toggle { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 5px; 
+        width: 30px; 
+        height: 25px; 
+        justify-content: center; 
+    }
+    .menu-toggle span { 
+        display: block; 
+        width: 100%; 
+        height: 3px; 
+        background-color: var(--text-dark); 
+        border-radius: 2px; 
+        transition: all 0.3s ease-in-out; 
+    }
+    .public-theme .menu-toggle span { 
+        background-color: var(--text-white); 
+    }
+    .menu-toggle.open span:nth-child(1) { 
+        transform: rotate(45deg) translate(5px, 5px); 
+    }
+    .menu-toggle.open span:nth-child(2) { 
+        opacity: 0; 
+    }
+    .menu-toggle.open span:nth-child(3) { 
+        transform: rotate(-45deg) translate(5px, -5px); 
+    }
+    .admin-header { 
+        flex-direction: column; 
+        align-items: flex-start; 
+    }
+    .admin-nav { 
+        flex-direction: column; 
+        width: 100%; 
+        align-items: stretch; 
+    }
 }
 .method-badge { display: inline-block; padding: 0.3em 0.7em; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; border: 1px solid; }
 .method-lightning { background-color: #fef9c3; color: #713f12; border-color: #fde047; }
