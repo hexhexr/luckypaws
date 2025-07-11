@@ -11,7 +11,7 @@ export default function Custom404() {
         <title>404 - Page Not Found</title>
       </Head>
       <Header />
-      <main className="main-content container text-center section-padded">
+      <main className="main-content container text-center section-padded" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <h1 className="section-title">404 - Page Not Found</h1>
         <p className="section-subtitle">
           Oops! The page you are looking for does not exist. It might have been moved or deleted.

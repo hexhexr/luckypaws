@@ -1,21 +1,20 @@
 // src/components/Header.js
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import the Next.js Image component
+import Image from 'next/image';
 
 export default function Header() {
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   return (
-    <header className="main-header">
+    <header className="main-header" style={{position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'var(--card-bg)'}}>
       <div className="container header-content">
         <Link href="/" className="logo-link">
-          {/* Use the Image component for your logo */}
           <Image 
-            src="/logo.png" // Assumes your logo is named logo.png in the public folder
+            src="/logo.png"
             alt="Lucky Paw's Fishing Room Logo"
-            width={40} // Specify the width
-            height={40} // Specify the height
+            width={40}
+            height={40}
             className="logo-icon"
           />
           <span className="logo-text">Lucky Paw's Fishing Room</span>
