@@ -18,13 +18,12 @@ const formatTimestamp = (timestamp) => {
 const ExplorerIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>;
 
 
-// FIX: This component has been completely redesigned for a premium look.
+// FINAL FIX: This version perfects the spacing, alignment, and typography.
 export default function OrderDetailsModal({ order, onClose, onMerge }) {
     if (!order) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            {/* The new class "details-modal" will scope our premium styles */}
             <div className="modal details-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="details-modal-header">
                     <h3>Order Details</h3>

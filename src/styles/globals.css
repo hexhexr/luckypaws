@@ -1163,15 +1163,15 @@ table tbody tr:hover { background-color: var(--input-bg); }
     font-size: 1rem;
     font-weight: 600;
     color: var(--primary-blue);
-
 /* ==================================================
-   FIX: Premium Styles for Order Details Modal
+   FINAL FIX: Premium Styles for Order Details Modal
    ================================================== */
 
 .details-modal {
     width: 100%;
-    max-width: 480px; /* More compact width */
-    padding: 0; /* Remove default padding to allow for custom sections */
+    max-width: 480px; /* A compact, comfortable width */
+    padding: 0; 
+    border: 1px solid rgba(0, 0, 0, 0.05); /* Softer border */
 }
 
 .details-modal-header {
@@ -1195,34 +1195,34 @@ table tbody tr:hover { background-color: var(--input-bg); }
 }
 
 .details-modal-content {
-    padding: var(--spacing-lg);
-    background-color: #fcfcfc; /* Slightly off-white for a softer look */
+    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-lg); /* More balanced padding */
+    background-color: #fcfcfc;
 }
 
 .details-section {
-    margin-bottom: var(--spacing-lg);
-}
-.details-section:last-child {
-    margin-bottom: 0;
+    margin-top: var(--spacing-lg);
 }
 
 .details-section-title {
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-light);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: var(--spacing-sm);
-    padding-bottom: var(--spacing-sm);
-    border-bottom: 1px solid var(--border-color);
 }
 
 .details-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm) 0;
+    padding: var(--spacing-md) 0; /* Increased vertical padding for more breathing room */
     font-size: 0.95rem;
+    border-bottom: 1px solid var(--border-color); /* Separator line for each row */
+}
+
+.details-row:last-child {
+    border-bottom: none; /* Remove border from the last row in a section */
 }
 
 .details-label {
@@ -1233,6 +1233,9 @@ table tbody tr:hover { background-color: var(--input-bg); }
     color: var(--text-dark);
     font-weight: 500;
     text-align: right;
+    display: flex; /* Helps align badges */
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .details-value a {
@@ -1264,5 +1267,4 @@ table tbody tr:hover { background-color: var(--input-bg); }
     padding: var(--spacing-md) var(--spacing-lg);
     background-color: var(--bg-medium-light);
     border-top: 1px solid var(--border-color);
-}
 }
