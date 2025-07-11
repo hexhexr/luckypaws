@@ -36,10 +36,8 @@ export default function Footer() {
       </div>
       <style jsx>{`
         .main-footer {
-            background-color: transparent; /* Blends with dark body */
-            color: #9ca3af; /* Softer gray */
             padding-top: var(--spacing-xl);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid #30363d;
         }
         .footer-grid {
             display: grid;
@@ -48,39 +46,20 @@ export default function Footer() {
             padding-bottom: var(--spacing-xl);
         }
         .footer-section h4 {
-            color: var(--text-white);
+            color: #f0f6fc;
             font-weight: 600;
             margin-bottom: 1rem;
         }
-        .footer-section p {
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-        .footer-section ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .footer-section li {
-            margin-bottom: var(--spacing-sm);
-        }
-        .footer-section a {
-            color: #9ca3af;
-            text-decoration: none;
-            transition: color 0.2s ease;
-        }
-        .footer-section a:hover {
-            color: var(--primary-green);
-        }
+        .footer-section p { font-size: 0.95rem; line-height: 1.6; }
+        .footer-section ul { list-style: none; padding: 0; margin: 0; }
+        .footer-section li { margin-bottom: var(--spacing-sm); }
+        .footer-section a { color: #8b949e; }
+        .footer-section a:hover { color: #58a6ff; }
         .footer-bottom {
             padding: var(--spacing-md) 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid #30363d;
         }
-        .footer-bottom p {
-            margin: 0;
-            font-size: 0.9rem;
-            color: #9ca3af;
-        }
+        .footer-bottom p { margin: 0; font-size: 0.9rem; color: #8b949e; }
       `}</style>
     </footer>
   );

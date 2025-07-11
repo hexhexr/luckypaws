@@ -30,7 +30,7 @@ export default function Header() {
             <li><Link href="/">Home</Link></li>
             <li><Link href="/games">Games</Link></li>
             <li><Link href="/faq">How to Play/FAQ</Link></li>
-            <li><Link href="/contact">Contact Us</Link></li>
+            <li><Link href="/contact">Contact</Link></li>
           </ul>
         </nav>
       </div>
