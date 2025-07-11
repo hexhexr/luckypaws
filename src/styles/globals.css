@@ -869,3 +869,93 @@ table tbody tr:hover { background-color: var(--input-bg); }
 .toast-notification { position: fixed; bottom: 20px; right: 20px; display: flex; align-items: center; padding: 12px 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); z-index: 9999; min-width: 300px; border-left: 5px solid; animation: toast-in 0.5s ease; }
 @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: var(--spacing-lg); }
+/* ==================================================
+   ✅ STYLES FOR REDESIGNED PAYMENT FORM
+   ================================================== */
+
+.payment-form-container {
+    background: rgba(17, 24, 39, 0.85); /* Matches modal background */
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    color: #f9fafb;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.payment-form-title {
+    text-align: center;
+    color: var(--text-white);
+    font-weight: 600;
+    margin-bottom: var(--spacing-lg);
+}
+
+/* --- Dark Theme Form Inputs --- */
+.payment-form-container .form-group label {
+    color: #d1d5db; /* Brighter label color for dark background */
+    font-weight: 500;
+}
+
+.payment-form-container .input,
+.payment-form-container .select {
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-white);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0; /* Remove default bottom margin */
+    transition: all var(--transition-speed) ease;
+}
+
+.payment-form-container .input::placeholder {
+    color: #9ca3af;
+}
+
+.payment-form-container .input:focus,
+.payment-form-container .select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+}
+
+/* --- Dark Theme Payment Method Cards --- */
+.payment-form-container .payment-method-card {
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background-color: transparent;
+    transition: all var(--transition-speed) ease;
+}
+
+.payment-form-container .payment-method-card:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.payment-form-container .payment-method-card.selected {
+    background-color: rgba(0, 200, 83, 0.2); /* Light green tint */
+    border-color: var(--primary-green);
+    box-shadow: none;
+}
+
+.payment-form-container .method-card-title {
+    color: var(--text-white);
+}
+
+.payment-form-container .method-card-desc {
+    color: #9ca3af;
+}
+
+/* --- Dark Theme Buttons --- */
+.payment-form-container .btn-primary {
+    background-color: var(--primary-green);
+    border: none;
+    font-size: 1.1rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
+
+.payment-form-container .btn-primary:hover:not(:disabled) {
+    background-color: var(--green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}

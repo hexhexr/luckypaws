@@ -16,7 +16,6 @@ export default function PaymentForm() {
   const [order, setOrder] = useState(null);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
 
   const pollingRef = useRef(null);
@@ -60,12 +59,9 @@ export default function PaymentForm() {
 
   const resetAllModals = () => {
     setModals({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
-    setCopied(false);
     clearInterval(pollingRef.current);
     setError('');
   };
-
-  const isValidQRValue = value => typeof value === 'string' && value.trim().length > 10 && /^ln(bc|tb|bcrt)[0-9a-z]+$/i.test(value.trim());
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -109,63 +105,65 @@ export default function PaymentForm() {
     }
   };
 
-  const shorten = str => !str ? 'N/A' : str.length <= 14 ? str : `${str.slice(0, 8)}…${str.slice(-6)}`;
-
   return (
-    <div className="payment-form-card">
-        <h2 className="card-subtitle text-center mb-xl" style={{ color: 'var(--primary-green)' }}>Top Up Your Account</h2>
-        <form onSubmit={handleSubmit}>
-            <div className="form-grid">
-                <div className="form-group">
-                    <label htmlFor="username">Username</label>
-                    <input id="username" className="input" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
-                </div>
-                <div className="form-group">
-                    <label htmlFor="game">Select Game</label>
-                    <select id="game" className="select" name="game" value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} required>
-                        <option value="" disabled>Select a Game</option>
-                        {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
-                    </select>
-                </div>
-            </div>
+    <>
+      <div className="payment-form-container">
+          <h2 className="payment-form-title">Top Up Your Account</h2>
+          <form onSubmit={handleSubmit}>
+              <div className="form-grid">
+                  <div className="form-group">
+                      <label htmlFor="username">Username</label>
+                      <input id="username" className="input" name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required placeholder="Your in-game username"/>
+                  </div>
+                  <div className="form-group">
+                      <label htmlFor="game">Select Game</label>
+                      <select id="game" className="select" name="game" value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} required>
+                          <option value="" disabled>Select a Game</option>
+                          {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
+                      </select>
+                  </div>
+              </div>
 
-            <div className="form-group">
-                <label>Payment Method</label>
-                <div className="payment-method-group">
-                    <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
-                        <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                        <div className="method-card-content">
-                            <span className="method-card-icon">⚡</span>
-                            <span className="method-card-title">Lightning</span>
-                            <span className="method-card-desc">Instant & Anonymous</span>
-                        </div>
-                    </label>
-                    <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
-                        <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                        <div className="method-card-content">
-                            <span className="method-card-icon">🅿️</span>
-                            <span className="method-card-title">PYUSD</span>
-                            <span className="method-card-desc">PayPal / Venmo</span>
-                        </div>
-                    </label>
-                </div>
-            </div>
+              <div className="form-group">
+                  <label>Payment Method</label>
+                  <div className="payment-method-group">
+                      <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
+                          <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                          <div className="method-card-content">
+                              <span className="method-card-icon">⚡</span>
+                              <span className="method-card-title">Lightning</span>
+                              <span className="method-card-desc">Instant & Anonymous</span>
+                          </div>
+                      </label>
+                      <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
+                          <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                          <div className="method-card-content">
+                              <span className="method-card-icon">🅿️</span>
+                              <span className="method-card-title">PYUSD</span>
+                              <span className="method-card-desc">PayPal / Venmo</span>
+                          </div>
+                      </label>
+                  </div>
+              </div>
 
-            <div className="form-group">
-                <label htmlFor="amount">Amount (USD)</label>
-                <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
-            </div>
+              <div className="form-group">
+                  <label htmlFor="amount">Amount (USD)</label>
+                  <input id="amount" className="input" type="number" min="1" step="0.01" name="amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required placeholder="e.g., 50.00"/>
+              </div>
 
-            <button className="btn btn-primary btn-full-width mt-lg" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
-                {loading ? 'Processing...' : 'Proceed to Payment'}
-            </button>
-        </form>
-        {error && <div className="alert alert-danger mt-md">{error}</div>}
-        {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} setCopied={setCopied} copied={copied} resetModals={resetAllModals} isValidQRValue={isValidQRValue} />)}
-        {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
-        {modals.receipt && form.method === 'lightning' && (<ReceiptModal order={order} resetModals={resetAllModals} shorten={shorten} />)}
-        {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={resetAllModals} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
-        {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
-    </div>
+              <button className="btn btn-primary btn-full-width mt-lg" type="submit" disabled={loading || !form.username || !form.game || !form.amount}>
+                  {loading ? 'Processing...' : 'Proceed to Payment'}
+              </button>
+          </form>
+          {error && <div className="alert alert-danger mt-md">{error}</div>}
+      </div>
+
+      {/* --- Modals remain unchanged --- */}
+      {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={resetAllModals} />)}
+      {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
+      {modals.receipt && <ReceiptModal order={order} resetModals={resetAllModals} />}
+      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={resetAllModals} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
+      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
+    </>
   );
 }
