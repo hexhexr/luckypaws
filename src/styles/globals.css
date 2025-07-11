@@ -1,5 +1,5 @@
 /* ==================================================
-   ✅ Consolidated & Enhanced Cash App–Style Theme
+   ✅ FINAL, UNIFIED & SCOPED GLOBALS.CSS
    ================================================== */
 
 /* --- Root Variables --- */
@@ -23,7 +23,6 @@
     --text-light: #666;
     --text-white: #fff;
     --text-secondary: #555;
-    /* --- FIX: Added global text color classes --- */
     --text-success: var(--primary-green);
     --text-danger: var(--red-alert);
 
@@ -86,13 +85,32 @@ body {
     padding: 0;
     margin: 0;
     font-family: var(--font-family-base);
-    background-color: var(--bg-light);
-    color: var(--text-dark);
     line-height: 1.7;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
+
+/* --- SCOPED THEME FOR PUBLIC vs ADMIN --- */
+.public-theme {
+    background-color: #111827; /* Dark blue-gray background for public pages */
+    color: #e5e7eb;
+}
+
+.admin-theme {
+    background-color: var(--bg-light); /* Original light background for admin pages */
+    color: var(--text-dark);
+}
+
+.public-theme h1,
+.public-theme h2,
+.public-theme h3,
+.public-theme h4,
+.public-theme h5,
+.public-theme h6 {
+    color: #ffffff;
+}
+
 
 * {
     box-sizing: border-box;
@@ -117,7 +135,6 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 0;
     margin-bottom: var(--spacing-md);
     font-weight: 600;
-    color: var(--text-dark);
 }
 
 p {
@@ -125,7 +142,6 @@ p {
     margin-bottom: var(--spacing-md);
 }
 
-/* --- FIX: Added Global Text Color Classes --- */
 .text-success { color: var(--text-success) !important; }
 .text-danger { color: var(--text-danger) !important; }
 .text-center { text-align: center; }
@@ -151,7 +167,6 @@ p {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: var(--spacing-lg);
-    color: var(--text-dark);
 }
 
 .section-subtitle {
@@ -164,7 +179,7 @@ p {
     opacity: 0.9;
 }
 
-/* --- Card Styles --- */
+/* --- Card Styles (For Admin Panel) --- */
 .card {
     background: var(--card-bg);
     border-radius: var(--border-radius-md);
@@ -192,14 +207,13 @@ p {
     margin-bottom: var(--spacing-lg);
 }
 
-/* --- Form Elements --- */
+/* --- Form Elements (For Admin Panel) --- */
 .form-group {
     margin-bottom: var(--spacing-md);
 }
 label {
     display: block;
     margin-bottom: var(--spacing-sm);
-    color: var(--text-dark);
     font-size: 0.95rem;
     font-weight: 500;
 }
@@ -239,7 +253,6 @@ label {
     grid-column: 1 / -1;
 }
 
-/* --- FIX: Styles for Form Fieldset --- */
 .form-fieldset {
     border: 1px solid var(--border-subtle);
     border-radius: var(--border-radius);
@@ -320,31 +333,10 @@ label {
 .alert-danger::before { content: '❌'; }
 .alert-success { background-color: var(--success-light-bg); color: var(--text-success); border-color: var(--success-color); }
 .alert-success::before { content: '✅'; }
-.alert-warning { background-color: var(--warning-light-bg); color: var(--warning-color); border-color: var(--warning-color); }
+.alert-warning { background-color: var(--warning-light-bg); color: #856404; border-color: var(--yellow-warning); }
 .alert-warning::before { content: '⚠️'; }
 .alert-info { background-color: var(--info-light-bg); color: var(--info-color); border-color: var(--info-color); }
 .alert-info::before { content: 'ℹ️'; }
-
-/* --- Original Modal Styles (For compatibility if any old component uses them) --- */
-.modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 1000; backdrop-filter: blur(8px);
-}
-.modal {
-    background: var(--card-bg); border-radius: var(--border-radius-md);
-    padding: var(--spacing-lg) var(--spacing-xl); box-shadow: var(--shadow-lg);
-    position: relative; max-width: 90%; width: 500px;
-    text-align: left; animation: modalFadeIn 0.3s ease-out forwards;
-}
-@keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-.modal-close-btn {
-    position: absolute; top: var(--spacing-sm); right: var(--spacing-sm);
-    background: none; border: none; color: var(--text-light);
-    font-size: 1.8rem; cursor: pointer; padding: var(--spacing-xs); line-height: 1;
-}
-.modal-title { font-size: 1.75rem; margin-bottom: var(--spacing-md); font-weight: 600; text-align: center; }
 
 /* ==================================================
    ✅ REFINED AND CORRECTED V4 MODAL STYLES
@@ -443,13 +435,12 @@ label {
     color: var(--orange);
 }
 
-/* --- FIX: Modal Readability Correction --- */
 .modal-details-group-v4 h4 {
-    color: #d1d5db; /* Brighter, more readable light gray */
+    color: #d1d5db;
     font-size: 0.9rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
-    margin-top: 0; /* Reset margin top */
+    margin-top: 0;
 }
 
 .modal-content-grid-v4 {
@@ -671,7 +662,6 @@ label {
     font-size: 0.85rem;
 }
 
-/* --- Receipt Specific Styles --- */
 .modal-glassmorphic-v4.receipt {
     max-width: 360px;
 }
@@ -787,21 +777,99 @@ label {
     }
 }
 
-/* ==================================================
-   REST OF YOUR EXISTING CSS
-   ================================================== */
-/* --- Header & Footer --- */
-.main-header { background-color: var(--card-bg); padding: var(--spacing-md) 0; border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-sm); }
-.header-content { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 var(--spacing-md); }
-.logo-link { display: flex; align-items: center; font-size: 1.5rem; font-weight: bold; color: var(--primary-green); gap: var(--spacing-sm); }
-.logo-icon { font-size: 1.8rem; }
-.logo-text { color: var(--text-dark); }
-.main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; gap: var(--spacing-lg); }
-.main-nav a { color: var(--text-dark); font-weight: 500; }
-.main-nav a:hover { color: var(--primary-green); }
-.main-footer { background-color: var(--bg-medium-light); color: var(--text-light); padding: var(--spacing-xl) 0; border-top: 1px solid var(--border-color); }
 
-/* --- Admin Dashboard Specific --- */
+/* ==================================================
+   STYLES FOR REDESIGNED PAYMENT FORM
+   ================================================== */
+
+.payment-form-container {
+    background: rgba(17, 24, 39, 0.85); /* Matches modal background */
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    color: #f9fafb;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.payment-form-title {
+    text-align: center;
+    color: var(--text-white);
+    font-weight: 600;
+    margin-bottom: var(--spacing-lg);
+}
+
+.payment-form-container .form-group label {
+    color: #d1d5db; /* Brighter label color for dark background */
+    font-weight: 500;
+}
+
+.payment-form-container .input,
+.payment-form-container .select {
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-white);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0; /* Remove default bottom margin */
+    transition: all var(--transition-speed) ease;
+}
+
+.payment-form-container .input::placeholder {
+    color: #9ca3af;
+}
+
+.payment-form-container .input:focus,
+.payment-form-container .select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+}
+
+.payment-form-container .payment-method-card {
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background-color: transparent;
+    transition: all var(--transition-speed) ease;
+}
+
+.payment-form-container .payment-method-card:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.payment-form-container .payment-method-card.selected {
+    background-color: rgba(0, 200, 83, 0.2); /* Light green tint */
+    border-color: var(--primary-green);
+    box-shadow: none;
+}
+
+.payment-form-container .method-card-title {
+    color: var(--text-white);
+}
+
+.payment-form-container .method-card-desc {
+    color: #9ca3af;
+}
+
+.payment-form-container .btn-primary {
+    background-color: var(--primary-green);
+    border: none;
+    font-size: 1.1rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
+
+.payment-form-container .btn-primary:hover:not(:disabled) {
+    background-color: var(--green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ==================================================
+   ADMIN & OTHER EXISTING STYLES
+   ================================================== */
+
 .admin-dashboard-container { display: flex; flex-direction: column; min-height: 100vh; }
 .admin-header { background-color: var(--text-dark); color: white; padding: var(--spacing-md) var(--spacing-lg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); }
 .admin-header h1 { margin: 0; font-size: 1.8rem; color: white; }
@@ -842,120 +910,21 @@ table tbody tr:hover { background-color: var(--input-bg); }
 @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .menu-toggle { display: none; cursor: pointer; background: none; border: none; z-index: 1001; }
 @media (max-width: 768px) {
-    .main-nav { display: none; }
-    .main-nav.open { display: flex; flex-direction: column; position: absolute; top: 70px; left: 0; width: 100%; background: var(--card-bg); padding: var(--spacing-md); box-shadow: var(--shadow-lg); }
-    .main-nav ul { flex-direction: column; gap: var(--spacing-md); }
     .menu-toggle { display: flex; flex-direction: column; gap: 5px; width: 30px; height: 25px; justify-content: center; }
     .menu-toggle span { display: block; width: 100%; height: 3px; background-color: var(--text-dark); border-radius: 2px; transition: all 0.3s ease-in-out; }
+    .public-theme .menu-toggle span { background-color: var(--text-white); }
     .menu-toggle.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
     .menu-toggle.open span:nth-child(2) { opacity: 0; }
     .menu-toggle.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
     .admin-header { flex-direction: column; align-items: flex-start; }
     .admin-nav { flex-direction: column; width: 100%; align-items: stretch; }
 }
-.payment-form-card { background-color: var(--card-bg); padding: var(--spacing-xl); border-radius: var(--border-radius-md); box-shadow: var(--shadow-lg); margin: 0 auto; }
-.payment-method-group { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); }
-.payment-method-card { border: 2px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-md); cursor: pointer; transition: all var(--transition-speed) ease; position: relative; }
-.payment-method-card:hover { border-color: var(--primary-blue); background-color: var(--info-light-bg); }
-.payment-method-card.selected { border-color: var(--primary-green); box-shadow: var(--box-shadow-input-focus); background-color: var(--success-light-bg); }
-.payment-method-card input[type="radio"] { position: absolute; opacity: 0; width: 100%; height: 100%; top: 0; left: 0; cursor: pointer; }
-.method-card-content { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--spacing-xs); }
-.method-card-icon { font-size: 1.5rem; }
-.method-card-title { font-weight: 600; font-size: 1rem; }
-.method-card-desc { font-size: 0.8rem; color: var(--text-light); }
+.method-badge { display: inline-block; padding: 0.3em 0.7em; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; border: 1px solid; }
+.method-lightning { background-color: #fef9c3; color: #713f12; border-color: #fde047; }
+.method-pyusd { background-color: #dbeafe; color: #1e40af; border-color: #93c5fd; }
 .status-unmatched_payment { background-color: var(--warning-light-bg); color: #b45309; border: 1px solid var(--orange); font-weight: bold; }
 .status-unmatched_payment::before { content: '⚠️'; }
 .table-controls-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-md); }
 .toast-notification { position: fixed; bottom: 20px; right: 20px; display: flex; align-items: center; padding: 12px 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); z-index: 9999; min-width: 300px; border-left: 5px solid; animation: toast-in 0.5s ease; }
 @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: var(--spacing-lg); }
-/* ==================================================
-   ✅ STYLES FOR REDESIGNED PAYMENT FORM
-   ================================================== */
-
-.payment-form-container {
-    background: rgba(17, 24, 39, 0.85); /* Matches modal background */
-    border-radius: 16px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: var(--spacing-lg) var(--spacing-xl);
-    color: #f9fafb;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
-}
-
-.payment-form-title {
-    text-align: center;
-    color: var(--text-white);
-    font-weight: 600;
-    margin-bottom: var(--spacing-lg);
-}
-
-/* --- Dark Theme Form Inputs --- */
-.payment-form-container .form-group label {
-    color: #d1d5db; /* Brighter label color for dark background */
-    font-weight: 500;
-}
-
-.payment-form-container .input,
-.payment-form-container .select {
-    background-color: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: var(--text-white);
-    border-radius: 8px;
-    padding: 0.8rem 1rem;
-    margin-bottom: 0; /* Remove default bottom margin */
-    transition: all var(--transition-speed) ease;
-}
-
-.payment-form-container .input::placeholder {
-    color: #9ca3af;
-}
-
-.payment-form-container .input:focus,
-.payment-form-container .select:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
-}
-
-/* --- Dark Theme Payment Method Cards --- */
-.payment-form-container .payment-method-card {
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    background-color: transparent;
-    transition: all var(--transition-speed) ease;
-}
-
-.payment-form-container .payment-method-card:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-}
-
-.payment-form-container .payment-method-card.selected {
-    background-color: rgba(0, 200, 83, 0.2); /* Light green tint */
-    border-color: var(--primary-green);
-    box-shadow: none;
-}
-
-.payment-form-container .method-card-title {
-    color: var(--text-white);
-}
-
-.payment-form-container .method-card-desc {
-    color: #9ca3af;
-}
-
-/* --- Dark Theme Buttons --- */
-.payment-form-container .btn-primary {
-    background-color: var(--primary-green);
-    border: none;
-    font-size: 1.1rem;
-    padding-top: 0.9rem;
-    padding-bottom: 0.9rem;
-}
-
-.payment-form-container .btn-primary:hover:not(:disabled) {
-    background-color: var(--green-dark);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}

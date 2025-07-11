@@ -36,9 +36,10 @@ export default function Footer() {
       </div>
       <style jsx>{`
         .main-footer {
-            background-color: #ffffff;
-            color: var(--text-light);
+            background-color: transparent; /* Blends with dark body */
+            color: #9ca3af; /* Softer gray */
             padding-top: var(--spacing-xl);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         .footer-grid {
             display: grid;
@@ -47,11 +48,13 @@ export default function Footer() {
             padding-bottom: var(--spacing-xl);
         }
         .footer-section h4 {
-            color: var(--text-dark);
+            color: var(--text-white);
             font-weight: 600;
+            margin-bottom: 1rem;
         }
         .footer-section p {
             font-size: 0.95rem;
+            line-height: 1.6;
         }
         .footer-section ul {
             list-style: none;
@@ -62,21 +65,21 @@ export default function Footer() {
             margin-bottom: var(--spacing-sm);
         }
         .footer-section a {
-            color: var(--text-secondary);
+            color: #9ca3af;
             text-decoration: none;
+            transition: color 0.2s ease;
         }
         .footer-section a:hover {
             color: var(--primary-green);
-            text-decoration: underline;
         }
         .footer-bottom {
-            background: var(--bg-light);
             padding: var(--spacing-md) 0;
-            border-top: 1px solid var(--border-color);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         .footer-bottom p {
             margin: 0;
             font-size: 0.9rem;
+            color: #9ca3af;
         }
       `}</style>
     </footer>

@@ -20,15 +20,6 @@ export default function Home() {
         <title>Lucky Paw's Fishing Room - Top Up & Play</title>
         <meta name="description" content="Top up your balance for thrilling online fishing games with instant Bitcoin Lightning and PYUSD payments." />
         <link rel="icon" href="/favicon.ico" />
-        <meta property="og:title" content="Lucky Paw's Fishing Room" />
-        <meta property="og:description" content="Top up your balance for thrilling online fishing games with instant Bitcoin Lightning and PYUSD payments." />
-        <meta property="og:image" content="/logo-preview.png" />
-        <meta property="og:url" content="https://luckypawsfishingroom.com" />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Lucky Paw's Fishing Room" />
-        <meta name="twitter:description" content="Top up your balance for thrilling online fishing games." />
-        <meta name="twitter:image" content="/logo-preview.png" />
       </Head>
 
       <Header />
@@ -39,7 +30,8 @@ export default function Home() {
           <div className="container">
             <h1 className="hero-title">Welcome to Lucky Paw's Fishing Room</h1>
             <p className="hero-subtitle">
-              Your premier destination for exciting online fishing games. Top up your account instantly and start playing today!
+              Your premier destination for exciting online fishing games. Top up your account instantly
+              and start playing today!
             </p>
             <div className="hero-cta-buttons">
               <button onClick={scrollToPayment} className="btn btn-primary btn-large">Get Started</button>
@@ -48,8 +40,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Payment Form Section - Now visually integrated */}
-        <section id="payment-form-section" className="section-padded" ref={paymentFormRef}>
+        {/* Payment Form Section */}
+        <section id="payment-form-section" className="payment-section" ref={paymentFormRef}>
           <div className="container" style={{maxWidth: '700px'}}>
              <PaymentForm />
           </div>
@@ -83,19 +75,19 @@ export default function Home() {
       <Footer />
 
       <style jsx>{`
-        .main-content {
-            background-color: #f0f2f5; /* A very light gray to offset the white header */
-        }
         .hero-section {
           padding: var(--spacing-xxl) 0;
-          background-color: #ffffff;
         }
         .hero-title {
-            font-weight: 700;
+            font-weight: 800; /* Bolder font */
+            font-size: 3.5rem;
+            letter-spacing: -1px;
         }
         .hero-subtitle {
             font-size: 1.25rem;
-            max-width: 800px;
+            color: #9ca3af; /* Softer gray */
+            max-width: 600px;
+            margin-top: var(--spacing-sm);
         }
         .hero-cta-buttons {
             margin-top: var(--spacing-lg);
@@ -103,9 +95,11 @@ export default function Home() {
             justify-content: center;
             gap: var(--spacing-md);
         }
+        .payment-section, .features-section {
+            padding: var(--spacing-xxl) var(--spacing-md);
+        }
         .features-section {
-            background-color: #ffffff;
-            padding: var(--spacing-xxl) 0;
+             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         .feature-grid {
             display: grid;
@@ -116,15 +110,21 @@ export default function Home() {
         .feature-item {
             text-align: center;
             padding: var(--spacing-lg);
+            background: rgba(17, 24, 39, 0.5); /* Dark card background */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-md);
         }
         .feature-icon {
-            font-size: 3rem;
+            font-size: 2.5rem;
             margin-bottom: var(--spacing-md);
             color: var(--primary-blue);
         }
         .feature-title {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             margin-bottom: var(--spacing-sm);
+        }
+        .feature-description {
+            color: #9ca3af; /* Softer gray */
         }
       `}</style>
     </>

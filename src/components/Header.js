@@ -39,29 +39,29 @@ export default function Header() {
             position: sticky;
             top: 0;
             z-index: 1000;
-            background-color: var(--card-bg);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-color: rgba(17, 24, 39, 0.5); /* Semi-transparent dark bg */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: var(--spacing-sm) 0;
         }
         .logo-text {
-            color: var(--text-dark);
+            color: var(--text-white);
             font-weight: 600;
+            font-size: 1.1rem;
         }
         .main-nav a {
             padding: var(--spacing-sm) 0;
             position: relative;
+            color: #d1d5db; /* Light gray for nav links */
+            font-weight: 500;
+            transition: color 0.2s ease;
         }
-        .main-nav a::after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: 0;
-            left: 0;
-            background-color: var(--primary-green);
-            transition: width 0.3s ease;
+        .main-nav a:hover {
+            color: var(--text-white);
         }
-        .main-nav a:hover::after {
-            width: 100%;
+        .menu-toggle span {
+            background-color: var(--text-white);
         }
       `}</style>
     </header>
