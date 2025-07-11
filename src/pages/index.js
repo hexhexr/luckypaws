@@ -10,7 +10,7 @@ export default function Home() {
 
   const scrollToPayment = () => {
     if (paymentFormRef.current) {
-      paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -35,10 +35,10 @@ export default function Home() {
 
       <main className="main-content">
         {/* Hero Section */}
-        <section className="hero-section text-center section-padded">
+        <section className="hero-section text-center">
           <div className="container">
-            <h1 className="section-title">Welcome to Lucky Paw's Fishing Room</h1>
-            <p className="section-subtitle">
+            <h1 className="hero-title">Welcome to Lucky Paw's Fishing Room</h1>
+            <p className="hero-subtitle">
               Your premier destination for exciting online fishing games. Top up your account instantly and start playing today!
             </p>
             <div className="hero-cta-buttons">
@@ -48,7 +48,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Payment Form Section */}
+        {/* Payment Form Section - Now visually integrated */}
         <section id="payment-form-section" className="section-padded" ref={paymentFormRef}>
           <div className="container" style={{maxWidth: '700px'}}>
              <PaymentForm />
@@ -56,9 +56,9 @@ export default function Home() {
         </section>
 
         {/* Features Section */}
-        <section className="features-section section-padded" style={{backgroundColor: 'var(--bg-medium-light)'}}>
+        <section className="features-section">
           <div className="container">
-            <h2 className="section-title text-center" style={{marginBottom: 'var(--spacing-xl)'}}>Why You'll Love Lucky Paw's</h2>
+            <h2 className="section-title text-center">Why You'll Love Lucky Paw's</h2>
             <div className="feature-grid">
               <div className="feature-item">
                 <div className="feature-icon">⚡</div>
@@ -81,49 +81,52 @@ export default function Home() {
       </main>
 
       <Footer />
+
+      <style jsx>{`
+        .main-content {
+            background-color: #f0f2f5; /* A very light gray to offset the white header */
+        }
+        .hero-section {
+          padding: var(--spacing-xxl) 0;
+          background-color: #ffffff;
+        }
+        .hero-title {
+            font-weight: 700;
+        }
+        .hero-subtitle {
+            font-size: 1.25rem;
+            max-width: 800px;
+        }
+        .hero-cta-buttons {
+            margin-top: var(--spacing-lg);
+            display: flex;
+            justify-content: center;
+            gap: var(--spacing-md);
+        }
+        .features-section {
+            background-color: #ffffff;
+            padding: var(--spacing-xxl) 0;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-lg);
+            margin-top: var(--spacing-xl);
+        }
+        .feature-item {
+            text-align: center;
+            padding: var(--spacing-lg);
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: var(--spacing-md);
+            color: var(--primary-blue);
+        }
+        .feature-title {
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-sm);
+        }
+      `}</style>
     </>
   );
 }
-
-// Add some basic styles for the new sections if they don't exist
-// This can be in your globals.css or in a style tag here for simplicity
-const styles = `
-.hero-section {
-  background: var(--bg-light);
-  padding: var(--spacing-xxl) 0;
-}
-.hero-title {
-    font-weight: 700;
-}
-.hero-subtitle {
-    font-size: 1.25rem;
-    max-width: 800px;
-}
-.hero-cta-buttons {
-    margin-top: var(--spacing-lg);
-    display: flex;
-    justify-content: center;
-    gap: var(--spacing-md);
-}
-.feature-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-lg);
-}
-.feature-item {
-    text-align: center;
-    padding: var(--spacing-lg);
-    background: var(--card-bg);
-    border-radius: var(--border-radius-md);
-    box-shadow: var(--shadow-sm);
-}
-.feature-icon {
-    font-size: 3rem;
-    margin-bottom: var(--spacing-md);
-}
-.feature-title {
-    font-size: 1.5rem;
-    margin-bottom: var(--spacing-sm);
-}
-`;
-// In a real app, you'd add the above styles to your main CSS file.

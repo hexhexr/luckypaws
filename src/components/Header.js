@@ -7,7 +7,7 @@ export default function Header() {
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   return (
-    <header className="main-header" style={{position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'var(--card-bg)'}}>
+    <header className="main-header">
       <div className="container header-content">
         <Link href="/" className="logo-link">
           <Image 
@@ -16,6 +16,7 @@ export default function Header() {
             width={40}
             height={40}
             className="logo-icon"
+            priority
           />
           <span className="logo-text">Lucky Paw's Fishing Room</span>
         </Link>
@@ -33,6 +34,36 @@ export default function Header() {
           </ul>
         </nav>
       </div>
+      <style jsx>{`
+        .main-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: var(--card-bg);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .logo-text {
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+        .main-nav a {
+            padding: var(--spacing-sm) 0;
+            position: relative;
+        }
+        .main-nav a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: 0;
+            left: 0;
+            background-color: var(--primary-green);
+            transition: width 0.3s ease;
+        }
+        .main-nav a:hover::after {
+            width: 100%;
+        }
+      `}</style>
     </header>
   );
 }
