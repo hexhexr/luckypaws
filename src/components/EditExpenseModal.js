@@ -1,6 +1,7 @@
 // src/components/EditExpenseModal.js
 import React, { useState, useEffect } from 'react';
 
+// FIX: This component now uses the consistent admin modal classes from globals.css
 export default function EditExpenseModal({ expense, onClose, onSave }) {
     const [formData, setFormData] = useState(expense);
 

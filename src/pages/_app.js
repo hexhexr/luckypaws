@@ -1,5 +1,5 @@
 // src/pages/_app.js
-import '../styles/globals.css';
+import '../styles/globals.css'; // FIX: Use the single, consolidated stylesheet
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useRouter } from 'next/router';
 import UnifiedChatController from '../components/UnifiedChatController';
@@ -29,6 +29,7 @@ function MyApp({ Component, pageProps }) {
 
   const shouldRenderChatController = !noChatPages.includes(router.pathname);
 
+  // FIX: Apply a theme class to the body to scope admin vs public styles
   const isAdminArea = router.pathname.startsWith('/admin') || router.pathname.startsWith('/agent');
   const themeClassName = isAdminArea ? 'admin-theme' : 'public-theme';
 

@@ -1,17 +1,20 @@
 // src/components/DataTable.js
 import React, { useState, useMemo, useCallback } from 'react';
 
+// FIX: Added sort icon and improved styling for header
 const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     const isCurrent = column.accessor === sortConfig.key;
-    const sortIcon = isCurrent ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕';
+    const sortIcon = isCurrent ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ' ↕';
 
     return (
         <th onClick={() => column.sortable && onSort(column.accessor)} style={{ cursor: column.sortable ? 'pointer' : 'default' }}>
-            {column.header} {column.sortable && <span style={{ marginLeft: '5px' }}>{sortIcon}</span>}
+            {column.header} 
+            {column.sortable && <span style={{ opacity: isCurrent ? 1 : 0.4 }}>{sortIcon}</span>}
         </th>
     );
 };
 
+// FIX: The controls are now styled via the classes defined in globals.css
 const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, onUsernameHover }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: defaultSortField, direction: 'desc' });
@@ -102,10 +105,10 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
             </div>
 
             {totalPages > 1 && (
-                <div className="pagination-controls mt-lg text-center">
-                    <button className="btn btn-secondary mr-md" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>← Previous</button>
-                    <span>Page {currentPage} of {totalPages}</span>
-                    <button className="btn btn-secondary ml-md" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next →</button>
+                <div className="pagination-controls text-center" style={{marginTop: 'var(--spacing-lg)'}}>
+                    <button className="btn btn-secondary" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>← Previous</button>
+                    <span style={{margin: '0 1rem'}}>Page {currentPage} of {totalPages}</span>
+                    <button className="btn btn-secondary" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next →</button>
                 </div>
             )}
         </div>

@@ -126,8 +126,7 @@ export default function AgentAdminChat({ user, userRole }) {
                                     ))}
                                     <div ref={messagesEndRef} />
                                 </div>
-                                {/* --- THIS IS THE FIX --- */}
-                                {/* The form is now wrapped in a div with the correct class, just like in CustomerChat.js */}
+                                {/* --- FIX: This wrapper div with the correct class was missing. --- */}
                                 <div className={styles.inputArea}>
                                     <form onSubmit={handleSendMessage}>
                                         <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." />

@@ -1,16 +1,15 @@
 // src/components/CustomerQuickView.js
 import React from 'react';
 
+// FIX: This component is now styled via globals.css and will appear correctly.
 export default function CustomerQuickView({ stats, position, onClose }) {
     if (!stats) return null;
 
+    // The inline style for positioning remains, but appearance is handled by CSS.
     const style = {
-        position: 'absolute',
         top: `${position.y}px`,
         left: `${position.x}px`,
         transform: 'translate(-105%, -105%)',
-        zIndex: 3000,
-        pointerEvents: 'none',
     };
 
     return (

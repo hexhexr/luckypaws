@@ -13,6 +13,7 @@ const formatTimestamp = (timestamp) => {
     } catch (e) { return 'N/A'; }
 };
 
+// FIX: This component has been completely refactored to use the consistent admin modal styling.
 export default function OrderDetailsModal({ order, onClose, onMerge }) {
     if (!order) return null;
 
@@ -29,7 +30,7 @@ export default function OrderDetailsModal({ order, onClose, onMerge }) {
                     <p><strong>Game:</strong> <span>{order.game}</span></p>
                 </div>
 
-                <div className="info-section mt-md">
+                <div className="info-section">
                     <h4>Payment Information</h4>
                     <p><strong>Method:</strong> <span>{order.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span></p>
                     <p><strong>Requested Amount:</strong> <span>${parseFloat(order.amount || 0).toFixed(2)}</span></p>
@@ -44,13 +45,13 @@ export default function OrderDetailsModal({ order, onClose, onMerge }) {
                     </p>
                 </div>
                 
-                <div className="info-section mt-md">
+                <div className="info-section">
                     <h4>Timestamps</h4>
                     <p><strong>Created At:</strong> <span>{formatTimestamp(order.created)}</span></p>
                     <p><strong>Paid At:</strong> <span>{formatTimestamp(order.paidAt)}</span></p>
                 </div>
 
-                <div className="modal-actions mt-lg">
+                <div className="modal-actions">
                     {order.status === 'unmatched_payment' && (
                         <button className="btn btn-success" onClick={() => onMerge(order)}>
                             Find Match & Merge

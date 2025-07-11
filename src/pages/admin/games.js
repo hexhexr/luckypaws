@@ -7,10 +7,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, deleteDoc 
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
-// Removed the imports for the public Header and Footer
-// import Header from '../../components/Header';
-// import Footer from '../../components/Footer';
-
+// FIX: No longer need to import public header/footer. This is a standalone admin page.
 
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
@@ -130,7 +127,7 @@ export default function AdminGames() {
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
     if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
-    // The entire component now returns the standard admin container div directly
+    // FIX: The entire component now returns the standard admin container with a consistent header and navigation.
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin - Manage Games</title></Head>
@@ -139,9 +136,9 @@ export default function AdminGames() {
                 <nav>
                     <ul className="admin-nav">
                         <li><a href="/admin/dashboard">Dashboard</a></li>
-                        <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
-                        <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
+                        <li><a href="/admin/games" className="active">Games</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
                         <li><a href="/admin/agents">Agents</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>

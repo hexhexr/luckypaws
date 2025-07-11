@@ -1001,3 +1001,166 @@ table tbody tr:hover { background-color: var(--input-bg); }
 .toast-notification { position: fixed; bottom: 20px; right: 20px; display: flex; align-items: center; padding: 12px 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); z-index: 9999; min-width: 300px; border-left: 5px solid; animation: toast-in 0.5s ease; }
 @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: var(--spacing-lg); }
+
+/* --- FIX: New Styles for Admin Features --- */
+
+/* Customer Quick View Popover */
+.quick-view-popover {
+    position: absolute;
+    background: white;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    padding: var(--spacing-md);
+    width: 280px;
+    z-index: 3000;
+    pointer-events: auto; /* Allow interaction */
+    animation: fadeIn-v4 0.2s ease;
+}
+.popover-title {
+    margin-top: 0;
+    margin-bottom: var(--spacing-sm);
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: var(--spacing-sm);
+}
+.quick-view-popover .info-section p {
+    font-size: 0.9rem;
+    margin: var(--spacing-xs) 0;
+    display: flex;
+    justify-content: space-between;
+}
+.quick-view-popover .info-section p span {
+    font-weight: 500;
+}
+
+/* Data Table Controls */
+.search-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+.filter-group label {
+    margin-bottom: 0;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.input.input-small, .select.select-small {
+    width: auto;
+    min-width: 150px;
+    margin-bottom: 0;
+}
+.radio-filter-group {
+    display: flex;
+    gap: var(--spacing-lg);
+    background-color: var(--bg-medium-light);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-subtle);
+}
+.radio-filter-group label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+/* New Expense Page Layout */
+.expense-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-md);
+    align-items: flex-start;
+}
+.expense-form-description {
+    grid-column: 1 / -1;
+}
+.expense-form-submit {
+    grid-column: 1 / -1;
+    margin-top: var(--spacing-md);
+}
+.filter-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Generic Modal for Admin (used for EditExpense, OrderDetails etc.) */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+    animation: fadeIn-v4 0.3s ease-out forwards;
+}
+.modal {
+    background: var(--card-bg);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    max-width: 90%;
+    width: 500px;
+    text-align: left;
+    animation: slideInUp-v4 0.4s ease-out forwards;
+}
+.modal-close-btn {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 1.8rem;
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    line-height: 1;
+}
+.modal-title {
+    font-size: 1.75rem;
+    margin-bottom: var(--spacing-lg);
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--spacing-md);
+}
+.modal .info-section p {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.modal .info-section p:last-child {
+    border-bottom: none;
+}
+.modal .info-section p strong {
+    color: var(--text-secondary);
+}
+.modal .info-section p span {
+    font-weight: 500;
+    text-align: right;
+}
+.modal .info-section p a {
+    font-weight: 500;
+}
+.modal .info-section h4 {
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+}
