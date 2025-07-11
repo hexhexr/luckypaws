@@ -164,7 +164,7 @@ export default function AdminCashouts() {
         }
     }, [isAdmin, loadHistory]);
 
-    // --- Real-time Price Quote Logic (Preserved) ---
+    // --- Real-time Price Quote Logic (Preserved with fix) ---
     const fetchQuote = useCallback(async (amount) => {
         if (!amount || isNaN(amount) || amount <= 0) {
             setLiveQuote({ sats: 0, btcPrice: 0 });
@@ -182,7 +182,7 @@ export default function AdminCashouts() {
         } catch (error) {
             console.error("Quote fetch error:", error);
         }
-    }, [liveQuote.btcPrice]);
+    }, []);
 
     // --- Destination Parser Logic (Preserved) ---
     useEffect(() => {
@@ -337,14 +337,11 @@ export default function AdminCashouts() {
                                             <td title={req.address}>{req.address ? req.address.substring(0, 25) + '...' : 'N/A'}</td>
                                             <td><span className={`status-badge status-${req.status}`}>{req.status}</span></td>
                                             <td>
-                                                {/* --- THIS IS THE FIX --- */}
-                                                {/* Show "Pay" button for pending requests */}
                                                 {req.status === 'pending' && (
-                                                    <button onClick={() => setSelectedRequest(req)} className="btn btn-primary btn-small">Pay with QR</button>
-                                                )}
-                                                {/* Show "Retry" button for failed requests */}
-                                                {req.status === 'failed' && (
-                                                    <button onClick={() => setSelectedRequest(req)} className="btn btn-warning btn-small">Retry Payment</button>
+                                                    <div className="action-buttons">
+                                                        <button onClick={() => setSelectedRequest(req)} className="btn btn-success btn-small">Approve & Pay</button>
+                                                        <button onClick={() => alert("Reject functionality to be implemented")} className="btn btn-danger btn-small">Reject</button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>

@@ -131,11 +131,13 @@ export default function AdminDashboard() {
         if (!username || username === 'unknown') { setQuickViewStats(null); return; }
         if (quickViewStats?.username === username) return;
 
-        const adjustedPosition = {
-            x: position.x,
-            y: position.y + window.scrollY
-        };
-        setQuickViewPosition(adjustedPosition);
+        if (position) {
+            const adjustedPosition = {
+                x: position.x,
+                y: position.y + window.scrollY
+            };
+            setQuickViewPosition(adjustedPosition);
+        }
 
         setQuickViewStats({ username, isLoading: true });
         try {
@@ -251,7 +253,7 @@ export default function AdminDashboard() {
                 </section>
             </main>
             {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onMerge={handleOpenMergeTool} />}
-            {quickViewStats && <CustomerQuickView stats={quickViewStats} position={quickViewPosition} onClose={() => setQuickViewStats(null)} />}
+            {quickViewStats && quickViewPosition && <CustomerQuickView stats={quickViewStats} position={quickViewPosition} onClose={() => setQuickViewStats(null)} />}
             <ToastNotification notification={notification} onDone={() => setNotification(null)} />
             <audio ref={audioRef} src="/notification.mp3" preload="auto" />
         </div>
