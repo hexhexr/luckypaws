@@ -1163,6 +1163,8 @@ table tbody tr:hover { background-color: var(--input-bg); }
     font-size: 1rem;
     font-weight: 600;
     color: var(--primary-blue);
+}
+
 /* ==================================================
    FINAL FIX: Premium Styles for Order Details Modal
    ================================================== */
