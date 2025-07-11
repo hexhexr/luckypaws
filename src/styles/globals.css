@@ -1163,4 +1163,106 @@ table tbody tr:hover { background-color: var(--input-bg); }
     font-size: 1rem;
     font-weight: 600;
     color: var(--primary-blue);
+
+/* ==================================================
+   FIX: Premium Styles for Order Details Modal
+   ================================================== */
+
+.details-modal {
+    width: 100%;
+    max-width: 480px; /* More compact width */
+    padding: 0; /* Remove default padding to allow for custom sections */
+}
+
+.details-modal-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    text-align: center;
+}
+
+.details-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.details-modal-header .modal-close-btn {
+    top: 50%;
+    transform: translateY(-50%);
+    right: var(--spacing-md);
+}
+
+.details-modal-content {
+    padding: var(--spacing-lg);
+    background-color: #fcfcfc; /* Slightly off-white for a softer look */
+}
+
+.details-section {
+    margin-bottom: var(--spacing-lg);
+}
+.details-section:last-child {
+    margin-bottom: 0;
+}
+
+.details-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.details-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+    font-size: 0.95rem;
+}
+
+.details-label {
+    color: var(--text-secondary);
+}
+
+.details-value {
+    color: var(--text-dark);
+    font-weight: 500;
+    text-align: right;
+}
+
+.details-value a {
+    color: var(--primary-blue);
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.details-value a:hover {
+    text-decoration: underline;
+}
+
+.details-value .status-badge,
+.details-value .method-badge {
+    font-size: 0.8rem;
+}
+
+.highlight-success {
+    color: var(--green-dark);
+    font-weight: 600 !important;
+}
+
+.details-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--bg-medium-light);
+    border-top: 1px solid var(--border-color);
+}
 }
