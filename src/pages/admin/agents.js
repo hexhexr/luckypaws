@@ -21,8 +21,11 @@ export default function AdminAgents() {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const [form, setForm] = useState({ email: '', password: '', name: '', pageCode: '' });
+    // State for forms
+    const [agentForm, setAgentForm] = useState({ email: '', password: '', name: '', pageCode: '' });
     const [editingAgent, setEditingAgent] = useState(null);
+    const [adminForm, setAdminForm] = useState({ email: '', password: '', name: ''});
+    const [promoteUid, setPromoteUid] = useState('');
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -48,16 +51,16 @@ export default function AdminAgents() {
         return () => unsubscribe();
     }, [isAdmin]);
 
-    const handleFormChange = (e) => {
+    const handleAgentFormChange = (e) => {
         const { name, value } = e.target;
         if (editingAgent) {
             setEditingAgent(prev => ({...prev, [name]: value}));
         } else {
-            setForm(prev => ({ ...prev, [name]: value }));
+            setAgentForm(prev => ({ ...prev, [name]: value }));
         }
     };
 
-    const handleFormSubmit = async (e) => {
+    const handleCreateAgentSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsSubmitting(true);
@@ -65,7 +68,7 @@ export default function AdminAgents() {
         
         const isEditing = !!editingAgent;
         const endpoint = isEditing ? '/api/admin/agents/update' : '/api/admin/agents/create';
-        const payload = isEditing ? { uid: editingAgent.id, name: editingAgent.name, pageCode: editingAgent.pageCode } : form;
+        const payload = isEditing ? { uid: editingAgent.id, name: editingAgent.name, pageCode: editingAgent.pageCode } : agentForm;
 
         try {
             const res = await fetch(endpoint, {
@@ -79,7 +82,7 @@ export default function AdminAgents() {
             if (isEditing) {
                 setEditingAgent(null);
             } else {
-                setForm({ email: '', password: '', name: '', pageCode: '' });
+                setAgentForm({ email: '', password: '', name: '', pageCode: '' });
             }
         } catch (err) { setError(err.message); } finally { setIsSubmitting(false); }
     };
@@ -104,6 +107,49 @@ export default function AdminAgents() {
         setEditingAgent({ id: agent.id, name: agent.name, pageCode: agent.pageCode || '' });
     };
 
+    const handleCreateAdminSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setIsSubmitting(true);
+        try {
+            const adminIdToken = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/admins/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
+                body: JSON.stringify(adminForm)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            alert('New admin created successfully!');
+            setAdminForm({ email: '', password: '', name: '' });
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handlePromoteToAdmin = async (e) => {
+        e.preventDefault();
+        if (!promoteUid.trim()) { setError('Please enter a User UID to promote.'); return; }
+        if (!window.confirm(`Are you sure you want to promote the user with UID: ${promoteUid} to an admin?`)) return;
+        
+        setError('');
+        setIsSubmitting(true);
+        try {
+            const adminIdToken = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/set-admin-claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
+                body: JSON.stringify({ uid: promoteUid, isAdmin: true })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            alert('User successfully promoted to admin!');
+            setPromoteUid('');
+        } catch (err) { setError(err.message); } finally { setIsSubmitting(false); }
+    };
+
     const columns = useMemo(() => [
         { header: 'Name', accessor: 'name', sortable: true },
         { header: 'Email', accessor: 'email', sortable: true },
@@ -122,16 +168,16 @@ export default function AdminAgents() {
 
     return (
         <div className="admin-dashboard-container">
-            <Head><title>Admin - Manage Agents</title></Head>
+            <Head><title>Admin - Manage Personnel</title></Head>
             <header className="admin-header">
-                <h1>Manage Agents</h1>
+                <h1>Manage Personnel</h1>
                 <nav>
                     <ul className="admin-nav">
                         <li><a href="/admin/dashboard">Dashboard</a></li>
-                        <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
-                        <li><a href="/admin/agents">Agents</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/agents" className="active">Personnel</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
@@ -140,34 +186,41 @@ export default function AdminAgents() {
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
                 
+                <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr', alignItems: 'start'}}>
+                    <section className="card">
+                        <h2 className="card-header">{editingAgent ? 'Edit Agent' : 'Create New Agent'}</h2>
+                        <div className="card-body">
+                            <form onSubmit={handleCreateAgentSubmit}>
+                                <div className="form-group"><label>Agent Name</label><input type="text" name="name" className="input" value={editingAgent ? editingAgent.name : agentForm.name} onChange={handleAgentFormChange} required /></div>
+                                {!editingAgent && (<>
+                                    <div className="form-group"><label>Agent Email</label><input type="email" name="email" className="input" value={agentForm.email} onChange={e => setAgentForm({...agentForm, email: e.target.value})} required /></div>
+                                    <div className="form-group"><label>Password</label><input type="password" name="password" className="input" value={agentForm.password} onChange={e => setAgentForm({...agentForm, password: e.target.value})} required minLength="6" /></div>
+                                </>)}
+                                <div className="form-group"><label>Page Code (4 digits)</label><input type="text" name="pageCode" className="input" value={editingAgent ? editingAgent.pageCode : agentForm.pageCode} onChange={e => setAgentForm({...agentForm, pageCode: e.target.value})} required pattern="\d{4}" title="Page Code must be exactly 4 digits." /></div>
+                                <div className="form-group"><button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : (editingAgent ? 'Update Agent' : 'Create Agent')}</button>{editingAgent && <button type="button" className="btn btn-secondary ml-md" onClick={() => setEditingAgent(null)}>Cancel</button>}</div>
+                            </form>
+                        </div>
+                    </section>
+
+                    <section className="card">
+                        <h2 className="card-header">Create New Admin</h2>
+                        <div className="card-body">
+                            <form onSubmit={handleCreateAdminSubmit}>
+                                <div className="form-group"><label>Admin Name</label><input type="text" name="name" className="input" value={adminForm.name} onChange={e => setAdminForm({...adminForm, name: e.target.value})} required /></div>
+                                <div className="form-group"><label>Admin Email</label><input type="email" name="email" className="input" value={adminForm.email} onChange={e => setAdminForm({...adminForm, email: e.target.value})} required /></div>
+                                <div className="form-group"><label>Password</label><input type="password" name="password" className="input" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} required minLength="6" /></div>
+                                <div className="form-group"><button type="submit" className="btn btn-danger btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create Admin'}</button></div>
+                            </form>
+                        </div>
+                    </section>
+                </div>
+
                 <section className="card mb-lg">
-                    <h2 className="card-header">{editingAgent ? `Editing: ${editingAgent.name}` : 'Create New Agent'}</h2>
+                    <h2 className="card-header">👑 Promote Existing User to Admin</h2>
                     <div className="card-body">
-                        <form onSubmit={handleFormSubmit} className="form-grid">
-                            <div className="form-group">
-                                <label>Agent Name</label>
-                                <input type="text" name="name" className="input" value={editingAgent ? editingAgent.name : form.name} onChange={handleFormChange} required />
-                            </div>
-                           {!editingAgent && (
-                                <>
-                                <div className="form-group">
-                                    <label>Agent Email</label>
-                                    <input type="email" name="email" className="input" value={form.email} onChange={handleFormChange} required />
-                                </div>
-                                <div className="form-group">
-                                    <label>Password</label>
-                                    <input type="password" name="password" className="input" value={form.password} onChange={handleFormChange} required minLength="6" />
-                                </div>
-                                </>
-                           )}
-                           <div className="form-group">
-                                <label>Page Code (4 digits)</label>
-                                <input type="text" name="pageCode" className="input" value={editingAgent ? editingAgent.pageCode : form.pageCode} onChange={handleFormChange} required pattern="\d{4}" title="Page Code must be exactly 4 digits." />
-                            </div>
-                           <div className="form-group form-full-width">
-                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : (editingAgent ? 'Update Agent' : 'Create Agent')}</button>
-                                {editingAgent && <button type="button" className="btn btn-secondary ml-md" onClick={() => setEditingAgent(null)}>Cancel</button>}
-                            </div>
+                        <form onSubmit={handlePromoteToAdmin} className="form-grid" style={{gridTemplateColumns: '3fr 1fr', alignItems: 'flex-end'}}>
+                            <div className="form-group"><label>User ID (UID) to Promote</label><input type="text" name="promoteUid" className="input" value={promoteUid} onChange={(e) => setPromoteUid(e.target.value)} required placeholder="Enter the user's UID from Firebase Auth" /></div>
+                            <div className="form-group"><button type="submit" className="btn btn-success btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Promoting...' : 'Make Admin'}</button></div>
                         </form>
                     </div>
                 </section>
