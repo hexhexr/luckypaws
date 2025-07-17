@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
 import { collection, query, onSnapshot, getDoc, doc, orderBy } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, updatePassword } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
 const LoadingSkeleton = () => (
@@ -22,17 +22,18 @@ export default function PersonnelPage() {
     // State for creation forms
     const [agentForm, setAgentForm] = useState({ email: '', password: '', name: '', pageCode: '' });
     const [adminForm, setAdminForm] = useState({ email: '', password: '', name: ''});
+    const [selfPassword, setSelfPassword] = useState('');
 
     // Auth states
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [currentUserUid, setCurrentUserUid] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
 
     // Effect 1: Handles Authentication
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                setCurrentUserUid(user.uid);
+                setCurrentUser(user);
                 try {
                     const idTokenResult = await user.getIdTokenResult(true);
                     if (idTokenResult.claims.admin) {
@@ -113,6 +114,35 @@ export default function PersonnelPage() {
             handleApiCall('/api/admin/admins/revoke', { uid: user.id }, 'Admin rights revoked successfully!');
         }
     };
+
+    const handleChangePassword = (user) => {
+        const newPassword = prompt(`Enter new password for ${user.name}:`);
+        if (newPassword && newPassword.length >= 6) {
+            handleApiCall('/api/admin/users/update-password', { uid: user.id, newPassword }, 'Password updated successfully!');
+        } else if (newPassword) {
+            alert('Password must be at least 6 characters long.');
+        }
+    };
+
+    const handleSelfPasswordChange = async (e) => {
+        e.preventDefault();
+        if (!selfPassword || selfPassword.length < 6) {
+            setError('New password must be at least 6 characters long.');
+            return;
+        }
+        setIsSubmitting(true);
+        setError('');
+        try {
+            await updatePassword(currentUser, selfPassword);
+            alert('Your password has been changed successfully. You will be logged out.');
+            await firebaseAuth.signOut();
+            router.push('/admin');
+        } catch (err) {
+            setError(`Failed to change password: ${err.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
     
     const { adminUsers, otherUsers } = useMemo(() => {
         const admins = allUsers.filter(u => u.admin);
@@ -125,14 +155,17 @@ export default function PersonnelPage() {
         { header: 'Email', accessor: 'email', sortable: true },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                {row.id !== currentUserUid ? (
-                    <button className="btn btn-danger btn-small" onClick={() => handleRevokeAdmin(row)} disabled={isSubmitting}>Revoke Admin</button>
+                {row.id !== currentUser?.uid ? (
+                    <>
+                        <button className="btn btn-danger btn-small" onClick={() => handleRevokeAdmin(row)} disabled={isSubmitting}>Revoke Admin</button>
+                        <button className="btn btn-secondary btn-small" onClick={() => handleChangePassword(row)} disabled={isSubmitting}>Set Password</button>
+                    </>
                 ) : (
                     <span style={{color: 'var(--text-light)', fontStyle: 'italic'}}>Current User</span>
                 )}
             </div>
         )},
-    ], [currentUserUid, isSubmitting]);
+    ], [currentUser, isSubmitting]);
 
     const userColumns = useMemo(() => [
         { header: 'Name', accessor: 'name', sortable: true },
@@ -143,6 +176,7 @@ export default function PersonnelPage() {
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
                 <button className="btn btn-success btn-small" onClick={() => handlePromoteToAdmin(row)} disabled={isSubmitting}>Make Admin</button>
+                <button className="btn btn-secondary btn-small" onClick={() => handleChangePassword(row)} disabled={isSubmitting}>Set Password</button>
             </div>
         )},
     ], [isSubmitting]);
@@ -158,21 +192,20 @@ export default function PersonnelPage() {
                 <h1>Personnel Management</h1>
                 <nav>
                     <ul className="admin-nav">
-                            <li><a href="/admin/dashboard">Dashboard</a></li>
-                            <li><a href="/admin/expenses" className="active">Expenses</a></li>
-                            <li><a href="/admin/partners">Partners</a></li>
-                            <li><a href="/admin/cashouts">Cashouts</a></li>
-                            <li><a href="/admin/games">Games</a></li>
-                            <li><a href="/admin/agents">Personnel</a></li>
-                            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
-                            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+                        <li><a href="/admin/dashboard">Dashboard</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
+                        <li><a href="/admin/games">Games</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/agents" className="active">Personnel</a></li>
+                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                        <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
                 </nav>
             </header>
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
 
-                <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr', alignItems: 'start', marginBottom: 'var(--spacing-xl)'}}>
+                <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'start', marginBottom: 'var(--spacing-xl)'}}>
                     <section className="card">
                         <h2 className="card-header">Create New Agent</h2>
                         <div className="card-body">
@@ -193,7 +226,26 @@ export default function PersonnelPage() {
                                 <div className="form-group"><label>Admin Name</label><input type="text" name="name" className="input" value={adminForm.name} onChange={e => setAdminForm({...adminForm, name: e.target.value})} required /></div>
                                 <div className="form-group"><label>Admin Email</label><input type="email" name="email" className="input" value={adminForm.email} onChange={e => setAdminForm({...adminForm, email: e.target.value})} required /></div>
                                 <div className="form-group"><label>Password</label><input type="password" name="password" className="input" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} required minLength="6" /></div>
-                                <div className="form-group" style={{marginTop: '2.3rem'}}><button type="submit" className="btn btn-danger btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create Admin'}</button></div>
+                                <div className="form-group" style={{marginTop: '6.2rem'}}><button type="submit" className="btn btn-danger btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create Admin'}</button></div>
+                            </form>
+                        </div>
+                    </section>
+
+                    <section className="card">
+                        <h2 className="card-header">Change My Password</h2>
+                        <div className="card-body">
+                             <form onSubmit={handleSelfPasswordChange}>
+                                <div className="form-group">
+                                    <label>My Email</label>
+                                    <input type="email" className="input" value={currentUser?.email || ''} readOnly disabled />
+                                </div>
+                                <div className="form-group">
+                                    <label>New Password</label>
+                                    <input type="password" name="selfPassword" className="input" value={selfPassword} onChange={e => setSelfPassword(e.target.value)} required minLength="6" />
+                                </div>
+                                <div className="form-group" style={{marginTop: '6.2rem'}}>
+                                    <button type="submit" className="btn btn-warning btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Updating...' : 'Update My Password'}</button>
+                                </div>
                             </form>
                         </div>
                     </section>
