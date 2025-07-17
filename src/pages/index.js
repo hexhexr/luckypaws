@@ -1,5 +1,5 @@
 // src/pages/index.js
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -8,11 +8,36 @@ import PaymentForm from '../components/PaymentForm';
 export default function Home() {
   const paymentFormRef = useRef(null);
 
+  // This function is still used for the "Get Started" button
   const scrollToPayment = () => {
     if (paymentFormRef.current) {
       paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
+
+  // This hook runs once when the page loads
+  useEffect(() => {
+    // A small delay ensures the page is fully rendered before we scroll
+    const timer = setTimeout(() => {
+      if (paymentFormRef.current) {
+        // Scroll the payment form section into the middle of the view
+        paymentFormRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+
+        // Find the first input field (username) within the form and focus it
+        const firstInput = paymentFormRef.current.querySelector('input[name="username"]');
+        if (firstInput) {
+          // The preventScroll option stops the page from jumping again after the initial scroll
+          firstInput.focus({ preventScroll: true });
+        }
+      }
+    }, 100); // 100ms delay
+
+    // Clean up the timer if the user navigates away before it fires
+    return () => clearTimeout(timer);
+  }, []); // The empty array means this effect only runs on the initial render
 
   return (
     <>
