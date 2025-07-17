@@ -1,9 +1,9 @@
-// pages/admin/profit-loss.js
+// src/pages/admin/profit-loss.js
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { doc, getDoc, onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
+import { collection, query, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
@@ -22,24 +22,22 @@ export default function AdminProfitLoss() {
     const router = useRouter();
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
-    
-    // State for combined, consistent data
     const [allTransactions, setAllTransactions] = useState([]);
-
     const [manualTx, setManualTx] = useState({ username: '', amount: '', description: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Authentication Check
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else {
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
                     router.replace('/admin');
                 }
             } else {
@@ -50,47 +48,43 @@ export default function AdminProfitLoss() {
         return () => unsubscribe();
     }, [router]);
 
-    // BUG FIX: Rewritten data fetching logic to use the correct collections ('orders' and 'cashouts')
     useEffect(() => {
-        if (!isAdmin) return;
-        setDataLoading(true);
+        if (authLoading || !isAdmin) return;
 
-        const depositsQuery = query(collection(db, "orders"), where("status", "==", "paid"));
+        const depositsQuery = query(collection(db, "orders"), where("status", "in", ["paid", "completed"]));
         const cashoutsQuery = query(collection(db, "cashouts"), where("status", "==", "completed"));
 
         let depositsData = [];
         let cashoutsData = [];
+        let isInitialLoad = true;
 
         const combineData = () => {
             const transformedDeposits = depositsData.map(d => ({ ...d, type: 'deposit', time: d.created?.toDate ? d.created.toDate().toISOString() : d.created }));
             const transformedCashouts = cashoutsData.map(c => ({ ...c, type: 'cashout', amount: c.amountUSD, time: c.time?.toDate ? c.time.toDate().toISOString() : c.time }));
             setAllTransactions([...transformedDeposits, ...transformedCashouts]);
-            setDataLoading(false);
         };
 
         const depositsListener = onSnapshot(depositsQuery, (snapshot) => {
             depositsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            combineData();
+            if (!isInitialLoad) combineData();
         }, (err) => {
             setError("Failed to load deposit data.");
-            setDataLoading(false);
         });
 
         const cashoutsListener = onSnapshot(cashoutsQuery, (snapshot) => {
             cashoutsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             combineData();
+            isInitialLoad = false;
         }, (err) => {
             setError("Failed to load cashout data.");
-            setDataLoading(false);
         });
 
         return () => {
             depositsListener();
             cashoutsListener();
         };
-    }, [isAdmin]);
+    }, [authLoading, isAdmin]);
 
-    // Memoized calculation for performance
     const userProfitLossData = useMemo(() => {
         const userMap = {};
         allTransactions.forEach(t => {
@@ -118,7 +112,6 @@ export default function AdminProfitLoss() {
         setError('');
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
-            // This API endpoint has been fixed to write to the 'cashouts' collection
             const res = await fetch('/api/admin/cashouts/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
@@ -153,8 +146,7 @@ export default function AdminProfitLoss() {
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => <button className="btn btn-info btn-xsmall" onClick={() => router.push(`/admin/customer/${row.username}`)}>View History</button>}
     ], [router]);
     
-    if (authLoading) return <div className="loading-screen">Checking authentication...</div>;
-    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
+    if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
     return (
         <div className="admin-dashboard-container">
@@ -164,11 +156,11 @@ export default function AdminProfitLoss() {
                 <nav>
                     <ul className="admin-nav">
                         <li><a href="/admin/dashboard">Dashboard</a></li>
-                        <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
-                        <li><a href="/admin/agents">Agents</a></li>
-                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
+                        <li><a href="/admin/profit-loss" className="active">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
                 </nav>
@@ -201,7 +193,7 @@ export default function AdminProfitLoss() {
 
                 <section>
                     <h2>User Profit/Loss Overview</h2>
-                    {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={userProfitLossData} defaultSortField="net" />}
+                    {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={userProfitLossData} defaultSortField="net" />}
                 </section>
             </main>
         </div>

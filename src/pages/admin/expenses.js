@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { onSnapshot, collection, query, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
@@ -28,11 +28,7 @@ const LoadingSkeleton = () => (
 
 export default function AdminExpenses() {
     const router = useRouter();
-    const [authLoading, setAuthLoading] = useState(true);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
-    
     const [expenses, setExpenses] = useState([]);
     const [partners, setPartners] = useState([]);
     const [newExpense, setNewExpense] = useState({ 
@@ -43,19 +39,26 @@ export default function AdminExpenses() {
         paidByPartnerId: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
 
+    // Auth states
+    const [authLoading, setAuthLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    // Effect 1: Handles Authentication
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else {
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
                     router.replace('/admin');
                 }
             } else {
@@ -66,18 +69,16 @@ export default function AdminExpenses() {
         return () => unsubscribe();
     }, [router]);
 
+    // Effect 2: Fetches data only after admin status is confirmed
     useEffect(() => {
-        if (!isAdmin) return;
-        setDataLoading(true);
+        if (authLoading || !isAdmin) return;
 
         const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
         const expensesUnsubscribe = onSnapshot(expensesQuery, (snapshot) => {
             const expenseData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setExpenses(expenseData);
-            setDataLoading(false);
         }, (err) => {
             setError("Failed to load expense data.");
-            setDataLoading(false);
         });
 
         const partnersQuery = query(collection(db, "partners"), orderBy("name"));
@@ -89,7 +90,7 @@ export default function AdminExpenses() {
             expensesUnsubscribe();
             partnersUnsubscribe();
         };
-    }, [isAdmin]);
+    }, [authLoading, isAdmin]);
 
     const handleNewExpenseChange = (e) => {
         const { name, value } = e.target;
@@ -118,7 +119,6 @@ export default function AdminExpenses() {
         }
     };
     
-    // ... (keep handleEditExpense, handleSaveExpense, handleDeleteExpense, logout functions)
     const handleEditExpense = (expense) => {
         setEditingExpense(expense);
     };
@@ -138,10 +138,6 @@ export default function AdminExpenses() {
         } catch (err) {
             setError(err.message);
         }
-    };
-
-    const handleDeleteExpense = async (expenseId) => {
-        alert("To maintain ledger integrity, please contact support to handle expense deletions.");
     };
     
     const logout = useCallback(async () => {
@@ -182,7 +178,6 @@ export default function AdminExpenses() {
     ], []);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
-    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
     return (
         <>
@@ -204,7 +199,7 @@ export default function AdminExpenses() {
                             <li><a href="/admin/partners">Partners</a></li>
                             <li><a href="/admin/cashouts">Cashouts</a></li>
                             <li><a href="/admin/games">Games</a></li>
-                            <li><a href="/admin/agents">Agents</a></li>
+                            <li><a href="/admin/agents">Personnel</a></li>
                             <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                             <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                         </ul>
@@ -277,7 +272,7 @@ export default function AdminExpenses() {
                                 <h4 className="stat-card-title">Total for Selected Period</h4>
                                 <h2 className="stat-card-value">{formatCurrency(totalFilteredExpenses)}</h2>
                             </div>
-                            {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" />}
+                            {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" />}
                         </div>
                     </section>
                 </main>

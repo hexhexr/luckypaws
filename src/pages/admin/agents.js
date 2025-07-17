@@ -16,9 +16,6 @@ const LoadingSkeleton = () => (
 export default function PersonnelPage() {
     const router = useRouter();
     const [allUsers, setAllUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [currentUserUid, setCurrentUserUid] = useState(null);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,30 +23,46 @@ export default function PersonnelPage() {
     const [agentForm, setAgentForm] = useState({ email: '', password: '', name: '', pageCode: '' });
     const [adminForm, setAdminForm] = useState({ email: '', password: '', name: ''});
 
+    // Auth states
+    const [authLoading, setAuthLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [currentUserUid, setCurrentUserUid] = useState(null);
+
+    // Effect 1: Handles Authentication
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
                 setCurrentUserUid(user.uid);
-                const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else { router.replace('/admin'); }
-            } else { router.replace('/admin'); }
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
+                    router.replace('/admin');
+                }
+            } else {
+                router.replace('/admin');
+            }
+            setAuthLoading(false);
         });
         return () => unsubscribe();
     }, [router]);
 
+    // Effect 2: Fetches data only after admin status is confirmed
     useEffect(() => {
-        if (!isAdmin) { setLoading(false); return; }
-        setLoading(true);
+        if (authLoading || !isAdmin) return;
+
         const q = query(collection(db, 'users'), orderBy('name'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const userList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setAllUsers(userList);
-            setLoading(false);
-        }, (err) => { setError("Failed to load users."); setLoading(false); });
+        }, (err) => { setError("Failed to load users."); });
+        
         return () => unsubscribe();
-    }, [isAdmin]);
+    }, [authLoading, isAdmin]);
 
     const handleApiCall = async (endpoint, body, successMessage) => {
         setError('');
@@ -136,7 +149,7 @@ export default function PersonnelPage() {
 
     const logout = useCallback(async () => { await firebaseAuth.signOut(); router.push('/admin'); }, [router]);
     
-    if (!isAdmin && !loading) return <div className="loading-screen">Access Denied.</div>;
+    if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
     return (
         <div className="admin-dashboard-container">
@@ -188,7 +201,7 @@ export default function PersonnelPage() {
                 <section className="card mb-lg">
                     <h2 className="card-header">👑 Administrators</h2>
                     <div className="card-body">
-                        {loading ? <LoadingSkeleton /> : <DataTable columns={adminColumns} data={adminUsers} defaultSortField="name" />}
+                        <DataTable columns={adminColumns} data={adminUsers} defaultSortField="name" />
                     </div>
                 </section>
 
@@ -196,7 +209,7 @@ export default function PersonnelPage() {
                     <h2 className="card-header">👥 General Users & Agents</h2>
                     <div className="card-body">
                         <p style={{color: 'var(--text-secondary)'}}>Users listed here can be promoted to full administrators.</p>
-                        {loading ? <LoadingSkeleton /> : <DataTable columns={userColumns} data={otherUsers} defaultSortField="name" />}
+                        <DataTable columns={userColumns} data={otherUsers} defaultSortField="name" />
                     </div>
                 </section>
             </main>

@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { onSnapshot, collection, query, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 
@@ -14,10 +14,9 @@ const formatCurrency = (amount) => {
 
 export default function AdminPartners() {
     const router = useRouter();
+    const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
-    
     const [partners, setPartners] = useState([]);
     const [newPartnerName, setNewPartnerName] = useState('');
     const [selectedPartner, setSelectedPartner] = useState(null);
@@ -26,34 +25,36 @@ export default function AdminPartners() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else {
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
                     router.replace('/admin');
                 }
             } else {
                 router.replace('/admin');
             }
+            setAuthLoading(false);
         });
         return () => unsubscribe();
     }, [router]);
 
     useEffect(() => {
-        if (!isAdmin) return;
-        setDataLoading(true);
+        if (authLoading || !isAdmin) return;
 
         const partnersQuery = query(collection(db, "partners"), orderBy("name"));
         const unsubscribe = onSnapshot(partnersQuery, (snapshot) => {
             setPartners(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            setDataLoading(false);
         }, (err) => {
             setError("Failed to load partners.");
-            setDataLoading(false);
         });
 
         return () => unsubscribe();
-    }, [isAdmin]);
+    }, [authLoading, isAdmin]);
 
     const handleAddPartner = async (e) => {
         e.preventDefault();
@@ -103,7 +104,7 @@ export default function AdminPartners() {
         { header: 'Total Investment', accessor: 'totalInvestment', sortable: true, cell: (row) => formatCurrency(row.totalInvestment) },
     ], []);
 
-    if (!isAdmin) return <div className="loading-screen">Authenticating...</div>;
+    if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
     return (
         <div className="admin-dashboard-container">
@@ -115,7 +116,10 @@ export default function AdminPartners() {
                         <li><a href="/admin/dashboard">Dashboard</a></li>
                         <li><a href="/admin/expenses">Expenses</a></li>
                         <li><a href="/admin/partners" className="active">Partners</a></li>
-                        {/* ... other nav links */}
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
+                        <li><a href="/admin/games">Games</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
+                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
                 </nav>
@@ -159,7 +163,7 @@ export default function AdminPartners() {
 
                 <section className="mt-xl">
                     <h2>Partner Investment Summary</h2>
-                    {dataLoading ? <p>Loading partners...</p> : <DataTable columns={columns} data={partners} defaultSortField="name" />}
+                    {authLoading ? <p>Loading partners...</p> : <DataTable columns={columns} data={partners} defaultSortField="name" />}
                 </section>
             </main>
         </div>

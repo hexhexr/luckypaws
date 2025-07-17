@@ -1,10 +1,13 @@
+// src/pages/admin/cashouts.js
+
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { doc, getDoc, collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import QRCodeLib from 'qrcode';
+import bolt11 from 'bolt11';
 
 // Helper to format Sats
 const formatSats = (sats) => new Intl.NumberFormat().format(sats);
@@ -45,7 +48,6 @@ export default function AdminCashouts() {
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
 
-    // --- States for Direct Cashout Form (Preserved) ---
     const [username, setUsername] = useState('');
     const [destination, setDestination] = useState('');
     const [usdAmount, setUsdAmount] = useState('');
@@ -54,32 +56,24 @@ export default function AdminCashouts() {
     const [isAmountless, setIsAmountless] = useState(false);
     const [isLnAddress, setIsLnAddress] = useState(false);
     const [liveQuote, setLiveQuote] = useState({ sats: 0, btcPrice: 0 });
-
-    // --- States for Direct Cashout History (Preserved) ---
     const [history, setHistory] = useState([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-
-    // --- States for Agent Cashout Requests (New) ---
     const [agentRequests, setAgentRequests] = useState([]);
     const [isLoadingAgentRequests, setIsLoadingAgentRequests] = useState(true);
     const [agentRequestError, setAgentRequestError] = useState('');
-    const [selectedRequest, setSelectedRequest] = useState(null); // For the QR Code modal
+    const [selectedRequest, setSelectedRequest] = useState(null);
 
-    // --- Auth & Logout (Preserved) ---
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
                 try {
-                    const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-                    if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
                         setIsAdmin(true);
                     } else {
-                        await firebaseAuth.signOut();
                         router.replace('/admin');
                     }
                 } catch (e) {
-                    console.error("Auth check error:", e);
-                    await firebaseAuth.signOut();
                     router.replace('/admin');
                 }
             } else {
@@ -90,27 +84,28 @@ export default function AdminCashouts() {
         return () => unsubscribe();
     }, [router]);
 
-    const logout = useCallback(async () => {
-        await firebaseAuth.signOut();
-        router.push('/admin');
-    }, [router]);
-
-    // --- Load Agent Cashout Requests (New) ---
     useEffect(() => {
-        if (!isAdmin) return;
+        if (authLoading || !isAdmin) return;
+
         setIsLoadingAgentRequests(true);
         const q = query(collection(db, 'agentCashoutRequests'), orderBy('requestedAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribeAgent = onSnapshot(q, (snapshot) => {
             setAgentRequests(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
             setIsLoadingAgentRequests(false);
         }, (err) => {
             setAgentRequestError("Failed to load agent cashout requests.");
             setIsLoadingAgentRequests(false);
         });
-        return () => unsubscribe();
-    }, [isAdmin]);
+        
+        loadHistory(); // Initial load
+        const historyInterval = setInterval(loadHistory, 15000); // Refresh every 15s
+
+        return () => {
+            unsubscribeAgent();
+            clearInterval(historyInterval);
+        };
+    }, [authLoading, isAdmin]);
     
-    // --- Mark Agent Request as Paid Manually (New) ---
     const markRequestAsPaid = async (requestId) => {
         if (!requestId) return;
         try {
@@ -124,15 +119,15 @@ export default function AdminCashouts() {
                 })
             });
             alert('Request marked as paid!');
-            setSelectedRequest(null); // Close the modal
+            setSelectedRequest(null);
         } catch (error) {
             console.error("Failed to mark request as paid:", error);
             alert(`Failed to mark as paid: ${error.message}`);
         }
     };
 
-    // --- Load Direct Cashout History (Preserved) ---
-    const loadHistory = useCallback(async () => {
+    const loadHistory = async () => {
+        if (!firebaseAuth.currentUser) return;
         setIsLoadingHistory(true);
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken();
@@ -154,19 +149,10 @@ export default function AdminCashouts() {
         } finally {
             setIsLoadingHistory(false);
         }
-    }, []);
+    };
 
-    useEffect(() => {
-        if (isAdmin) {
-            loadHistory();
-            const interval = setInterval(loadHistory, 15000); // Refresh every 15s
-            return () => clearInterval(interval);
-        }
-    }, [isAdmin, loadHistory]);
-
-    // --- Real-time Price Quote Logic (Preserved with fix) ---
     const fetchQuote = useCallback(async (amount) => {
-        if (!amount || isNaN(amount) || amount <= 0) {
+        if (!amount || isNaN(amount) || amount <= 0 || !firebaseAuth.currentUser) {
             setLiveQuote({ sats: 0, btcPrice: 0 });
             return;
         }
@@ -184,7 +170,6 @@ export default function AdminCashouts() {
         }
     }, []);
 
-    // --- Destination Parser Logic (Preserved) ---
     useEffect(() => {
         setStatus({ message: '', type: '' });
         setIsAmountless(false);
@@ -193,7 +178,7 @@ export default function AdminCashouts() {
 
         if (!dest) return;
 
-        if (dest.startsWith('lnbc')) {
+        if (dest.toLowerCase().startsWith('lnbc')) {
             try {
                 const decoded = bolt11.decode(dest);
                 const sats = decoded.satoshis || (decoded.millisatoshis ? parseInt(decoded.millisatoshis) / 1000 : null);
@@ -220,7 +205,6 @@ export default function AdminCashouts() {
         }
     }, [destination, liveQuote.btcPrice]);
 
-    // --- Handle amount change for live quote (Preserved) ---
     useEffect(() => {
         if (isAmountless || isLnAddress) {
             const handler = setTimeout(() => {
@@ -232,7 +216,6 @@ export default function AdminCashouts() {
         }
     }, [usdAmount, isAmountless, isLnAddress, fetchQuote]);
 
-    // --- SUBMIT HANDLER FOR DIRECT CASHOUTS (Preserved) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus({ message: '', type: '' });
@@ -276,11 +259,13 @@ export default function AdminCashouts() {
         }
     };
 
+    const logout = useCallback(async () => {
+        await firebaseAuth.signOut();
+        router.push('/admin');
+    }, [router]);
+
     if (authLoading) {
-        return <div style={{ textAlign: 'center', marginTop: '50px' }}>Authenticating...</div>;
-    }
-    if (!isAdmin) {
-        return <div style={{ textAlign: 'center', marginTop: '50px' }}>Access Denied.</div>;
+        return <div className="loading-screen">Authenticating...</div>;
     }
 
     return (
@@ -302,8 +287,8 @@ export default function AdminCashouts() {
                         <li><a href="/admin/dashboard">Dashboard</a></li>
                         <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
-                        <li><a href="/admin/agents">Agents</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>

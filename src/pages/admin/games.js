@@ -1,13 +1,11 @@
-// pages/admin/games.js
+// src/pages/admin/games.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, orderBy, onSnapshot, addDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, doc, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
-
-// FIX: No longer need to import public header/footer. This is a standalone admin page.
 
 const LoadingSkeleton = () => (
     <div className="loading-skeleton mt-md">
@@ -20,21 +18,23 @@ export default function AdminGames() {
     const router = useRouter();
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-
     const [games, setGames] = useState([]);
-    const [dataLoading, setDataLoading] = useState(true);
     const [newGameName, setNewGameName] = useState('');
-    const [editingGame, setEditingGame] = useState(null); // { id, name }
+    const [editingGame, setEditingGame] = useState(null);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                if (userDoc.exists() && userDoc.data().isAdmin) {
-                    setIsAdmin(true);
-                } else {
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
                     router.replace('/admin');
                 }
             } else {
@@ -46,19 +46,17 @@ export default function AdminGames() {
     }, [router]);
 
     useEffect(() => {
-        if (!isAdmin) return;
-        setDataLoading(true);
+        if (authLoading || !isAdmin) return;
+        
         const q = query(collection(db, 'games'), orderBy('name'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const gameList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setGames(gameList);
-            setDataLoading(false);
         }, (err) => {
             setError('Failed to load games.');
-            setDataLoading(false);
         });
         return () => unsubscribe();
-    }, [isAdmin]);
+    }, [authLoading, isAdmin]);
 
     const logout = useCallback(async () => {
         await firebaseAuth.signOut();
@@ -71,7 +69,7 @@ export default function AdminGames() {
         setIsSubmitting(true);
         const adminIdToken = await firebaseAuth.currentUser.getIdToken();
 
-        if (editingGame) { // Handle Update
+        if (editingGame) {
             if (!editingGame.name.trim()) {
                 setError('Game name cannot be empty.');
                 setIsSubmitting(false);
@@ -88,7 +86,7 @@ export default function AdminGames() {
             } catch (err) {
                 setError(err.message);
             }
-        } else { // Handle Add
+        } else {
             if (!newGameName.trim()) {
                 setError('Game name cannot be empty.');
                 setIsSubmitting(false);
@@ -125,9 +123,7 @@ export default function AdminGames() {
     ], []);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
-    if (!isAdmin) return <div className="loading-screen">Access Denied.</div>;
 
-    // FIX: The entire component now returns the standard admin container with a consistent header and navigation.
     return (
         <div className="admin-dashboard-container">
             <Head><title>Admin - Manage Games</title></Head>
@@ -139,7 +135,7 @@ export default function AdminGames() {
                         <li><a href="/admin/cashouts">Cashouts</a></li>
                         <li><a href="/admin/games" className="active">Games</a></li>
                         <li><a href="/admin/expenses">Expenses</a></li>
-                        <li><a href="/admin/agents">Agents</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
@@ -179,7 +175,7 @@ export default function AdminGames() {
                 
                 <section>
                     <h2>Existing Games List</h2>
-                    {dataLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={games} defaultSortField="name" />}
+                    {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={games} defaultSortField="name" />}
                 </section>
             </main>
         </div>
