@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { collection, query, where, onSnapshot, orderBy, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from 'firebase/auth';
 
 import DataTable from '../../components/DataTable';
@@ -25,13 +25,6 @@ const formatTimestamp = (timestamp) => {
     }
 };
 
-const LoadingSkeleton = () => (
-    <div className="loading-skeleton">
-        <div className="skeleton-line" style={{ width: '95%' }}></div>
-        <div className="skeleton-line" style={{ width: '85%' }}></div>
-    </div>
-);
-
 const StatCard = ({ title, value, icon, color }) => (
     <div className="stat-card" style={{ borderTopColor: color }}>
         <div>
@@ -44,8 +37,6 @@ const StatCard = ({ title, value, icon, color }) => (
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [dataLoading, setDataLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [customers, setCustomers] = useState({});
     const [stats, setStats] = useState({ totalRevenue: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
@@ -58,21 +49,47 @@ export default function AdminDashboard() {
     const audioRef = useRef(null);
     const initialLoadDone = useRef(false);
 
+    // Authentication and data loading states
+    const [authLoading, setAuthLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    // Effect 1: Handles Authentication and determines user role.
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else { router.replace('/admin'); }
-            } else { router.replace('/admin'); }
+                try {
+                    // Force a token refresh to get the latest claims
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true); // User is a verified admin
+                    } else {
+                        // User is logged in but not an admin
+                        await firebaseAuth.signOut();
+                        router.replace('/admin');
+                    }
+                } catch (e) {
+                    console.error("Error verifying admin status:", e);
+                    router.replace('/admin');
+                }
+            } else {
+                // No user is logged in
+                router.replace('/admin');
+            }
+            // Signal that the authentication check is complete
+            setAuthLoading(false);
         });
+        // Cleanup the auth listener when the component unmounts
         return () => unsubscribe();
     }, [router]);
 
+    // Effect 2: Fetches data only after authentication is confirmed.
     useEffect(() => {
-        if (!isAdmin) return;
+        // Do not proceed if authentication is still in progress or if the user is not an admin
+        if (authLoading || !isAdmin) {
+            return;
+        }
 
+        // It's now safe to set up all real-time Firestore listeners
         const customersQuery = query(collection(db, 'customers'));
         const customerListener = onSnapshot(customersQuery, (snapshot) => {
             const customerMap = {};
@@ -118,24 +135,27 @@ export default function AdminDashboard() {
 
             setOrders(allOrders);
             setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalRevenue: revenue }));
-            setDataLoading(false);
-        }, err => { setError('Failed to load orders.'); setDataLoading(false); });
+        }, err => { setError('Failed to load orders.'); });
 
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
         const cashoutsListener = onSnapshot(query(collection(db, 'cashouts'), where('status', '==', 'completed')), (snapshot) => setStats(prev => ({ ...prev, totalCashouts: snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0) })), err => setError('Failed to load cashouts.'));
 
-        return () => { customerListener(); ordersListener(); usersListener(); cashoutsListener(); };
-    }, [isAdmin]);
+        // Return a cleanup function to unsubscribe from all listeners when the component unmounts
+        return () => {
+            customerListener();
+            ordersListener();
+            usersListener();
+            cashoutsListener();
+        };
+
+    }, [authLoading, isAdmin]); // This effect depends on the auth state
 
     const handleUsernameHover = async (username, position) => {
         if (!username || username === 'unknown') { setQuickViewStats(null); return; }
         if (quickViewStats?.username === username) return;
 
         if (position) {
-            const adjustedPosition = {
-                x: position.x,
-                y: position.y + window.scrollY
-            };
+            const adjustedPosition = { x: position.x, y: position.y + window.scrollY };
             setQuickViewPosition(adjustedPosition);
         }
 
@@ -191,7 +211,7 @@ export default function AdminDashboard() {
     ], []);
 
     const filteredOrders = useMemo(() => {
-        const getFacebookName = (username) => customers[username.toLowerCase()] || 'N/A';
+        const getFacebookName = (username) => customers[username?.toLowerCase()] || 'N/A';
         
         const ordersWithFacebookName = orders.map(order => ({
             ...order,
@@ -211,7 +231,7 @@ export default function AdminDashboard() {
         </div>
     );
     
-    if (dataLoading) return <div className="loading-screen">Loading Dashboard...</div>;
+    if (authLoading) return <div className="loading-screen">Authenticating & Loading Dashboard...</div>;
 
     return (
         <div className="admin-dashboard-container">
@@ -221,10 +241,10 @@ export default function AdminDashboard() {
                 <nav>
                     <ul className="admin-nav">
                         <li><a href="/admin/dashboard">Dashboard</a></li>
-                        <li><a href="/admin/cashouts" className="active">Cashouts</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
                         <li><a href="/admin/games">Games</a></li>
-	      <li><a href="/admin/expenses">Expenses</a></li>
-                        <li><a href="/admin/agents">Agents</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
                         <li><a href="/admin/profit-loss">Profit/Loss</a></li>
                         <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
