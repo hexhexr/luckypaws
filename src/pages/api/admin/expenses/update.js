@@ -1,4 +1,6 @@
-// src/pages/api/admin/expenses/update.js
+// File: src/pages/api/admin/expenses/update.js
+// Description: API endpoint to update an existing expense.
+
 import { db } from '../../../../lib/firebaseAdmin';
 import { withAuth } from '../../../../lib/authMiddleware';
 
@@ -7,9 +9,9 @@ const handler = async (req, res) => {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { id, date, category, amount, description } = req.body;
+  const { id, date, category, amount, description, currency } = req.body;
 
-  if (!id || !date || !category || !amount || !description) {
+  if (!id || !date || !category || !amount || !description || !currency) {
     return res.status(400).json({ message: 'Missing required fields for update.' });
   }
 
@@ -20,6 +22,7 @@ const handler = async (req, res) => {
       category,
       amount: parseFloat(amount),
       description,
+      currency,
     });
     res.status(200).json({ success: true, message: 'Expense updated successfully.' });
   } catch (error) {

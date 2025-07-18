@@ -1,4 +1,6 @@
-// src/pages/admin/expenses.js
+// File: src/pages/admin/expenses.js
+// Description: The main UI page for managing all expenses.
+
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
@@ -8,9 +10,14 @@ import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
 
-const formatCurrency = (amount) => {
+const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
-    return isNaN(numAmount) ? '$0.00' : `$${numAmount.toFixed(2)}`;
+    if (isNaN(numAmount)) return 'N/A';
+    try {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(numAmount);
+    } catch (e) {
+        return `${currency} ${numAmount.toFixed(2)}`;
+    }
 };
 
 const formatDate = (timestamp) => {
@@ -28,7 +35,10 @@ const LoadingSkeleton = () => (
 
 export default function AdminExpenses() {
     const router = useRouter();
+    const [authLoading, setAuthLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [error, setError] = useState('');
+    
     const [expenses, setExpenses] = useState([]);
     const [partners, setPartners] = useState([]);
     const [newExpense, setNewExpense] = useState({ 
@@ -36,29 +46,23 @@ export default function AdminExpenses() {
         category: 'General', 
         amount: '', 
         description: '',
-        paidByPartnerId: ''
+        paidByPartnerId: '',
+        currency: 'USD'
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
 
-    // Auth states
-    const [authLoading, setAuthLoading] = useState(true);
-    const [isAdmin, setIsAdmin] = useState(false);
-
-    // Effect 1: Handles Authentication
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                try {
-                    const idTokenResult = await user.getIdTokenResult(true);
-                    if (idTokenResult.claims.admin) {
-                        setIsAdmin(true);
-                    } else {
-                        router.replace('/admin');
-                    }
-                } catch (e) {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
+                    setIsAdmin(true);
+                } else {
                     router.replace('/admin');
                 }
             } else {
@@ -69,9 +73,8 @@ export default function AdminExpenses() {
         return () => unsubscribe();
     }, [router]);
 
-    // Effect 2: Fetches data only after admin status is confirmed
     useEffect(() => {
-        if (authLoading || !isAdmin) return;
+        if (!isAdmin) return;
 
         const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
         const expensesUnsubscribe = onSnapshot(expensesQuery, (snapshot) => {
@@ -90,7 +93,7 @@ export default function AdminExpenses() {
             expensesUnsubscribe();
             partnersUnsubscribe();
         };
-    }, [authLoading, isAdmin]);
+    }, [isAdmin]);
 
     const handleNewExpenseChange = (e) => {
         const { name, value } = e.target;
@@ -110,7 +113,7 @@ export default function AdminExpenses() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Failed to add expense.');
-            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '' });
+            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD' });
             alert('Expense added successfully!');
         } catch (err) {
             setError(err.message);
@@ -139,6 +142,28 @@ export default function AdminExpenses() {
             setError(err.message);
         }
     };
+
+    const handleDeleteExpense = useCallback(async (expenseId) => {
+        if (window.confirm('Are you sure you want to permanently delete this expense? This action cannot be undone.')) {
+            setIsSubmitting(true);
+            setError('');
+            try {
+                const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
+                const res = await fetch('/api/admin/expenses/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
+                    body: JSON.stringify({ id: expenseId })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to delete expense.');
+                alert('Expense deleted successfully!');
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setIsSubmitting(false);
+            }
+        }
+    }, []);
     
     const logout = useCallback(async () => {
         await firebaseAuth.signOut();
@@ -160,8 +185,36 @@ export default function AdminExpenses() {
         });
     }, [expenses, startDate, endDate]);
 
-    const totalFilteredExpenses = useMemo(() => {
-        return filteredExpenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
+    const totalsByCurrency = useMemo(() => {
+        return filteredExpenses.reduce((acc, expense) => {
+            const currency = expense.currency || 'USD';
+            const amount = parseFloat(expense.amount || 0);
+            if (!acc[currency]) {
+                acc[currency] = 0;
+            }
+            acc[currency] += amount;
+            return acc;
+        }, {});
+    }, [filteredExpenses]);
+
+    const partnerExpenseTotals = useMemo(() => {
+        const partnerTotals = {};
+        filteredExpenses.forEach(expense => {
+            if (expense.paidByPartnerId) {
+                const partnerId = expense.paidByPartnerId;
+                const currency = expense.currency || 'USD';
+                const amount = parseFloat(expense.amount || 0);
+
+                if (!partnerTotals[partnerId]) {
+                    partnerTotals[partnerId] = { name: expense.paidByPartnerName, totals: {} };
+                }
+                if (!partnerTotals[partnerId].totals[currency]) {
+                    partnerTotals[partnerId].totals[currency] = 0;
+                }
+                partnerTotals[partnerId].totals[currency] += amount;
+            }
+        });
+        return Object.values(partnerTotals);
     }, [filteredExpenses]);
 
     const columns = useMemo(() => [
@@ -169,13 +222,14 @@ export default function AdminExpenses() {
         { header: 'Category', accessor: 'category', sortable: true },
         { header: 'Description', accessor: 'description', sortable: true },
         { header: 'Paid By', accessor: 'paidByPartnerName', sortable: true, cell: (row) => row.paidByPartnerName || 'Office' },
-        { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrency(row.amount) },
+        { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrencyValue(row.amount, row.currency || 'USD') },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
+                <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
         )}
-    ], []);
+    ], [handleDeleteExpense]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
@@ -238,7 +292,14 @@ export default function AdminExpenses() {
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Amount (USD)</label>
+                                        <label>Currency</label>
+                                        <select name="currency" className="select" value={newExpense.currency} onChange={handleNewExpenseChange} required>
+                                            <option value="USD">USD</option>
+                                            <option value="PKR">PKR</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Amount</label>
                                         <input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/>
                                     </div>
                                     <div className="form-group expense-form-description">
@@ -255,7 +316,7 @@ export default function AdminExpenses() {
 
                     <section className="card mb-lg">
                         <div className="card-header">
-                            <h2>Expense Log</h2>
+                            <h2>Expense Log & Totals</h2>
                         </div>
                         <div className="card-body">
                              <div className="filter-controls">
@@ -268,10 +329,29 @@ export default function AdminExpenses() {
                                     <input type="date" className="input" value={endDate} onChange={e => setEndDate(e.target.value)} />
                                 </div>
                             </div>
-                            <div className="stat-card" style={{borderColor: 'var(--red-alert)', marginBottom: '1rem'}}>
-                                <h4 className="stat-card-title">Total for Selected Period</h4>
-                                <h2 className="stat-card-value">{formatCurrency(totalFilteredExpenses)}</h2>
+                            <div className="stats-grid">
+                                {Object.entries(totalsByCurrency).map(([currency, total]) => (
+                                    <div key={currency} className="stat-card" style={{borderColor: 'var(--red-alert)'}}>
+                                        <h4 className="stat-card-title">Total ({currency})</h4>
+                                        <h2 className="stat-card-value">{formatCurrencyValue(total, currency)}</h2>
+                                    </div>
+                                ))}
                             </div>
+                             {partnerExpenseTotals.length > 0 && (
+                                <div className="mt-lg">
+                                    <h4>Expenses by Partner</h4>
+                                    {partnerExpenseTotals.map(partner => (
+                                        <div key={partner.name} className="stat-card" style={{borderColor: 'var(--primary-blue)', marginBottom: '1rem'}}>
+                                            <h4 className="stat-card-title">{partner.name}</h4>
+                                            {Object.entries(partner.totals).map(([currency, total]) => (
+                                                <h3 key={currency} className="stat-card-value" style={{fontSize: '1.5rem'}}>
+                                                    {formatCurrencyValue(total, currency)}
+                                                </h3>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" />}
                         </div>
                     </section>

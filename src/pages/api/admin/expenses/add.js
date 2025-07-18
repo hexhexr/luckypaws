@@ -1,4 +1,6 @@
-// src/pages/api/admin/expenses/add.js
+// File: src/pages/api/admin/expenses/add.js
+// Description: API endpoint to add a new expense. Handles currency and updates partner ledgers.
+
 import { db } from '../../../../lib/firebaseAdmin';
 import { withAuth } from '../../../../lib/authMiddleware';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
@@ -8,16 +10,26 @@ const handler = async (req, res) => {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { date, category, amount, description, paidByPartnerId } = req.body;
+  const { date, category, amount, description, paidByPartnerId, currency } = req.body;
 
-  if (!date || !category || !amount || !description) {
-    return res.status(400).json({ message: 'Missing required expense fields.' });
+  if (!date || !category || !amount || !description || !currency) {
+    return res.status(400).json({ message: 'Missing required expense fields, including currency.' });
   }
   
   const loggedInUserEmail = req.decodedToken.email;
   const expenseAmount = parseFloat(amount);
 
   try {
+    const expenseData = {
+        date: new Date(date),
+        category,
+        amount: expenseAmount,
+        currency, // Save the currency
+        description,
+        recordedBy: loggedInUserEmail,
+        createdAt: Timestamp.now(),
+    };
+
     if (paidByPartnerId) {
         // Transaction: This expense is paid by a partner
         const partnerRef = db.collection('partners').doc(paidByPartnerId);
@@ -31,22 +43,18 @@ const handler = async (req, res) => {
             }
             const partnerName = partnerDoc.data().name;
 
-            // 1. Create the expense record
+            // 1. Create the expense record with partner info
             transaction.set(expenseRef, {
-                date: new Date(date),
-                category,
-                amount: expenseAmount,
-                description,
-                recordedBy: loggedInUserEmail,
+                ...expenseData,
                 paidByPartnerId,
                 paidByPartnerName: partnerName,
-                createdAt: Timestamp.now(),
             });
 
             // 2. Add a record to the partner's ledger
             transaction.set(ledgerRef, {
                 partnerId: paidByPartnerId,
                 amount: -expenseAmount, // Negative amount for an expense
+                currency,
                 type: 'expense',
                 description: `Expense: ${description}`,
                 transactionDate: new Date(date),
@@ -63,13 +71,8 @@ const handler = async (req, res) => {
         // Standard expense paid by the office
         const expenseRef = db.collection('expenses').doc();
         await expenseRef.set({
-            date: new Date(date),
-            category,
-            amount: expenseAmount,
-            description,
-            recordedBy: loggedInUserEmail,
+            ...expenseData,
             paidByPartnerId: null,
-            createdAt: Timestamp.now(),
         });
     }
 

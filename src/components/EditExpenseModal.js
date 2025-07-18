@@ -1,16 +1,17 @@
-// src/components/EditExpenseModal.js
+// File: src/components/EditExpenseModal.js
+// Description: The modal component for editing an expense, now with a currency field.
+
 import React, { useState, useEffect } from 'react';
 
-// FIX: This component now uses the consistent admin modal classes from globals.css
 export default function EditExpenseModal({ expense, onClose, onSave }) {
     const [formData, setFormData] = useState(expense);
 
     useEffect(() => {
-        // Handle date formatting for the input field
         const date = expense.date.toDate ? expense.date.toDate() : new Date(expense.date);
         setFormData({
             ...expense,
-            date: date.toISOString().split('T')[0]
+            date: date.toISOString().split('T')[0],
+            currency: expense.currency || 'USD' // Default to USD if not set
         });
     }, [expense]);
 
@@ -50,7 +51,14 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>Amount (USD)</label>
+                        <label>Currency</label>
+                        <select name="currency" className="select" value={formData.currency} onChange={handleChange} required>
+                            <option value="USD">USD</option>
+                            <option value="PKR">PKR</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label>Amount</label>
                         <input type="number" step="0.01" name="amount" className="input" value={formData.amount} onChange={handleChange} required />
                     </div>
                     <div className="form-group">
