@@ -55,14 +55,19 @@ export default function AdminExpenses() {
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
 
+    // FIX: Updated authentication flow to prevent premature redirects
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists() && userDocSnap.data()?.isAdmin) {
-                    setIsAdmin(true);
-                } else {
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true); // Force refresh of token
+                    if (idTokenResult.claims.admin) {
+                        setIsAdmin(true);
+                    } else {
+                        router.replace('/admin');
+                    }
+                } catch (e) {
+                    console.error("Auth check failed:", e);
                     router.replace('/admin');
                 }
             } else {
@@ -74,6 +79,7 @@ export default function AdminExpenses() {
     }, [router]);
 
     useEffect(() => {
+        // Data fetching now waits for isAdmin to be true
         if (!isAdmin) return;
 
         const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
@@ -93,7 +99,7 @@ export default function AdminExpenses() {
             expensesUnsubscribe();
             partnersUnsubscribe();
         };
-    }, [isAdmin]);
+    }, [isAdmin]); // This effect runs only after isAdmin is confirmed
 
     const handleNewExpenseChange = (e) => {
         const { name, value } = e.target;
