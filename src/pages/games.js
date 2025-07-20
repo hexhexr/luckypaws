@@ -10,6 +10,7 @@ const gamesData = [
     { name: 'Golden Dragon', links: [{ type: 'Play Online', url: 'https://playgd.mobi/' }], },
     { name: 'Ultra Monster', links: [{ type: 'Play Online', url: 'https://www.ultrapanda.mobi/' }], },
     { name: 'Kraken', links: [{ type: 'Play Online', url: 'https://getthekraken.com/' }], },
+    { name: 'Yolo', links: [{ type: 'Play Online', url: 'https://yolo777.game/' }], },
     { name: 'Skill TX', links: [{ type: 'Play Online', url: 'https://skilltx.com/' }], },
     { name: 'Blue Dragon', links: [{ type: 'Play Online', url: 'http://app.bluedragon777.com/' }], },
     { name: 'E Game', links: [{ type: 'Play Online', url: 'https://www.egame99.club/' }], },
