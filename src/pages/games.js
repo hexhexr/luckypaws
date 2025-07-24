@@ -8,15 +8,15 @@ import Link from 'next/link';
 const allGamesData = [
     { name: 'Fire Kirin', links: [ { type: 'Play Online', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, { type: 'Android', url: 'https://drive.google.com/file/d/1oEjL-Uc5xywDaUhgS4pj7_b25bRjwl8-/view?usp=drivesdk' }, { type: 'IOS', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, ], },
     { name: 'Panda Master', links: [{ type: 'Play Online', url: 'https://pandamaster.vip:8888/index.html' }], },
-    { name: 'Game Vault', links: [], }, // Added new game
+    { name: 'Game Vault', links: [{ type: 'Play Online', url: 'http://download.gamevault999.com/' }], },
     { name: 'Juwa', links: [ { type: 'Android', url: 'https://dl.juwa777.com/' }, { type: 'IOS', url: 'https://dl.juwa777.com/' }, ], },
     { name: 'VBlink', links: [{ type: 'Play Online', url: 'https://www.vblink777.club/' }], },
     { name: 'Milky Way', links: [{ type: 'Play Online', url: 'https://milkywayapp.xyz/' }], },
     { name: 'Ultra Panda', links: [{ type: 'Play Online', url: 'https://ultrapanda.mobi' }], },
-    { name: 'Vegas Sweeps', links: [], }, // Added new game
+    { name: 'Vegas Sweeps', links: [{ type: 'Play Online', url: 'https://vegassweeps.org/' }], },
     { name: 'Game Room', links: [{ type: 'Play Online', url: 'http://www.gameroom777.com/m' }], },
     { name: 'Yolo', links: [{ type: 'Play Online', url: 'https://yolo777.game/' }], },
-    { name: 'Cash Machine', links: [], }, // Added new game
+    { name: 'Cash Machine', links: [{ type: 'Play Online', url: 'https://cashmachine.game/' }], },
     { name: 'Orion Stars', links: [{ type: 'Play Online', url: 'http://orionstars.vip:8580/index.html' }], },
     { name: 'Golden Dragon', links: [{ type: 'Play Online', url: 'https://playgd.mobi/' }], },
     { name: 'Ultra Monster', links: [{ type: 'Play Online', url: 'https://www.ultrapanda.mobi/' }], },
@@ -75,7 +75,7 @@ const GameImage = ({ gameName }) => {
     }
 
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imgSrc} alt={`${gameName} logo`} onError={handleError} />;
+    return <img src={imgSrc} alt={`${gameName} name`} onError={handleError} />;
 };
 
 
@@ -101,7 +101,7 @@ export default function GamesPage() {
         <section className="section-padded text-center">
           <div className="container">
             <h1 className="section-title">Our Exciting Game Collection</h1>
-            <p className="section-subtitle">
+            <p className="section-subtitle engaging-subtitle">
               Ready to play? Our secure and reliable payment processing ensures your funds are available instantly. Top up fast and get right to the action.
             </p>
             <Link href="/#payment-form-section" className="btn btn-primary btn-large">
@@ -185,6 +185,12 @@ export default function GamesPage() {
 
       <Footer />
       <style jsx>{`
+        .engaging-subtitle {
+            color: #fde047; /* A bright, engaging yellow */
+            font-weight: 500;
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
         .games-grid-section {
           padding-top: var(--spacing-xl);
         }
@@ -211,7 +217,7 @@ export default function GamesPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background-color: #000;
+          background: #000;
           padding: var(--spacing-sm);
         }
         .game-card-image img {
@@ -220,19 +226,21 @@ export default function GamesPage() {
           object-fit: contain;
         }
         .game-card-name-placeholder {
-            color: #fff;
-            font-size: 1rem;
-            font-weight: bold;
+            font-size: 1.1rem;
+            font-weight: 700;
             text-align: center;
             padding: var(--spacing-sm);
+            background: linear-gradient(45deg, var(--primary-blue), var(--primary-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
         .game-card-actions {
           padding: var(--spacing-sm);
           display: flex;
           flex-direction: column;
           gap: var(--spacing-xs);
-          flex-grow: 1; /* Allows content to fill space */
-          justify-content: center; /* Center content vertically */
+          flex-grow: 1;
+          justify-content: center;
         }
         .game-card-action {
             display: grid;
