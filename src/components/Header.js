@@ -53,21 +53,26 @@ export default function Header() {
         .header-content {
           display: flex;
           justify-content: space-between;
-          align-items: baseline; /* FIX: Changed from center to baseline for better text alignment */
+          align-items: center; /* FIX: Changed back to center for better vertical alignment */
+          flex-wrap: nowrap; /* FIX: Prevents nav from wrapping to the next line */
         }
         .logo-link {
           display: flex;
           align-items: center;
-          gap: var(--spacing-md);
+          gap: var(--spacing-sm); /* FIX: Reduced gap for a tighter look */
           z-index: 10; 
+          flex-shrink: 0; /* FIX: Prevents the logo from shrinking */
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
-            font-size: 1.2rem;
+            font-size: 1.1rem; /* FIX: Slightly smaller font to fit better */
             white-space: nowrap;
         }
         /* Desktop Navigation */
+        .main-nav {
+            display: flex; /* Ensure nav is a flex container */
+        }
         .main-nav ul {
           list-style: none;
           padding: 0;
@@ -129,24 +134,29 @@ export default function Header() {
         .menu-toggle.open span:nth-child(3) { bottom: 50%; transform: translateY(50%) rotate(-45deg); }
 
         /* Mobile Navigation Styles */
+        @media (max-width: 860px) { /* FIX: Adjusted breakpoint for earlier wrapping */
+          .logo-text {
+            display: none; /* Hide text on smaller screens to save space */
+          }
+        }
         @media (max-width: 768px) {
-          .menu-toggle {
-            display: block;
+          .logo-text {
+            display: inline-block; /* Show it again in the mobile menu view if desired, but we'll keep it hidden */
           }
           .main-nav {
+            display: none; /* Hide it to be replaced by the slide-in menu */
+          }
+          .main-nav.open {
+            display: flex;
             position: fixed;
             top: 0;
-            left: 100%; /* Start off-screen */
+            left: 0;
             width: 100%;
             height: 100vh;
-            background-color: #111827; /* Solid dark background */
-            display: flex;
+            background-color: #111827;
             align-items: center;
             justify-content: center;
             transition: left 0.35s ease-in-out;
-          }
-          .main-nav.open {
-            left: 0; /* Slide in */
           }
           .main-nav ul {
             flex-direction: column;
@@ -156,6 +166,9 @@ export default function Header() {
           .main-nav a {
             font-size: 1.5rem;
             font-weight: 600;
+          }
+          .menu-toggle {
+            display: block;
           }
         }
       `}</style>

@@ -58,16 +58,25 @@ const otherGames = allGamesData.filter(game => !topGameNames.includes(game.name)
 
 // A component to handle image loading with a fallback
 const GameImage = ({ gameName }) => {
-    const [imgSrc, setImgSrc] = useState(`/game-images/${gameName}.png`);
+    const [imageSources, setImageSources] = useState([
+        `/game-images/${gameName}.png`,
+        `/game-images/${gameName}.jpg`,
+        `/game-images/${gameName}.jpeg`,
+    ]);
+    const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
-        setImgSrc(`/game-images/${gameName}.png`);
+        setCurrentSourceIndex(0);
         setHasError(false);
     }, [gameName]);
 
     const handleError = () => {
-        setHasError(true);
+        if (currentSourceIndex < imageSources.length - 1) {
+            setCurrentSourceIndex(currentSourceIndex + 1);
+        } else {
+            setHasError(true);
+        }
     };
 
     if (hasError) {
@@ -75,7 +84,7 @@ const GameImage = ({ gameName }) => {
     }
 
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imgSrc} alt={`${gameName} name`} onError={handleError} />;
+    return <img src={imageSources[currentSourceIndex]} alt={`${gameName} name`} onError={handleError} />;
 };
 
 
@@ -217,7 +226,7 @@ export default function GamesPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #000;
+          background-color: #000;
           padding: var(--spacing-sm);
         }
         .game-card-image img {
