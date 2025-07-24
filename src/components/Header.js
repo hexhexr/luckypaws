@@ -48,7 +48,7 @@ export default function Header() {
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: var(--spacing-sm) 0;
+            padding: var(--spacing-md) 0; /* FIX: Increased padding for more space */
         }
         .header-content {
           display: flex;
@@ -58,13 +58,14 @@ export default function Header() {
         .logo-link {
           display: flex;
           align-items: center;
-          gap: var(--spacing-sm);
-          z-index: 10; /* Ensure logo is above mobile nav background */
+          gap: var(--spacing-md); /* FIX: Increased gap */
+          z-index: 10; 
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 1.2rem; /* FIX: Slightly larger font size */
+            white-space: nowrap; /* FIX: Prevent text from wrapping */
         }
         /* Desktop Navigation */
         .main-nav ul {
@@ -78,7 +79,7 @@ export default function Header() {
         .main-nav a {
             padding: var(--spacing-sm) 0;
             position: relative;
-            color: #d1d5db; /* Light gray for nav links */
+            color: #d1d5db; 
             font-weight: 500;
             transition: color 0.2s ease;
         }
@@ -102,7 +103,7 @@ export default function Header() {
 
         /* Mobile Menu Toggle Button */
         .menu-toggle {
-          display: none; /* Hidden on desktop */
+          display: none; 
           position: relative;
           z-index: 10;
           width: 30px;

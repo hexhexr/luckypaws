@@ -112,6 +112,8 @@ export default function Home() {
             color: #9ca3af; /* Softer gray */
             max-width: 600px;
             margin-top: var(--spacing-sm);
+            margin-left: auto; /* FIX: This centers the text block */
+            margin-right: auto; /* FIX: This centers the text block */
         }
         .hero-cta-buttons {
             margin-top: var(--spacing-lg);
