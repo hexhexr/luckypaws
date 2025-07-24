@@ -20,7 +20,12 @@ export default function Header() {
           />
           <span className="logo-text">Lucky Paw's Fishing Room</span>
         </Link>
-        <button className={`menu-toggle ${isNavOpen ? 'open' : ''}`} onClick={() => setIsNavOpen(!isNavOpen)} aria-label="Toggle menu">
+        <button 
+          className={`menu-toggle ${isNavOpen ? 'open' : ''}`} 
+          onClick={() => setIsNavOpen(!isNavOpen)} 
+          aria-label="Toggle menu"
+          aria-expanded={isNavOpen}
+        >
           <span></span>
           <span></span>
           <span></span>
@@ -39,9 +44,9 @@ export default function Header() {
             position: sticky;
             top: 0;
             z-index: 1000;
-            background-color: rgba(17, 24, 39, 0.5); /* Semi-transparent dark bg */
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background-color: rgba(17, 24, 39, 0.8); /* Darker, more opaque background */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             padding: var(--spacing-sm) 0;
         }
@@ -54,12 +59,14 @@ export default function Header() {
           display: flex;
           align-items: center;
           gap: var(--spacing-sm);
+          z-index: 10; /* Ensure logo is above mobile nav background */
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
             font-size: 1.1rem;
         }
+        /* Desktop Navigation */
         .main-nav ul {
           list-style: none;
           padding: 0;
@@ -78,27 +85,76 @@ export default function Header() {
         .main-nav a:hover {
             color: var(--text-white);
         }
-
-        /* --- Mobile Navigation Styles --- */
-        @media (max-width: 768px) {
-          .main-nav {
-            display: none; /* Hide nav by default on mobile */
+        .main-nav a::after {
+            content: '';
             position: absolute;
-            top: 100%; /* Position it right below the header */
-            left: 0;
+            width: 0;
+            height: 2px;
+            bottom: 0;
+            left: 50%;
+            background-color: var(--primary-blue);
+            transition: all 0.3s ease-in-out;
+            transform: translateX(-50%);
+        }
+        .main-nav a:hover::after {
             width: 100%;
-            background-color: #1f2937; /* A solid background for the dropdown */
-            padding: var(--spacing-md);
-            box-shadow: var(--shadow-lg);
+        }
+
+        /* Mobile Menu Toggle Button */
+        .menu-toggle {
+          display: none; /* Hidden on desktop */
+          position: relative;
+          z-index: 10;
+          width: 30px;
+          height: 25px;
+          background: none;
+          border: none;
+          cursor: pointer;
+        }
+        .menu-toggle span {
+          display: block;
+          position: absolute;
+          width: 100%;
+          height: 3px;
+          background-color: var(--text-white);
+          border-radius: 2px;
+          transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        .menu-toggle span:nth-child(1) { top: 0; }
+        .menu-toggle span:nth-child(2) { top: 50%; transform: translateY(-50%); }
+        .menu-toggle span:nth-child(3) { bottom: 0; }
+        .menu-toggle.open span:nth-child(1) { top: 50%; transform: translateY(-50%) rotate(45deg); }
+        .menu-toggle.open span:nth-child(2) { opacity: 0; }
+        .menu-toggle.open span:nth-child(3) { bottom: 50%; transform: translateY(50%) rotate(-45deg); }
+
+        /* Mobile Navigation Styles */
+        @media (max-width: 768px) {
+          .menu-toggle {
+            display: block;
+          }
+          .main-nav {
+            position: fixed;
+            top: 0;
+            left: 100%; /* Start off-screen */
+            width: 100%;
+            height: 100vh;
+            background-color: #111827; /* Solid dark background */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: left 0.35s ease-in-out;
           }
           .main-nav.open {
-            display: flex; /* Show the nav when open */
-            flex-direction: column;
+            left: 0; /* Slide in */
           }
           .main-nav ul {
             flex-direction: column;
-            width: 100%;
-            align-items: flex-start;
+            gap: var(--spacing-xl);
+            text-align: center;
+          }
+          .main-nav a {
+            font-size: 1.5rem;
+            font-weight: 600;
           }
         }
       `}</style>

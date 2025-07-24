@@ -55,11 +55,10 @@ export default function Home() {
           <div className="container">
             <h1 className="hero-title">Welcome to Lucky Paw's Fishing Room</h1>
             <p className="hero-subtitle">
-              Your premier destination for exciting online fishing games. Top up your account instantly
-              and start playing today!
+              Experience our uniquely reliable and secure payment gateway. We offer a fast, seamless deposit process so you can get in the game instantly.
             </p>
             <div className="hero-cta-buttons">
-              <button onClick={scrollToPayment} className="btn btn-primary btn-large">Get Started</button>
+              <button onClick={scrollToPayment} className="btn btn-primary btn-large">Deposit Now</button>
               <a href="/games" className="btn btn-secondary btn-large">View Games</a>
             </div>
           </div>
