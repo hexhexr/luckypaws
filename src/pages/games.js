@@ -58,33 +58,24 @@ const otherGames = allGamesData.filter(game => !topGameNames.includes(game.name)
 
 // A component to handle image loading with a fallback
 const GameImage = ({ gameName }) => {
-    const [imageSources, setImageSources] = useState([
-        `/game-images/${gameName}.png`,
-        `/game-images/${gameName}.jpg`,
-        `/game-images/${gameName}.jpeg`,
-    ]);
-    const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
-    const [hasError, setHasError] = useState(false);
+    const [imageStatus, setImageStatus] = useState('loading'); // loading, loaded, or error
+    const imagePath = `/game-images/${gameName}.png`; // We'll stick to one extension for simplicity now
 
     useEffect(() => {
-        setCurrentSourceIndex(0);
-        setHasError(false);
-    }, [gameName]);
+        setImageStatus('loading');
+        const img = new window.Image();
+        img.src = imagePath;
+        img.onload = () => setImageStatus('loaded');
+        img.onerror = () => setImageStatus('error');
+    }, [imagePath]);
 
-    const handleError = () => {
-        if (currentSourceIndex < imageSources.length - 1) {
-            setCurrentSourceIndex(currentSourceIndex + 1);
-        } else {
-            setHasError(true);
-        }
-    };
-
-    if (hasError) {
-        return <div className="game-card-name-placeholder">{gameName}</div>;
+    if (imageStatus === 'loaded') {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img src={imagePath} alt={gameName} />;
     }
-
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageSources[currentSourceIndex]} alt={gameName} onError={handleError} />;
+    
+    // If loading or error, show the styled name placeholder
+    return <div className="game-card-name-placeholder">{gameName}</div>;
 };
 
 
