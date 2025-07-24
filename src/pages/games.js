@@ -84,7 +84,7 @@ const GameImage = ({ gameName }) => {
     }
 
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageSources[currentSourceIndex]} alt={`${gameName} name`} onError={handleError} />;
+    return <img src={imageSources[currentSourceIndex]} alt={gameName} onError={handleError} />;
 };
 
 
