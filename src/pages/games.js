@@ -1,14 +1,11 @@
 // src/pages/games.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Link from 'next/link';
 
-const gamesData = [
-    // I have removed the imageUrl properties.
-    // The component will now automatically look for an image in /game-images/ based on the game's name.
-    // Example: For "Fire Kirin", it will look for /game-images/Fire Kirin.png
+const allGamesData = [
     { name: 'Fire Kirin', links: [ { type: 'Play Online', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, { type: 'Android', url: 'https://drive.google.com/file/d/1oEjL-Uc5xywDaUhgS4pj7_b25bRjwl8-/view?usp=drivesdk' }, { type: 'IOS', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, ], },
     { name: 'JUWA', links: [ { type: 'Android', url: 'https://dl.juwa777.com/' }, { type: 'IOS', url: 'https://dl.juwa777.com/' }, ], },
     { name: 'Golden Dragon', links: [{ type: 'Play Online', url: 'https://playgd.mobi/' }], },
@@ -48,10 +45,24 @@ const gamesData = [
     { name: 'Lucky Dragon', links: [{ type: 'Play Online', url: 'https://lucky-dragon.net/' }], },
 ];
 
+const topGameNames = [
+    'Fire Kirin', 'Panda Master', 'Juwa', 'VBlink', 
+    'Milky Way', 'Ultra Panda', 'Gameroom', 'Yolo', 'Orion Stars'
+];
+
+const topGames = allGamesData.filter(game => topGameNames.includes(game.name));
+const otherGames = allGamesData.filter(game => !topGameNames.includes(game.name));
+
+
 // A component to handle image loading with a fallback
 const GameImage = ({ gameName }) => {
     const [imgSrc, setImgSrc] = useState(`/game-images/${gameName}.png`);
     const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setImgSrc(`/game-images/${gameName}.png`);
+        setHasError(false);
+    }, [gameName]);
 
     const handleError = () => {
         setHasError(true);
@@ -61,6 +72,7 @@ const GameImage = ({ gameName }) => {
         return <div className="game-card-name-placeholder">{gameName}</div>;
     }
 
+    // eslint-disable-next-line @next/next/no-img-element
     return <img src={imgSrc} alt={`${gameName} logo`} onError={handleError} />;
 };
 
@@ -96,10 +108,48 @@ export default function GamesPage() {
           </div>
         </section>
 
-        <section className="games-grid-section section-padded" style={{paddingTop: 0}}>
+        {/* Top Games Section */}
+        <section className="games-grid-section section-padded" style={{paddingTop: 'var(--spacing-xl)'}}>
           <div className="container">
+            <h2 className="section-title text-center">Top Games</h2>
             <div className="games-grid">
-              {gamesData.map((game, index) => (
+              {topGames.map((game, index) => (
+                <div key={index} className="game-card">
+                  <div className="game-card-image">
+                    <GameImage gameName={game.name} />
+                  </div>
+                  <div className="game-card-actions">
+                    {game.links.map((link, linkIndex) => (
+                        <div key={linkIndex} className="game-card-action">
+                            <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-primary btn-xsmall"
+                            >
+                                {link.type}
+                            </a>
+                            <button
+                                onClick={() => handleCopy(link.url)}
+                                className="btn btn-secondary btn-xsmall"
+                            >
+                                {copiedLink === link.url ? 'Copied!' : 'Copy'}
+                            </button>
+                        </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Other Games Section */}
+        <section className="games-grid-section section-padded">
+          <div className="container">
+            <h2 className="section-title text-center">Other Games</h2>
+            <div className="games-grid">
+              {otherGames.map((game, index) => (
                 <div key={index} className="game-card">
                   <div className="game-card-image">
                     <GameImage gameName={game.name} />

@@ -44,28 +44,28 @@ export default function Header() {
             position: sticky;
             top: 0;
             z-index: 1000;
-            background-color: rgba(17, 24, 39, 0.8); /* Darker, more opaque background */
+            background-color: rgba(17, 24, 39, 0.8);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: var(--spacing-md) 0; /* FIX: Increased padding for more space */
+            padding: var(--spacing-sm) 0;
         }
         .header-content {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: baseline; /* FIX: Changed from center to baseline for better text alignment */
         }
         .logo-link {
           display: flex;
           align-items: center;
-          gap: var(--spacing-md); /* FIX: Increased gap */
+          gap: var(--spacing-md);
           z-index: 10; 
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
-            font-size: 1.2rem; /* FIX: Slightly larger font size */
-            white-space: nowrap; /* FIX: Prevent text from wrapping */
+            font-size: 1.2rem;
+            white-space: nowrap;
         }
         /* Desktop Navigation */
         .main-nav ul {
