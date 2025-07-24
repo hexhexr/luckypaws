@@ -7,35 +7,38 @@ import Link from 'next/link';
 
 const allGamesData = [
     { name: 'Fire Kirin', links: [ { type: 'Play Online', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, { type: 'Android', url: 'https://drive.google.com/file/d/1oEjL-Uc5xywDaUhgS4pj7_b25bRjwl8-/view?usp=drivesdk' }, { type: 'IOS', url: 'http://web.firekirin.xyz/firekirin/firekirin/' }, ], },
-    { name: 'JUWA', links: [ { type: 'Android', url: 'https://dl.juwa777.com/' }, { type: 'IOS', url: 'https://dl.juwa777.com/' }, ], },
+    { name: 'Panda Master', links: [{ type: 'Play Online', url: 'https://pandamaster.vip:8888/index.html' }], },
+    { name: 'Game Vault', links: [], }, // Added new game
+    { name: 'Juwa', links: [ { type: 'Android', url: 'https://dl.juwa777.com/' }, { type: 'IOS', url: 'https://dl.juwa777.com/' }, ], },
+    { name: 'VBlink', links: [{ type: 'Play Online', url: 'https://www.vblink777.club/' }], },
+    { name: 'Milky Way', links: [{ type: 'Play Online', url: 'https://milkywayapp.xyz/' }], },
+    { name: 'Ultra Panda', links: [{ type: 'Play Online', url: 'https://ultrapanda.mobi' }], },
+    { name: 'Vegas Sweeps', links: [], }, // Added new game
+    { name: 'Game Room', links: [{ type: 'Play Online', url: 'http://www.gameroom777.com/m' }], },
+    { name: 'Yolo', links: [{ type: 'Play Online', url: 'https://yolo777.game/' }], },
+    { name: 'Cash Machine', links: [], }, // Added new game
+    { name: 'Orion Stars', links: [{ type: 'Play Online', url: 'http://orionstars.vip:8580/index.html' }], },
     { name: 'Golden Dragon', links: [{ type: 'Play Online', url: 'https://playgd.mobi/' }], },
     { name: 'Ultra Monster', links: [{ type: 'Play Online', url: 'https://www.ultrapanda.mobi/' }], },
     { name: 'Kraken', links: [{ type: 'Play Online', url: 'https://getthekraken.com/' }], },
-    { name: 'Yolo', links: [{ type: 'Play Online', url: 'https://yolo777.game/' }], },
     { name: 'Skill TX', links: [{ type: 'Play Online', url: 'https://skilltx.com/' }], },
     { name: 'Blue Dragon', links: [{ type: 'Play Online', url: 'http://app.bluedragon777.com/' }], },
     { name: 'E Game', links: [{ type: 'Play Online', url: 'https://www.egame99.club/' }], },
     { name: 'V Power', links: [{ type: 'Play Online', url: 'https://www.vpower777.com/' }], },
     { name: 'Vegas X', links: [{ type: 'Android', url: 'https://play.google.com/store/apps/details?id=lol.gapi.vxgames' }], },
-    { name: 'Orion Stars', links: [{ type: 'Play Online', url: 'http://orionstars.vip:8580/index.html' }], },
     { name: 'Fire Hunt', links: [{ type: 'Play Online', url: 'https://firehunt.games' }], },
     { name: 'Osiris X', links: [{ type: 'Play Online', url: 'https://osirisxgames.com/' }], },
     { name: 'Galaxy', links: [{ type: 'Play Online', url: 'https://www.galaxyworld99.com/' }], },
     { name: 'Golden City', links: [{ type: 'Play Online', url: 'http://www.goldentreasure.live' }], },
-    { name: 'Milky Way', links: [{ type: 'Play Online', url: 'https://milkywayapp.xyz/' }], },
     { name: 'Touch O Luck', links: [{ type: 'Play Online', url: 'http://toucholuck.cc:8580/index.html' }], },
     { name: 'Ignite', links: [{ type: 'Play Online', url: 'http://playignite.games/' }], },
-    { name: 'Panda Master', links: [{ type: 'Play Online', url: 'https://pandamaster.vip:8888/index.html' }], },
     { name: 'Highstakes', links: [{ type: 'Play Online', url: 'http://dl.highstakesweeps.com' }], },
-    { name: 'Gameroom', links: [{ type: 'Play Online', url: 'http://www.gameroom777.com/m' }], },
     { name: 'Noble', links: [{ type: 'Play Online', url: 'http://web.noble777.com:8008/m' }], },
     { name: 'Golden Treasure', links: [{ type: 'Play Online', url: 'http://www.goldentreasure.mobi/' }], },
     { name: 'Vegas Strip', links: [{ type: 'Play Online', url: 'https://www.vsgames777.com/login' }], },
     { name: 'Lucky Master', links: [{ type: 'Play Online', url: 'https://lucky-master.net/' }], },
     { name: 'River Sweeps', links: [{ type: 'Play Online', url: 'http://river777.net/' }], },
-    { name: 'VBlink', links: [{ type: 'Play Online', url: 'https://www.vblink777.club/' }], },
     { name: 'King Kong', links: [{ type: 'Play Online', url: 'http://www.playgdt.top/' }], },
-    { name: 'Ultra Panda', links: [{ type: 'Play Online', url: 'https://ultrapanda.mobi' }], },
     { name: 'Orion Power', links: [{ type: 'Play Online', url: 'http://download.orionpower.games:8008' }], },
     { name: 'Majik Bonus', links: [{ type: 'Play Online', url: 'https://99.100bonus.me/' }], },
     { name: 'Magic City', links: [{ type: 'Play Online', url: 'https://www.magiccity777.com/' }], },
@@ -46,13 +49,12 @@ const allGamesData = [
 ];
 
 const topGameNames = [
-    'Fire Kirin', 'Panda Master', 'Juwa', 'VBlink', 
-    'Milky Way', 'Ultra Panda', 'Gameroom', 'Yolo', 'Orion Stars'
+    'Fire Kirin', 'Panda Master', 'Game Vault', 'Juwa', 'VBlink', 'Milky Way', 
+    'Ultra Panda', 'Vegas Sweeps', 'Game Room', 'Yolo', 'Cash Machine', 'Orion Stars'
 ];
 
 const topGames = allGamesData.filter(game => topGameNames.includes(game.name));
 const otherGames = allGamesData.filter(game => !topGameNames.includes(game.name));
-
 
 // A component to handle image loading with a fallback
 const GameImage = ({ gameName }) => {
@@ -119,7 +121,7 @@ export default function GamesPage() {
                     <GameImage gameName={game.name} />
                   </div>
                   <div className="game-card-actions">
-                    {game.links.map((link, linkIndex) => (
+                    {game.links.length > 0 ? game.links.map((link, linkIndex) => (
                         <div key={linkIndex} className="game-card-action">
                             <a
                                 href={link.url}
@@ -136,7 +138,7 @@ export default function GamesPage() {
                                 {copiedLink === link.url ? 'Copied!' : 'Copy'}
                             </button>
                         </div>
-                    ))}
+                    )) : <p className="no-links-message">Coming Soon</p>}
                   </div>
                 </div>
               ))}
@@ -155,7 +157,7 @@ export default function GamesPage() {
                     <GameImage gameName={game.name} />
                   </div>
                   <div className="game-card-actions">
-                    {game.links.map((link, linkIndex) => (
+                    {game.links.length > 0 ? game.links.map((link, linkIndex) => (
                         <div key={linkIndex} className="game-card-action">
                             <a
                                 href={link.url}
@@ -172,7 +174,7 @@ export default function GamesPage() {
                                 {copiedLink === link.url ? 'Copied!' : 'Copy'}
                             </button>
                         </div>
-                    ))}
+                    )) : <p className="no-links-message">Coming Soon</p>}
                   </div>
                 </div>
               ))}
@@ -188,8 +190,8 @@ export default function GamesPage() {
         }
         .games-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* Smaller min-width */
-          gap: var(--spacing-md); /* Reduced gap */
+          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+          gap: var(--spacing-md);
         }
         .game-card {
           background: rgba(17, 24, 39, 0.8);
@@ -205,7 +207,7 @@ export default function GamesPage() {
             box-shadow: var(--shadow-lg);
         }
         .game-card-image {
-          height: 120px; /* Reduced height */
+          height: 120px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -215,25 +217,33 @@ export default function GamesPage() {
         .game-card-image img {
           width: 100%;
           height: 100%;
-          object-fit: contain; /* Use contain to see the whole logo */
+          object-fit: contain;
         }
         .game-card-name-placeholder {
             color: #fff;
-            font-size: 1rem; /* Smaller font */
+            font-size: 1rem;
             font-weight: bold;
             text-align: center;
             padding: var(--spacing-sm);
         }
         .game-card-actions {
-          padding: var(--spacing-sm); /* Reduced padding */
+          padding: var(--spacing-sm);
           display: flex;
           flex-direction: column;
-          gap: var(--spacing-xs); /* Tighter gap */
+          gap: var(--spacing-xs);
+          flex-grow: 1; /* Allows content to fill space */
+          justify-content: center; /* Center content vertically */
         }
         .game-card-action {
             display: grid;
-            grid-template-columns: 1fr auto; /* Button takes space, copy is auto width */
+            grid-template-columns: 1fr auto;
             gap: var(--spacing-xs);
+        }
+        .no-links-message {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-align: center;
+            margin: auto 0;
         }
       `}</style>
     </>
