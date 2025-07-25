@@ -6,7 +6,8 @@ import Footer from '../components/Footer';
 import Link from 'next/link';
 
 const allGamesData = [
-    { name: 'Fire Kirin', links: [ { type: 'Play Online', url: 'http://web.firekirin.xyz/firekirin/firekirin/' } ], },
+    // Corrected Player Links
+    { name: 'Fire Kirin', links: [ { type: 'Play Online', url: 'http://start.firekirin.xyz:8580' } ], },
     { name: 'Panda Master', links: [{ type: 'Play Online', url: 'https://pandamaster.vip:8888/' }], },
     { name: 'Game Vault', links: [{ type: 'Play Online', url: 'https://gamevault999.com/' }], },
     { name: 'Juwa', links: [ { type: 'Play Online', url: 'http://www.juwa777.com/' } ], },
@@ -18,12 +19,25 @@ const allGamesData = [
     { name: 'Yolo', links: [{ type: 'Play Online', url: 'https://yolo777.game' }], },
     { name: 'Cash Machine', links: [{ type: 'Play Online', url: 'http://www.cashmachine777.com' }], },
     { name: 'Orion Stars', links: [{ type: 'Play Online', url: 'http://start.orionstars.vip:8580/index.html' }], },
+    { name: 'Blue Dragon', links: [{ type: 'Play Online', url: 'http://app.bluedragon777.com/' }], },
+    { name: 'E Game', links: [{ type: 'Play Online', url: 'https://www.egame99.club/' }], },
+    { name: 'Mr all in one', links: [{ type: 'Play Online', url: 'http://www.mrallinone777.com' }] },
+    { name: 'Mafia', links: [{ type: 'Play Online', url: 'http://www.mafia77777.com' }] },
+    { name: 'River Sweeps', links: [{ type: 'Play Online', url: 'https://bet777.eu/' }], },
+    { name: 'Moolah', links: [{ type: 'Play Online', url: 'https://moolah.vip:8888/' }] },
+    { name: 'Highstakes', links: [{ type: 'Play Online', url: 'https://www.highstakes.com/' }], },
+    { name: 'High roller', links: [{ type: 'Play Online', url: 'https://www.highrollerdownload.com/' }] },
+    { name: 'Noble', links: [{ type: 'Play Online', url: 'http://dg.noble777.com' }], },
+    { name: 'Cash Frenzy', links: [{ type: 'Play Online', url: 'http://www.cashfrenzy777.com/' }] },
+    { name: 'para casino', links: [{ type: 'Play Online', url: 'https://download.paracasino.net/' }] },
+    { name: 'King of pop', links: [{ type: 'Play Online', url: 'http://www.slots88888.com/' }] },
+    { name: 'Casino royal', links: [{ type: 'Play Online', url: 'http://m.casinoroyale07.com/' }] },
+
+    // Other existing games
     { name: 'Golden Dragon', links: [{ type: 'Play Online', url: 'https://playgd.mobi/' }], },
     { name: 'Ultra Monster', links: [{ type: 'Play Online', url: 'https://www.ultrapanda.mobi/' }], },
     { name: 'Kraken', links: [{ type: 'Play Online', url: 'https://getthekraken.com/' }], },
     { name: 'Skill TX', links: [{ type: 'Play Online', url: 'https://skilltx.com/' }], },
-    { name: 'Blue Dragon', links: [{ type: 'Play Online', url: 'http://app.bluedragon777.com/' }], },
-    { name: 'E Game', links: [{ type: 'Play Online', url: 'https://www.egame99.club/' }], },
     { name: 'V Power', links: [{ type: 'Play Online', url: 'https://www.vpower777.com/' }], },
     { name: 'Vegas X', links: [{ type: 'Android', url: 'https://play.google.com/store/apps/details?id=lol.gapi.vxgames' }], },
     { name: 'Fire Hunt', links: [{ type: 'Play Online', url: 'https://firehunt.games' }], },
@@ -32,12 +46,9 @@ const allGamesData = [
     { name: 'Golden City', links: [{ type: 'Play Online', url: 'http://www.goldentreasure.live' }], },
     { name: 'Touch O Luck', links: [{ type: 'Play Online', url: 'http://toucholuck.cc:8580/index.html' }], },
     { name: 'Ignite', links: [{ type: 'Play Online', url: 'http://playignite.games/' }], },
-    { name: 'Highstakes', links: [{ type: 'Play Online', url: 'https://www.highstakes.com/' }], },
-    { name: 'Noble', links: [{ type: 'Play Online', url: 'http://dg.noble777.com' }], },
     { name: 'Golden Treasure', links: [{ type: 'Play Online', url: 'http://www.goldentreasure.mobi/' }], },
     { name: 'Vegas Strip', links: [{ type: 'Play Online', url: 'https://www.vsgames777.com/login' }], },
     { name: 'Lucky Master', links: [{ type: 'Play Online', url: 'https://lucky-master.net/' }], },
-    { name: 'River Sweeps', links: [{ type: 'Play Online', url: 'https://bet777.eu/' }], },
     { name: 'King Kong', links: [{ type: 'Play Online', url: 'http://www.playgdt.top/' }], },
     { name: 'Orion Power', links: [{ type: 'Play Online', url: 'http://download.orionpower.games:8008' }], },
     { name: 'Majik Bonus', links: [{ type: 'Play Online', url: 'https://99.100bonus.me/' }], },
@@ -46,14 +57,6 @@ const allGamesData = [
     { name: 'Golden Dragon 2', links: [{ type: 'Play Online', url: 'http://goldendragon2.games' }], },
     { name: 'Mega Spin', links: [{ type: 'Play Online', url: 'http://okay.megaspin.vip/web_game/ms/' }], },
     { name: 'Lucky Dragon', links: [{ type: 'Play Online', url: 'https://lucky-dragon.net/' }], },
-    { name: 'Mr all in one', links: [{ type: 'Play Online', url: 'http://www.mrallinone777.com' }] },
-    { name: 'Mafia', links: [{ type: 'Play Online', url: 'http://www.mafia77777.com' }] },
-    { name: 'Moolah', links: [{ type: 'Play Online', url: 'https://moolah.vip:8888/' }] },
-    { name: 'High roller', links: [{ type: 'Play Online', url: 'https://www.highrollerdownload.com/' }] },
-    { name: 'Cash Frenzy', links: [{ type: 'Play Online', url: 'http://www.cashfrenzy777.com/' }] },
-    { name: 'para casino', links: [{ type: 'Play Online', url: 'https://download.paracasino.net/' }] },
-    { name: 'King of pop', links: [{ type: 'Play Online', url: 'http://www.slots88888.com/' }] },
-    { name: 'Casino royal', links: [{ type: 'Play Online', url: 'http://m.casinoroyale07.com/' }] },
 ];
 
 const topGameNames = [
