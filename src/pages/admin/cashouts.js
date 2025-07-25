@@ -284,14 +284,15 @@ export default function AdminCashouts() {
                 <h1>Lightning Cashouts</h1>
                 <nav>
                     <ul className="admin-nav">
-                            <li><a href="/admin/dashboard">Dashboard</a></li>
-                            <li><a href="/admin/expenses" className="active">Expenses</a></li>
-                            <li><a href="/admin/partners">Partners</a></li>
-                            <li><a href="/admin/cashouts">Cashouts</a></li>
-                            <li><a href="/admin/games">Games</a></li>
-                            <li><a href="/admin/agents">Personnel</a></li>
-                            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
-                            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+            <li><a href="/admin/dashboard">Dashboard</a></li>
+            <li><a href="/admin/expenses">Expenses</a></li>
+            <li><a href="/admin/partners">Partners</a></li>
+            <li><a href="/admin/offers">Offers</a></li> {/* Add this link */}
+            <li><a href="/admin/cashouts">Cashouts</a></li>
+            <li><a href="/admin/games">Games</a></li>
+            <li><a href="/admin/agents">Personnel</a></li>
+            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
                 </nav>
             </header>

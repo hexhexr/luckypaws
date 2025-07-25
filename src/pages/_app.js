@@ -1,10 +1,11 @@
 // src/pages/_app.js
-import '../styles/globals.css'; // FIX: Use the single, consolidated stylesheet
+import '../styles/globals.css';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useRouter } from 'next/router';
 import UnifiedChatController from '../components/UnifiedChatController';
-import { auth } from '../lib/firebaseClient'; // Import auth
-import { useEffect } from 'react'; // Import useEffect
+import { auth } from '../lib/firebaseClient';
+import { useEffect } from 'react';
+import OfferBar from '../components/OfferBar'; // ADD THIS LINE to import the new component
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -37,6 +38,7 @@ function MyApp({ Component, pageProps }) {
     <>
       <div className={themeClassName}>
         <ErrorBoundary>
+          {!isAdminArea && <OfferBar />} {/* ADD THIS LINE to display the offer bar */}
           <Component {...pageProps} />
         </ErrorBoundary>
       </div>
