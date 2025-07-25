@@ -982,11 +982,19 @@ table tbody tr:hover { background-color: var(--input-bg); }
     .menu-toggle.open span:nth-child(3) { 
         transform: rotate(-45deg) translate(5px, -5px); 
     }
+    /* FIX: Prevent this from affecting desktop */
     .admin-header { 
-        flex-direction: column; 
-        align-items: flex-start; 
+        flex-direction: row; /* Keep it as a row */
+        align-items: center; /* Keep it centered */
     }
-    .admin-nav { 
+    .admin-header.mobile-open {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .admin-nav {
+        flex-direction: row; /* Keep it as a row on desktop */
+    }
+    .admin-header.mobile-open .admin-nav { 
         flex-direction: column; 
         width: 100%; 
         align-items: stretch; 

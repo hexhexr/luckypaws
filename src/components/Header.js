@@ -44,7 +44,7 @@ export default function Header() {
             position: sticky;
             top: 0;
             z-index: 1000;
-            background-color: rgba(17, 24, 39, 0.8);
+            background-color: rgba(17, 24, 39, 0.85);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -52,26 +52,25 @@ export default function Header() {
         }
         .header-content {
           display: flex;
-          justify-content: space-between;
-          align-items: center; /* FIX: Changed back to center for better vertical alignment */
-          flex-wrap: nowrap; /* FIX: Prevents nav from wrapping to the next line */
+          align-items: center;
         }
         .logo-link {
           display: flex;
           align-items: center;
-          gap: var(--spacing-sm); /* FIX: Reduced gap for a tighter look */
+          gap: var(--spacing-sm);
           z-index: 10; 
-          flex-shrink: 0; /* FIX: Prevents the logo from shrinking */
+          flex-shrink: 0;
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
-            font-size: 1.1rem; /* FIX: Slightly smaller font to fit better */
+            font-size: 1.1rem;
             white-space: nowrap;
         }
+        
         /* Desktop Navigation */
         .main-nav {
-            display: flex; /* Ensure nav is a flex container */
+            margin-left: auto; /* This is the key change for alignment */
         }
         .main-nav ul {
           list-style: none;
@@ -110,12 +109,13 @@ export default function Header() {
         .menu-toggle {
           display: none; 
           position: relative;
-          z-index: 10;
+          z-index: 1001; /* Must be on top of the mobile nav */
           width: 30px;
           height: 25px;
           background: none;
           border: none;
           cursor: pointer;
+          margin-left: auto; /* Push it to the right on mobile */
         }
         .menu-toggle span {
           display: block;
@@ -134,17 +134,9 @@ export default function Header() {
         .menu-toggle.open span:nth-child(3) { bottom: 50%; transform: translateY(50%) rotate(-45deg); }
 
         /* Mobile Navigation Styles */
-        @media (max-width: 860px) { /* FIX: Adjusted breakpoint for earlier wrapping */
-          .logo-text {
-            display: none; /* Hide text on smaller screens to save space */
-          }
-        }
         @media (max-width: 768px) {
-          .logo-text {
-            display: inline-block; /* Show it again in the mobile menu view if desired, but we'll keep it hidden */
-          }
           .main-nav {
-            display: none; /* Hide it to be replaced by the slide-in menu */
+            display: none;
           }
           .main-nav.open {
             display: flex;
@@ -156,7 +148,6 @@ export default function Header() {
             background-color: #111827;
             align-items: center;
             justify-content: center;
-            transition: left 0.35s ease-in-out;
           }
           .main-nav ul {
             flex-direction: column;
