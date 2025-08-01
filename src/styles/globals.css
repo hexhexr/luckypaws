@@ -833,10 +833,11 @@ label {
     gap: var(--spacing-md);
 }
 
+/* --- PAYMENT CARD STYLE ADJUSTMENTS --- */
 .payment-method-card {
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--border-radius);
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm); /* Reduced padding */
     cursor: pointer;
     transition: all var(--transition-speed) ease;
     position: relative;
@@ -869,21 +870,21 @@ label {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs); /* Reduced gap */
 }
 
 .method-card-icon {
-    font-size: 1.5rem;
+    font-size: 1.25rem; /* Reduced icon size */
 }
 
 .method-card-title {
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.9rem; /* Reduced title size */
     color: var(--text-white);
 }
 
 .method-card-desc {
-    font-size: 0.8rem;
+    font-size: 0.75rem; /* Reduced description size */
     color: #9ca3af;
 }
 
