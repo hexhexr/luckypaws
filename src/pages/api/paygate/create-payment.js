@@ -18,8 +18,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ message: 'Payment provider is not configured.' });
   }
 
-  // --- THE FIX: Trim whitespace from the wallet address ---
-  // This removes any accidental spaces or newlines from the environment variable.
+  // Trim whitespace from the wallet address to prevent configuration errors.
   const cleanedWalletAddress = yourUsdcWallet.trim();
 
   const orderId = `LUCKYPAWS-${Date.now()}`;
@@ -29,14 +28,10 @@ export default async function handler(req, res) {
     // Step 1: Create a temporary wallet
     const walletApiUrl = `https://api.paygate.to/control/wallet.php?address=${cleanedWalletAddress}&callback=${encodeURIComponent(callbackUrl)}`;
     
-    // For debugging, let's log the exact URL we are calling
-    console.log("Calling Paygate Wallet API:", walletApiUrl);
-
     const walletResponse = await fetch(walletApiUrl);
     if (!walletResponse.ok) {
-      // Add detailed error logging
       const errorText = await walletResponse.text();
-      console.error("Paygate Wallet API Error Response:", errorText);
+      console.error("Paygate Wallet API Error:", errorText);
       throw new Error('Failed to create a temporary payment wallet with Paygate.');
     }
     const walletData = await walletResponse.json();
@@ -46,8 +41,10 @@ export default async function handler(req, res) {
       throw new Error('Could not retrieve the encrypted wallet address from Paygate.');
     }
 
-    // Step 2: Create the final payment URL
-    const paymentUrl = `https://checkout.paygate.to/pay.php?address=${encodeURIComponent(encryptedAddressIn)}&amount=${amount}&email=${encodeURIComponent(email)}&currency=USD`;
+    // --- Step 2: Create the final payment URL ---
+    // THE FIX: The 'encryptedAddressIn' is already encoded by the API. We must not encode it again.
+    // We only need to encode the other parameters like the email address.
+    const paymentUrl = `https://checkout.paygate.to/pay.php?address=${encryptedAddressIn}&amount=${amount}&email=${encodeURIComponent(email)}&currency=USD`;
 
     // Store the order in our database
     await db.collection('orders').doc(orderId).set({
@@ -64,7 +61,7 @@ export default async function handler(req, res) {
       paymentUrl: paymentUrl,
     });
 
-    // Send the final payment URL to the frontend
+    // Send the final payment URL to the frontend for redirection
     res.status(200).json({ paymentUrl: paymentUrl, orderId: orderId });
 
   } catch (err) {
