@@ -30,7 +30,7 @@ export default function AgentDashboard() {
     const countdownIntervalRef = useRef();
     const [recentDeposits, setRecentDeposits] = useState([]);
     const [agentRequests, setAgentRequests] = useState([]);
-    
+
     // --- NEW: State for copy-to-clipboard feedback ---
     const [copiedTextType, setCopiedTextType] = useState('');
 
@@ -83,7 +83,6 @@ export default function AgentDashboard() {
         const customerMap = new Map(customers.map(c => [c.username, c.facebookName]));
         return recentDeposits.map(dep => ({
             ...dep,
-            // FIX: Ensure amount is a number for calculations and formatting
             amount: parseFloat(dep.amount || 0),
             facebookName: customerMap.get(dep.username) || 'N/A'
         }));
@@ -156,21 +155,28 @@ export default function AgentDashboard() {
                 
                 <main className="panel-content admin-main-content">
                     <div className="stats-grid">
-                        <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input" /></div><button type="submit" className="btn btn-primary">Generate</button>
-                        {generatedUsername && 
-                            <div className="alert alert-success mt-md">
-                                <p style={{marginBottom: 'var(--spacing-md)'}}>Generated: <strong>{generatedUsername}</strong></p>
-                                <div className="action-buttons">
-                                    <button type="button" className="btn btn-secondary btn-small" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>
-                                        {copiedTextType === 'username' ? 'Copied!' : 'Copy Username'}
-                                    </button>
-                                    <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}`, 'login')}>
-                                        {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                        </form></SectionCard>
+                        <SectionCard title="Username Generator">
+                            <form onSubmit={handleGenerateUsername} className="form-stack">
+                                <div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div>
+                                <div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input" /></div>
+                                <button type="submit" className="btn btn-primary">Generate</button>
+                                
+                                {/* --- NEW, MORE COMPACT RESULT DISPLAY --- */}
+                                {generatedUsername && (
+                                    <div className="mt-md">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                            <p style={{ margin: 0 }}>Generated: <strong>{generatedUsername}</strong></p>
+                                            <button type="button" className="btn btn-secondary btn-xsmall" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>
+                                                {copiedTextType === 'username' ? 'Copied!' : 'Copy'}
+                                            </button>
+                                        </div>
+                                        <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}`, 'login')}>
+                                            {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
+                                        </button>
+                                    </div>
+                                )}
+                            </form>
+                        </SectionCard>
                         <SectionCard title="Add New Customer"><form onSubmit={handleAddCustomer} className="form-stack"><input name="username" required className="input" placeholder="Game Username"/><input name="facebookName" required className="input" placeholder="Facebook Name"/><input name="facebookProfileLink" type="url" required className="input" placeholder="Facebook Profile URL"/><button type="submit" className="btn btn-success">Add Customer</button></form></SectionCard>
                         <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-grid" style={{gridTemplateColumns: '2fr 1fr'}}><input name="customerUsername" required className="input" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info mt-md"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                     </div>
