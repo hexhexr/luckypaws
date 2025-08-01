@@ -170,7 +170,7 @@ export default function AgentDashboard() {
                                                 {copiedTextType === 'username' ? 'Copied!' : 'Copy'}
                                             </button>
                                         </div>
-                                        <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}`, 'login')}>
+                                        <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}\n\n`, 'login')}>
                                             {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
                                         </button>
                                     </div>

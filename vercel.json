@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/agent",
       "headers": [
         {
           "key": "Permissions-Policy",
