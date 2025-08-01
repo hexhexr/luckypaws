@@ -30,9 +30,6 @@ export default function AgentDashboard() {
     const [recentDeposits, setRecentDeposits] = useState([]);
     const [agentRequests, setAgentRequests] = useState([]);
 
-    // --- NEW: State for copy-to-clipboard feedback ---
-    const [copiedTextType, setCopiedTextType] = useState('');
-
     // --- State for New Cashout Form ---
     const [cashoutForm, setCashoutForm] = useState({
         username: '',
@@ -40,6 +37,10 @@ export default function AgentDashboard() {
         cashoutAmount: '',
         cashoutAddress: ''
     });
+
+    // --- NEW: State for copy-to-clipboard feedback ---
+    const [copiedTextType, setCopiedTextType] = useState('');
+
 
     // --- Authentication & Profile Setup ---
     useEffect(() => {
@@ -97,23 +98,10 @@ export default function AgentDashboard() {
         }
     };
     
-    const handleGenerateUsername = async (e) => { 
-        e.preventDefault(); 
-        setGeneratedUsername(''); // Reset previous username on new generation
-        const data = await handleApiRequest('/api/generate-username', { facebookName, pageCode: manualPageCode }); 
-        if (data) setGeneratedUsername(data.username); 
-    };
+    const handleGenerateUsername = async (e) => { e.preventDefault(); setGeneratedUsername(''); const data = await handleApiRequest('/api/generate-username', { facebookName, pageCode: manualPageCode }); if (data) setGeneratedUsername(data.username); };
     const handleAddCustomer = async (e) => { e.preventDefault(); const { username, facebookName, facebookProfileLink } = e.target.elements; await handleApiRequest('/api/agent/customers/create', { username: username.value, facebookName: facebookName.value, facebookProfileLink: facebookProfileLink.value }, 'Customer added!'); e.target.reset(); };
     const handleCheckLimit = async (e) => { e.preventDefault(); const { customerUsername } = e.target.elements; const token = await user.getIdToken(); const res = await fetch(`/api/customer-cashout-limit?username=${customerUsername.value.trim()}`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); if (!res.ok) { setMessage({ text: data.message, type: 'error' }); } else { setLimitCheckResult(data); } };
     
-    // --- NEW: Copy-to-clipboard functions ---
-    const handleCopyToClipboard = (text, type) => {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopiedTextType(type);
-            setTimeout(() => setCopiedTextType(''), 2000); // Reset after 2 seconds
-        });
-    };
-
     const handleCashoutRequestSubmit = async (e) => {
         e.preventDefault();
         await handleApiRequest('/api/agent/submit-cashout-request', cashoutForm, 'Cashout request submitted!');
@@ -122,6 +110,14 @@ export default function AgentDashboard() {
             facebookName: '',
             cashoutAmount: '',
             cashoutAddress: ''
+        });
+    };
+    
+    // --- NEW: Function to handle copying text ---
+    const handleCopyToClipboard = (text, type) => {
+        navigator.clipboard.writeText(text).then(() => {
+            setCopiedTextType(type);
+            setTimeout(() => setCopiedTextType(''), 2000); // Reset feedback after 2 seconds
         });
     };
 
@@ -163,26 +159,21 @@ export default function AgentDashboard() {
                 
                 <main className="panel-content admin-main-content">
                     <div className="stats-grid">
-                        <SectionCard title="Username Generator">
-                            <form onSubmit={handleGenerateUsername} className="form-stack">
-                                <div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div>
-                                <div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\\d{4}" className="input" /></div>
-                                <button type="submit" className="btn btn-primary">Generate</button>
-                                {generatedUsername && (
-                                    <div className="alert alert-success mt-md">
-                                        <p style={{marginBottom: 'var(--spacing-md)'}}>Generated: <strong>{generatedUsername}</strong></p>
-                                        <div className="action-buttons">
-                                            <button type="button" className="btn btn-secondary btn-small" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>
-                                                {copiedTextType === 'username' ? 'Copied!' : 'Copy Username'}
-                                            </button>
-                                            <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}`, 'login')}>
-                                                {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </form>
-                        </SectionCard>
+                        <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\\d{4}" className="input" /></div><button type="submit" className="btn btn-primary">Generate</button>
+                        {generatedUsername && 
+                            <div className="alert alert-success mt-md">
+                                <p style={{marginBottom: 'var(--spacing-md)'}}>Generated: <strong>{generatedUsername}</strong></p>
+                                <div className="action-buttons">
+                                    <button type="button" className="btn btn-secondary btn-small" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>
+                                        {copiedTextType === 'username' ? 'Copied!' : 'Copy Username'}
+                                    </button>
+                                    <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}`, 'login')}>
+                                        {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        </form></SectionCard>
                         <SectionCard title="Add New Customer"><form onSubmit={handleAddCustomer} className="form-stack"><input name="username" required className="input" placeholder="Game Username"/><input name="facebookName" required className="input" placeholder="Facebook Name"/><input name="facebookProfileLink" type="url" required className="input" placeholder="Facebook Profile URL"/><button type="submit" className="btn btn-success">Add Customer</button></form></SectionCard>
                         <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-grid" style={{gridTemplateColumns: '2fr 1fr'}}><input name="customerUsername" required className="input" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info mt-md"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                     </div>
