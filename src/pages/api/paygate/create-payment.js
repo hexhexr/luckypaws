@@ -18,18 +18,25 @@ export default async function handler(req, res) {
     return res.status(500).json({ message: 'Payment provider is not configured.' });
   }
 
+  // --- THE FIX: Trim whitespace from the wallet address ---
+  // This removes any accidental spaces or newlines from the environment variable.
+  const cleanedWalletAddress = yourUsdcWallet.trim();
+
   const orderId = `LUCKYPAWS-${Date.now()}`;
   const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/paygate/webhook?orderId=${orderId}`;
 
   try {
-    // --- Step 1: Create a temporary wallet ---
-    // THE FIX: The wallet address is now sent directly without encoding. The callback URL remains encoded.
-    const walletApiUrl = `https://api.paygate.to/control/wallet.php?address=${yourUsdcWallet}&callback=${encodeURIComponent(callbackUrl)}`;
+    // Step 1: Create a temporary wallet
+    const walletApiUrl = `https://api.paygate.to/control/wallet.php?address=${cleanedWalletAddress}&callback=${encodeURIComponent(callbackUrl)}`;
     
+    // For debugging, let's log the exact URL we are calling
+    console.log("Calling Paygate Wallet API:", walletApiUrl);
+
     const walletResponse = await fetch(walletApiUrl);
     if (!walletResponse.ok) {
+      // Add detailed error logging
       const errorText = await walletResponse.text();
-      console.error("Paygate Wallet API Error:", errorText);
+      console.error("Paygate Wallet API Error Response:", errorText);
       throw new Error('Failed to create a temporary payment wallet with Paygate.');
     }
     const walletData = await walletResponse.json();
@@ -39,7 +46,7 @@ export default async function handler(req, res) {
       throw new Error('Could not retrieve the encrypted wallet address from Paygate.');
     }
 
-    // --- Step 2: Create the final payment URL ---
+    // Step 2: Create the final payment URL
     const paymentUrl = `https://checkout.paygate.to/pay.php?address=${encodeURIComponent(encryptedAddressIn)}&amount=${amount}&email=${encodeURIComponent(email)}&currency=USD`;
 
     // Store the order in our database
