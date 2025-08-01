@@ -12,6 +12,7 @@ import PYUSDReceiptModal from './PYUSDReceiptModal';
 
 export default function PaymentForm() {
   const router = useRouter();
+  // The 'card' value now represents all Paygate.to methods
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning', email: '' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,7 @@ export default function PaymentForm() {
     setLoading(true);
     setError('');
 
-    if ((form.method === 'apple-pay' || form.method === 'google-pay') && !form.email) {
+    if (form.method === 'card' && !form.email) {
         setError('Email address is required for this payment method.');
         setLoading(false);
         return;
@@ -50,8 +51,7 @@ export default function PaymentForm() {
     switch (form.method) {
         case 'lightning': apiEndpoint = '/api/create-payment'; break;
         case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
-        case 'apple-pay':
-        case 'google-pay': apiEndpoint = '/api/paygate/create-payment'; break;
+        case 'card': apiEndpoint = '/api/paygate/create-payment'; break; // Updated to use 'card'
         default:
             setError('Please select a valid payment method.');
             setLoading(false);
@@ -62,7 +62,8 @@ export default function PaymentForm() {
       const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        // Pass a generic 'card' method to the backend for Paygate
+        body: JSON.stringify({ ...form, method: 'card' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
@@ -103,7 +104,8 @@ export default function PaymentForm() {
                   </div>
               </div>
               
-              {(form.method === 'apple-pay' || form.method === 'google-pay') && (
+              {/* This will now show if the single 'card' option is selected */}
+              {form.method === 'card' && (
                 <div className="form-group">
                     <label htmlFor="email">Your Email</label>
                     <input id="email" className="input" name="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required placeholder="Required for card payments"/>
@@ -125,16 +127,11 @@ export default function PaymentForm() {
                               <span className="method-card-icon">🅿️</span> <span className="method-card-title">PYUSD</span> <span className="method-card-desc">PayPal / Venmo</span>
                           </div>
                       </label>
-                      <label className={`payment-method-card ${form.method === 'google-pay' ? 'selected' : ''}`}>
-                          <input type="radio" name="method" value="google-pay" checked={form.method === 'google-pay'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                      {/* --- NEW UNIFIED CARD OPTION --- */}
+                      <label className={`payment-method-card ${form.method === 'card' ? 'selected' : ''}`}>
+                          <input type="radio" name="method" value="card" checked={form.method === 'card'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">🇬</span> <span className="method-card-title">Google Pay</span> <span className="method-card-desc">Fast & Secure</span>
-                          </div>
-                      </label>
-                      <label className={`payment-method-card ${form.method === 'apple-pay' ? 'selected' : ''}`}>
-                          <input type="radio" name="method" value="apple-pay" checked={form.method === 'apple-pay'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                          <div className="method-card-content">
-                              <span className="method-card-icon"></span> <span className="method-card-title">Apple Pay</span> <span className="method-card-desc">Simple & Private</span>
+                              <span className="method-card-icon">💳</span> <span className="method-card-title">Card / Wallets</span> <span className="method-card-desc">Google & Apple Pay</span>
                           </div>
                       </label>
                   </div>
@@ -152,7 +149,7 @@ export default function PaymentForm() {
           {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      {/* Keep all your existing modals for other payment types */}
+      {/* --- ALL MODALS REMAIN UNCHANGED --- */}
       {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={() => setModals({invoice: false})} />)}
       {modals.expired && <ExpiredModal resetModals={() => setModals({expired: false})} />}
       {modals.receipt && <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />}

@@ -22,11 +22,14 @@ export default async function handler(req, res) {
   const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/paygate/webhook?orderId=${orderId}`;
 
   try {
-    // Step 1: Create a temporary wallet from Paygate.to's API
+    // --- Step 1: Create a temporary wallet ---
+    // THE FIX: The wallet address is now sent directly without encoding. The callback URL remains encoded.
     const walletApiUrl = `https://api.paygate.to/control/wallet.php?address=${yourUsdcWallet}&callback=${encodeURIComponent(callbackUrl)}`;
     
     const walletResponse = await fetch(walletApiUrl);
     if (!walletResponse.ok) {
+      const errorText = await walletResponse.text();
+      console.error("Paygate Wallet API Error:", errorText);
       throw new Error('Failed to create a temporary payment wallet with Paygate.');
     }
     const walletData = await walletResponse.json();
@@ -36,10 +39,10 @@ export default async function handler(req, res) {
       throw new Error('Could not retrieve the encrypted wallet address from Paygate.');
     }
 
-    // Step 2: Create the final payment URL for the customer
+    // --- Step 2: Create the final payment URL ---
     const paymentUrl = `https://checkout.paygate.to/pay.php?address=${encodeURIComponent(encryptedAddressIn)}&amount=${amount}&email=${encodeURIComponent(email)}&currency=USD`;
 
-    // Store the order in your database
+    // Store the order in our database
     await db.collection('orders').doc(orderId).set({
       orderId,
       username,
@@ -54,7 +57,7 @@ export default async function handler(req, res) {
       paymentUrl: paymentUrl,
     });
 
-    // Send the final payment URL back to the frontend
+    // Send the final payment URL to the frontend
     res.status(200).json({ paymentUrl: paymentUrl, orderId: orderId });
 
   } catch (err) {
