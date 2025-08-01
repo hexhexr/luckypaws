@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebaseClient';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { useRouter } from 'next/router';
 
 import InvoiceModal from './InvoiceModal';
 import PYUSDInvoiceModal from './PYUSDInvoiceModal';
@@ -10,7 +11,8 @@ import ReceiptModal from './ReceiptModal';
 import PYUSDReceiptModal from './PYUSDReceiptModal';
 
 export default function PaymentForm() {
-  const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning' });
+  const router = useRouter();
+  const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning', email: '' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
@@ -27,49 +29,35 @@ export default function PaymentForm() {
         const snap = await getDocs(q);
         setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
-        console.error('Failed to load games:', err);
-        setError('Could not load game list. Please refresh.');
+        setError('Could not load game list.');
       }
     };
     loadGames();
   }, []);
 
-  useEffect(() => {
-    if (!order || status !== 'pending' || form.method !== 'lightning') {
-      clearInterval(pollingRef.current);
-      return;
-    }
-    pollingRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/check-status?id=${order.orderId}`);
-        const data = await res.json();
-        if (data?.status === 'paid') {
-          setStatus('paid');
-          setModals({ invoice: false, receipt: true });
-          clearInterval(pollingRef.current);
-        } else if (data?.status === 'expired') {
-          setStatus('expired');
-          setModals({ invoice: false, expired: true });
-          clearInterval(pollingRef.current);
-        }
-      } catch (err) { console.error('Polling error:', err); }
-    }, 3000);
-    return () => clearInterval(pollingRef.current);
-  }, [order, status, form.method]);
-
-  const resetAllModals = () => {
-    setModals({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
-    clearInterval(pollingRef.current);
-    setError('');
-  };
-
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    resetAllModals();
 
-    const apiEndpoint = form.method === 'lightning' ? '/api/create-payment' : '/api/pyusd/create-deposit';
+    if ((form.method === 'apple-pay' || form.method === 'google-pay') && !form.email) {
+        setError('Email address is required for this payment method.');
+        setLoading(false);
+        return;
+    }
+
+    let apiEndpoint;
+    switch (form.method) {
+        case 'lightning': apiEndpoint = '/api/create-payment'; break;
+        case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
+        case 'apple-pay':
+        case 'google-pay': apiEndpoint = '/api/paygate/create-payment'; break;
+        default:
+            setError('Please select a valid payment method.');
+            setLoading(false);
+            return;
+    }
+
     try {
       const res = await fetch(apiEndpoint, {
         method: 'POST',
@@ -79,28 +67,19 @@ export default function PaymentForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
 
-      if (form.method === 'lightning') {
-        const newOrder = { ...form, invoice: data.invoice, orderId: data.orderId, btc: data.btc, expiresAt: data.expiresAt, status: 'pending' };
-        setOrder(newOrder);
-        setStatus('pending');
-        setModals({ invoice: true });
-      } else { // PYUSD
-        if (!data.depositAddress || !data.memo) throw new Error('Deposit address or memo missing from response.');
-        
-        const newOrder = { 
-            ...form, 
-            depositAddress: data.depositAddress, 
-            depositId: data.depositId, 
-            memo: data.memo,
-            status: 'pending' 
-        };
-        setOrder(newOrder);
-        setStatus('pending');
-        setModals({ pyusdInvoice: true });
+      if (form.method === 'lightning' || form.method === 'pyusd') {
+        if (form.method === 'lightning') {
+            setOrder({ ...form, ...data, status: 'pending' });
+            setModals({ invoice: true });
+        } else {
+            setOrder({ ...form, ...data, status: 'pending' });
+            setModals({ pyusdInvoice: true });
+        }
+      } else {
+        window.location.href = data.paymentUrl;
       }
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -123,6 +102,13 @@ export default function PaymentForm() {
                       </select>
                   </div>
               </div>
+              
+              {(form.method === 'apple-pay' || form.method === 'google-pay') && (
+                <div className="form-group">
+                    <label htmlFor="email">Your Email</label>
+                    <input id="email" className="input" name="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required placeholder="Required for card payments"/>
+                </div>
+              )}
 
               <div className="form-group">
                   <label>Payment Method</label>
@@ -130,17 +116,25 @@ export default function PaymentForm() {
                       <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">⚡</span>
-                              <span className="method-card-title">Lightning</span>
-                              <span className="method-card-desc">Instant & Anonymous</span>
+                              <span className="method-card-icon">⚡</span> <span className="method-card-title">Lightning</span> <span className="method-card-desc">Instant & Anonymous</span>
                           </div>
                       </label>
-                      <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
+                       <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">🅿️</span>
-                              <span className="method-card-title">PYUSD</span>
-                              <span className="method-card-desc">PayPal / Venmo</span>
+                              <span className="method-card-icon">🅿️</span> <span className="method-card-title">PYUSD</span> <span className="method-card-desc">PayPal / Venmo</span>
+                          </div>
+                      </label>
+                      <label className={`payment-method-card ${form.method === 'google-pay' ? 'selected' : ''}`}>
+                          <input type="radio" name="method" value="google-pay" checked={form.method === 'google-pay'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                          <div className="method-card-content">
+                              <span className="method-card-icon">🇬</span> <span className="method-card-title">Google Pay</span> <span className="method-card-desc">Fast & Secure</span>
+                          </div>
+                      </label>
+                      <label className={`payment-method-card ${form.method === 'apple-pay' ? 'selected' : ''}`}>
+                          <input type="radio" name="method" value="apple-pay" checked={form.method === 'apple-pay'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
+                          <div className="method-card-content">
+                              <span className="method-card-icon"></span> <span className="method-card-title">Apple Pay</span> <span className="method-card-desc">Simple & Private</span>
                           </div>
                       </label>
                   </div>
@@ -158,12 +152,12 @@ export default function PaymentForm() {
           {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      {/* --- Modals remain unchanged --- */}
-      {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={resetAllModals} />)}
-      {modals.expired && <ExpiredModal resetModals={resetAllModals} />}
-      {modals.receipt && <ReceiptModal order={order} resetModals={resetAllModals} />}
-      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={resetAllModals} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
-      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={resetAllModals} />)}
+      {/* Keep all your existing modals for other payment types */}
+      {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={() => setModals({invoice: false})} />)}
+      {modals.expired && <ExpiredModal resetModals={() => setModals({expired: false})} />}
+      {modals.receipt && <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />}
+      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
+      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />)}
     </>
   );
 }
