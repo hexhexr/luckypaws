@@ -52,7 +52,7 @@ export default function AdminDashboard() {
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     
-    // --- NEW: State for payment fees ---
+    // --- ADDED: State for payment fees ---
     const [paymentFees, setPaymentFees] = useState({ chimeFee: 25, cashAppFee: 30 });
     const [isSubmittingFees, setIsSubmittingFees] = useState(false);
     const [feeMessage, setFeeMessage] = useState('');
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
                         router.replace('/admin');
                     }
                 } catch (e) {
+                    console.error("Error verifying admin status:", e);
                     router.replace('/admin');
                 }
             } else {
@@ -81,9 +82,11 @@ export default function AdminDashboard() {
     }, [router]);
 
     useEffect(() => {
-        if (authLoading || !isAdmin) return;
+        if (authLoading || !isAdmin) {
+            return;
+        }
 
-        // --- NEW: Listener for payment fees ---
+        // --- ADDED: Listener for payment fees ---
         const feeDocRef = doc(db, 'settings', 'paymentFees');
         const unsubscribeFees = onSnapshot(feeDocRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -98,7 +101,9 @@ export default function AdminDashboard() {
             const customerMap = {};
             snapshot.forEach(doc => {
                 const data = doc.data();
-                if(data.username) customerMap[data.username.toLowerCase()] = data.facebookName || 'N/A';
+                if(data.username) {
+                    customerMap[data.username.toLowerCase()] = data.facebookName || 'N/A';
+                }
             });
             setCustomers(customerMap);
         });
@@ -109,8 +114,11 @@ export default function AdminDashboard() {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const newOrder = change.doc.data();
-                        if (['completed', 'paid'].includes(newOrder.status)) {
+                        if (newOrder.status === 'completed' || newOrder.status === 'paid') {
                             setNotification({ type: 'success', title: 'New Deposit!', message: `$${newOrder.amount} from ${newOrder.username}` });
+                            audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                        } else if (newOrder.status === 'unmatched_payment') {
+                            setNotification({ type: 'warning', title: 'Unmatched Payment!', message: `Received $${newOrder.amount}` });
                             audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
                         }
                     }
@@ -119,14 +127,14 @@ export default function AdminDashboard() {
                 initialLoadDone.current = true;
             }
             
-            let paidCount = 0, pendingCount = 0, totalDeposits = 0, chimeTotal = 0, cashAppTotal = 0;
+            let paidCount = 0, pendingCount = 0, deposits = 0, chimeTotal = 0, cashAppTotal = 0;
             const allOrders = snapshot.docs.map(doc => {
                 const data = doc.data();
                 if (['completed', 'paid', 'unmatched_payment'].includes(data.status)) {
                     const amount = parseFloat(data.amount || 0);
                     paidCount++;
-                    totalDeposits += amount;
-                    // --- NEW: Calculate totals for Chime and Cash App ---
+                    deposits += amount;
+                    // --- ADDED: Logic to calculate totals for Chime and Cash App ---
                     if (data.method === 'chime') chimeTotal += amount;
                     if (data.method === 'cash app') cashAppTotal += amount;
                 } else if (data.status === 'pending') {
@@ -136,7 +144,7 @@ export default function AdminDashboard() {
             });
 
             setOrders(allOrders);
-            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalDeposits, chimeDeposits: chimeTotal, cashAppDeposits: cashAppTotal }));
+            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalDeposits: deposits, chimeDeposits: chimeTotal, cashAppDeposits: cashAppTotal }));
         }, err => { setError('Failed to load orders.'); });
 
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
@@ -152,7 +160,54 @@ export default function AdminDashboard() {
 
     }, [authLoading, isAdmin]);
 
-    // --- NEW: Handler to update fees ---
+    const handleUsernameHover = async (username, position) => {
+        if (!username || username === 'unknown') { setQuickViewStats(null); return; }
+        if (quickViewStats?.username === username) return;
+
+        if (position) {
+            const adjustedPosition = { x: position.x, y: position.y + window.scrollY };
+            setQuickViewPosition(adjustedPosition);
+        }
+
+        setQuickViewStats({ username, isLoading: true });
+        try {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch(`/api/admin/user-stats/${username}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            if (res.ok) setQuickViewStats({ ...data, username: username, isLoading: false });
+            else setQuickViewStats(null);
+        } catch (e) {
+            setQuickViewStats(null);
+        }
+    };
+    
+    const handleOpenMergeTool = (unmatchedOrder) => {
+        const pendingOrderId = prompt(`Manual Merge:\n\nEnter the PENDING Order ID to merge with this payment of $${unmatchedOrder.amountReceived} (Memo: ${unmatchedOrder.memo})`);
+        if (pendingOrderId && pendingOrderId.trim() !== '') {
+            if (window.confirm(`Are you sure you want to merge this payment into Order ID: ${pendingOrderId}? THIS CANNOT BE UNDONE.`)) {
+                mergeOrders(unmatchedOrder.id, pendingOrderId.trim());
+            }
+        }
+    };
+    
+    const mergeOrders = async (unmatchedPaymentId, pendingOrderId) => {
+        try {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/orders/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ unmatchedPaymentId, pendingOrderId })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            alert('Merge successful!');
+            setSelectedOrder(null);
+        } catch (err) {
+            alert(`Merge Failed: ${err.message}`);
+        }
+    };
+    
+    // --- ADDED: Handler to update fees ---
     const handleUpdateFees = async () => {
         setIsSubmittingFees(true);
         setFeeMessage('');
@@ -239,17 +294,17 @@ export default function AdminDashboard() {
             </header>
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
-                <section className="stats-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))'}}>
+                <section className="stats-grid">
                     <StatCard title="Net Revenue" value={`$${(stats.totalDeposits - stats.totalCashouts).toFixed(2)}`} icon="💰" color="var(--primary-blue)" />
                     <StatCard title="Total Deposits" value={`$${(stats.totalDeposits || 0).toFixed(2)}`} icon="📈" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
-                    
-                    {/* --- NEW STAT CARDS --- */}
+                    <StatCard title="Paid Orders" value={stats.paidOrders || 0} icon="✅" color="var(--primary-green)" />
+                    {/* --- ADDED: New Stat Cards --- */}
                     <StatCard title="Chime Revenue (After Fee)" value={`$${(stats.chimeDeposits * (1 - (paymentFees.chimeFee || 25) / 100)).toFixed(2)}`} icon="🔔" color="#00C16E" />
                     <StatCard title="Cash App Revenue (After Fee)" value={`$${(stats.cashAppDeposits * (1 - (paymentFees.cashAppFee || 30) / 100)).toFixed(2)}`} icon="💵" color="#00D632" />
                 </section>
-
-                {/* --- NEW FEE MANAGEMENT SECTION --- */}
+                
+                {/* --- ADDED: New Fee Management Section --- */}
                 <section className="card mt-lg">
                     <h2 className="card-header">Manage Manual Deposit Fees</h2>
                     <div className="card-body">
@@ -269,7 +324,7 @@ export default function AdminDashboard() {
                         {feeMessage && <p className="alert alert-info mt-md">{feeMessage}</p>}
                     </div>
                 </section>
-                
+
                 <section className="mt-xl">
                     <h2>Recent Orders</h2>
                     <DataTable 
