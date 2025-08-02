@@ -30,9 +30,15 @@ export default function AgentDashboard() {
     const countdownIntervalRef = useRef();
     const [recentDeposits, setRecentDeposits] = useState([]);
     const [agentRequests, setAgentRequests] = useState([]);
-
-    // --- NEW: State for copy-to-clipboard feedback ---
     const [copiedTextType, setCopiedTextType] = useState('');
+
+    // --- NEW: State for the manual deposit form ---
+    const [manualDepositForm, setManualDepositForm] = useState({
+        username: '',
+        amount: '',
+        method: 'Chime',
+        transactionId: ''
+    });
 
     // --- Authentication & Profile Setup ---
     useEffect(() => {
@@ -109,12 +115,25 @@ export default function AgentDashboard() {
     const handleAddCustomer = async (e) => { e.preventDefault(); const { username, facebookName, facebookProfileLink } = e.target.elements; await handleApiRequest('/api/agent/customers/create', { username: username.value, facebookName: facebookName.value, facebookProfileLink: facebookProfileLink.value }, 'Customer added!'); e.target.reset(); };
     const handleCheckLimit = async (e) => { e.preventDefault(); const { customerUsername } = e.target.elements; const token = await user.getIdToken(); const res = await fetch(`/api/customer-cashout-limit?username=${customerUsername.value.trim()}`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); if (!res.ok) { setMessage({ text: data.message, type: 'error' }); } else { setLimitCheckResult(data); } };
     
-    // --- NEW: Function to handle copying text ---
     const handleCopyToClipboard = (text, type) => {
         navigator.clipboard.writeText(text).then(() => {
             setCopiedTextType(type);
-            setTimeout(() => setCopiedTextType(''), 2000); // Reset feedback after 2 seconds
+            setTimeout(() => setCopiedTextType(''), 2000);
         });
+    };
+
+    // --- NEW: Handler for the manual deposit form ---
+    const handleAddDeposit = async (e) => {
+        e.preventDefault();
+        const success = await handleApiRequest('/api/agent/add-deposit', manualDepositForm, 'Manual deposit added successfully!');
+        if (success) {
+            setManualDepositForm({ username: '', amount: '', method: 'Chime', transactionId: '' });
+        }
+    };
+
+    const handleManualDepositFormChange = (e) => {
+        const { name, value } = e.target;
+        setManualDepositForm(prev => ({ ...prev, [name]: value }));
     };
 
     useEffect(() => {
@@ -155,31 +174,41 @@ export default function AgentDashboard() {
                 
                 <main className="panel-content admin-main-content">
                     <div className="stats-grid">
-                        <SectionCard title="Username Generator">
-                            <form onSubmit={handleGenerateUsername} className="form-stack">
-                                <div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div>
-                                <div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input" /></div>
-                                <button type="submit" className="btn btn-primary">Generate</button>
-                                
-                                {/* --- NEW, MORE COMPACT RESULT DISPLAY --- */}
-                                {generatedUsername && (
-                                    <div className="mt-md">
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                            <p style={{ margin: 0 }}>Generated: <strong>{generatedUsername}</strong></p>
-                                            <button type="button" className="btn btn-secondary btn-xsmall" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>
-                                                {copiedTextType === 'username' ? 'Copied!' : 'Copy'}
-                                            </button>
-                                        </div>
-                                        <button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}\n\n`, 'login')}>
-                                            {copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}
-                                        </button>
-                                    </div>
-                                )}
-                            </form>
-                        </SectionCard>
+                        <SectionCard title="Username Generator"><form onSubmit={handleGenerateUsername} className="form-stack"><div><label htmlFor="facebookName">Customer's FB Name</label><input id="facebookName" value={facebookName} onChange={e => setFacebookName(e.target.value)} required className="input" /></div><div><label htmlFor="manualPageCode">Page Code</label><input id="manualPageCode" value={manualPageCode} onChange={e => setManualPageCode(e.target.value)} required pattern="\d{4}" className="input" /></div><button type="submit" className="btn btn-primary">Generate</button>{generatedUsername && (<div className="mt-md"><div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}><p style={{ margin: 0 }}>Generated: <strong>{generatedUsername}</strong></p><button type="button" className="btn btn-secondary btn-xsmall" onClick={() => handleCopyToClipboard(generatedUsername, 'username')}>{copiedTextType === 'username' ? 'Copied!' : 'Copy'}</button></div><button type="button" className="btn btn-info btn-small" onClick={() => handleCopyToClipboard(`Username: ${generatedUsername}\nPassword: ${generatedUsername}\n\n`, 'login')}>{copiedTextType === 'login' ? 'Copied!' : 'Copy Login Details'}</button></div>)}</form></SectionCard>
                         <SectionCard title="Add New Customer"><form onSubmit={handleAddCustomer} className="form-stack"><input name="username" required className="input" placeholder="Game Username"/><input name="facebookName" required className="input" placeholder="Facebook Name"/><input name="facebookProfileLink" type="url" required className="input" placeholder="Facebook Profile URL"/><button type="submit" className="btn btn-success">Add Customer</button></form></SectionCard>
                         <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-grid" style={{gridTemplateColumns: '2fr 1fr'}}><input name="customerUsername" required className="input" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info mt-md"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                     </div>
+                    
+                    {/* --- NEW MANUAL DEPOSIT SECTION --- */}
+                    <div className="stats-grid mt-lg" style={{gridTemplateColumns: '1fr'}}>
+                        <SectionCard title="Add Manual Deposit (Chime/Cash App)">
+                            <form onSubmit={handleAddDeposit} className="form-stack">
+                                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                                    <div className="form-group">
+                                        <label htmlFor="dep_username">Customer Username</label>
+                                        <input id="dep_username" name="username" value={manualDepositForm.username} onChange={handleManualDepositFormChange} required className="input" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="dep_amount">Deposit Amount (USD)</label>
+                                        <input id="dep_amount" name="amount" type="number" step="0.01" value={manualDepositForm.amount} onChange={handleManualDepositFormChange} required className="input" />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="dep_method">Payment Method</label>
+                                    <select id="dep_method" name="method" value={manualDepositForm.method} onChange={handleManualDepositFormChange} required className="select">
+                                        <option>Chime</option>
+                                        <option>Cash App</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="dep_transactionId">Chime/Cash App Transaction ID</label>
+                                    <input id="dep_transactionId" name="transactionId" value={manualDepositForm.transactionId} onChange={handleManualDepositFormChange} required className="input" placeholder="Enter the unique ID from the app" />
+                                </div>
+                                <button type="submit" className="btn btn-success">Submit Deposit</button>
+                            </form>
+                        </SectionCard>
+                    </div>
+
                     <div className="stats-grid mt-lg">
                         <SectionCard title="Recent Deposits"><div className="list-container">{enrichedDeposits.map(dep => (<div key={dep.id} className="list-item"><p><strong>{dep.facebookName}</strong> ({dep.username})</p><p>Deposited ${dep.amount.toFixed(2)} for {dep.game}</p><p className="list-item-footer">{dep.created?.toDate ? dep.created.toDate().toLocaleString() : 'N/A'}</p></div>))}</div></SectionCard>
                         <SectionCard title="My Customers"><div className="list-container">{customers.map(c => (<div key={c.id} className="list-item"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="link">View Profile</a></div>))}</div></SectionCard>
@@ -191,11 +220,11 @@ export default function AgentDashboard() {
                 .agent-name { 
                     font-size: 1.25rem; 
                     font-weight: bold; 
-                    color: white; /* Ensure text is white like admin header */
+                    color: white;
                 }
                 .page-code-display { 
                     font-size: 0.875rem; 
-                    color: #93c5fd; /* Light blue, good contrast on dark */
+                    color: #93c5fd;
                     margin: 0;
                 }
                 .form-stack { 
@@ -204,7 +233,7 @@ export default function AgentDashboard() {
                     gap: 0.75rem; 
                 }
                 .list-container { 
-                    max-height: 20rem; /* Increased height */
+                    max-height: 20rem;
                     overflow-y: auto; 
                     font-size: 0.875rem; 
                 }
