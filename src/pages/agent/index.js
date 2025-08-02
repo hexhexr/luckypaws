@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { db, auth } from '../../lib/firebaseClient';
-import { onSnapshot, query, collection, where, orderBy, getDoc, doc, limit } from 'firebase/firestore';
+import { onSnapshot, query, collection, where, orderBy, getDoc, doc, limit, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -32,12 +32,15 @@ export default function AgentDashboard() {
     const [agentRequests, setAgentRequests] = useState([]);
     const [copiedTextType, setCopiedTextType] = useState('');
 
-    // --- NEW: State for the manual deposit form ---
+    // --- NEW: State for games list ---
+    const [games, setGames] = useState([]);
+
     const [manualDepositForm, setManualDepositForm] = useState({
         username: '',
         amount: '',
         method: 'Chime',
-        transactionId: ''
+        transactionId: '',
+        game: '' // Add game to form state
     });
 
     // --- Authentication & Profile Setup ---
@@ -66,6 +69,25 @@ export default function AgentDashboard() {
         });
         return () => unsubscribeAuth();
     }, [router]);
+
+    // --- NEW: Load games list on component mount ---
+    useEffect(() => {
+        const loadGames = async () => {
+          try {
+            const q = query(collection(db, 'games'), orderBy('name'));
+            const snap = await getDocs(q);
+            const gameList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setGames(gameList);
+            // Set the default game in the form if the list is not empty
+            if (gameList.length > 0) {
+                setManualDepositForm(prev => ({ ...prev, game: gameList[0].name }));
+            }
+          } catch (err) {
+            console.error('Failed to load games:', err);
+          }
+        };
+        loadGames();
+    }, []);
 
     // --- Real-time Data Listeners for All Sections ---
     useEffect(() => {
@@ -122,12 +144,11 @@ export default function AgentDashboard() {
         });
     };
 
-    // --- NEW: Handler for the manual deposit form ---
     const handleAddDeposit = async (e) => {
         e.preventDefault();
         const success = await handleApiRequest('/api/agent/add-deposit', manualDepositForm, 'Manual deposit added successfully!');
         if (success) {
-            setManualDepositForm({ username: '', amount: '', method: 'Chime', transactionId: '' });
+            setManualDepositForm({ username: '', amount: '', method: 'Chime', transactionId: '', game: games.length > 0 ? games[0].name : '' });
         }
     };
 
@@ -179,7 +200,6 @@ export default function AgentDashboard() {
                         <SectionCard title="Check Cashout Limit"><form onSubmit={handleCheckLimit}><div className="form-grid" style={{gridTemplateColumns: '2fr 1fr'}}><input name="customerUsername" required className="input" placeholder="Customer Username"/><button type="submit" className="btn btn-info">Check</button></div>{limitCheckResult && (<div className="alert alert-info mt-md"><p>Limit for <strong>{limitCheckResult.username}</strong>: ${limitCheckResult.remainingLimit.toFixed(2)}</p><p><small>First cashout: {limitCheckResult.firstCashoutTimeInWindow ? new Date(limitCheckResult.firstCashoutTimeInWindow).toLocaleTimeString() : 'N/A'}</small></p>{limitCheckResult.windowResetsAt && <p><small>Resets in: <strong>{timeRemaining}</strong></small></p>}</div>)}</form></SectionCard>
                     </div>
                     
-                    {/* --- NEW MANUAL DEPOSIT SECTION --- */}
                     <div className="stats-grid mt-lg" style={{gridTemplateColumns: '1fr'}}>
                         <SectionCard title="Add Manual Deposit (Chime/Cash App)">
                             <form onSubmit={handleAddDeposit} className="form-stack">
@@ -193,12 +213,22 @@ export default function AgentDashboard() {
                                         <input id="dep_amount" name="amount" type="number" step="0.01" value={manualDepositForm.amount} onChange={handleManualDepositFormChange} required className="input" />
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label htmlFor="dep_method">Payment Method</label>
-                                    <select id="dep_method" name="method" value={manualDepositForm.method} onChange={handleManualDepositFormChange} required className="select">
-                                        <option>Chime</option>
-                                        <option>Cash App</option>
-                                    </select>
+                                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                                    <div className="form-group">
+                                        <label htmlFor="dep_method">Payment Method</label>
+                                        <select id="dep_method" name="method" value={manualDepositForm.method} onChange={handleManualDepositFormChange} required className="select">
+                                            <option>Chime</option>
+                                            <option>Cash App</option>
+                                        </select>
+                                    </div>
+                                    {/* --- NEW GAME SELECTOR --- */}
+                                    <div className="form-group">
+                                        <label htmlFor="dep_game">Game</label>
+                                        <select id="dep_game" name="game" value={manualDepositForm.game} onChange={handleManualDepositFormChange} required className="select">
+                                            <option value="" disabled>Select a Game</option>
+                                            {games.map(g => (<option key={g.id} value={g.name}>{g.name}</option>))}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div className="form-group">
                                     <label htmlFor="dep_transactionId">Chime/Cash App Transaction ID</label>

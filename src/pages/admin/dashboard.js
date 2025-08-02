@@ -49,21 +49,17 @@ export default function AdminDashboard() {
     const audioRef = useRef(null);
     const initialLoadDone = useRef(false);
 
-    // Authentication and data loading states
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
 
-    // Effect 1: Handles Authentication and determines user role.
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
                 try {
-                    // Force a token refresh to get the latest claims
                     const idTokenResult = await user.getIdTokenResult(true);
                     if (idTokenResult.claims.admin) {
-                        setIsAdmin(true); // User is a verified admin
+                        setIsAdmin(true);
                     } else {
-                        // User is logged in but not an admin
                         await firebaseAuth.signOut();
                         router.replace('/admin');
                     }
@@ -72,24 +68,18 @@ export default function AdminDashboard() {
                     router.replace('/admin');
                 }
             } else {
-                // No user is logged in
                 router.replace('/admin');
             }
-            // Signal that the authentication check is complete
             setAuthLoading(false);
         });
-        // Cleanup the auth listener when the component unmounts
         return () => unsubscribe();
     }, [router]);
 
-    // Effect 2: Fetches data only after authentication is confirmed.
     useEffect(() => {
-        // Do not proceed if authentication is still in progress or if the user is not an admin
         if (authLoading || !isAdmin) {
             return;
         }
 
-        // It's now safe to set up all real-time Firestore listeners
         const customersQuery = query(collection(db, 'customers'));
         const customerListener = onSnapshot(customersQuery, (snapshot) => {
             const customerMap = {};
@@ -140,7 +130,6 @@ export default function AdminDashboard() {
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
         const cashoutsListener = onSnapshot(query(collection(db, 'cashouts'), where('status', '==', 'completed')), (snapshot) => setStats(prev => ({ ...prev, totalCashouts: snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0) })), err => setError('Failed to load cashouts.'));
 
-        // Return a cleanup function to unsubscribe from all listeners when the component unmounts
         return () => {
             customerListener();
             ordersListener();
@@ -148,7 +137,7 @@ export default function AdminDashboard() {
             cashoutsListener();
         };
 
-    }, [authLoading, isAdmin]); // This effect depends on the auth state
+    }, [authLoading, isAdmin]);
 
     const handleUsernameHover = async (username, position) => {
         if (!username || username === 'unknown') { setQuickViewStats(null); return; }
@@ -204,7 +193,17 @@ export default function AdminDashboard() {
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Facebook', accessor: 'facebookName', sortable: true },
         { header: 'Game', accessor: 'game', sortable: true },
-        { header: 'Method', accessor: 'method', sortable: true, cell: (row) => <span className={`method-badge method-${row.method || 'lightning'}`}>{row.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span> },
+        // THE FIX: Updated the cell renderer for 'Method'
+        { 
+            header: 'Method', 
+            accessor: 'method', 
+            sortable: true, 
+            cell: (row) => {
+                const method = row.method || 'lightning'; // Default to lightning if not present
+                const displayName = method.replace('_', ' '); // Make it readable
+                return <span className={`method-badge method-${method}`}>{displayName}</span>
+            }
+        },
         { header: 'Memo', accessor: 'memo', sortable: true },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => `$${parseFloat(row.amount || 0).toFixed(2)}` },
         { header: 'Status', accessor: 'status', sortable: true, cell: (row) => <span className={`status-badge status-${row.status}`}>{row.status.replace('_', ' ')}</span> },
@@ -240,15 +239,15 @@ export default function AdminDashboard() {
                 <h1>Admin Dashboard</h1>
                 <nav>
                     <ul className="admin-nav">
-            <li><a href="/admin/dashboard">Dashboard</a></li>
-            <li><a href="/admin/expenses">Expenses</a></li>
-            <li><a href="/admin/partners">Partners</a></li>
-            <li><a href="/admin/offers">Offers</a></li> {/* Add this link */}
-            <li><a href="/admin/cashouts">Cashouts</a></li>
-            <li><a href="/admin/games">Games</a></li>
-            <li><a href="/admin/agents">Personnel</a></li>
-            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
-            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+                        <li><a href="/admin/dashboard">Dashboard</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/partners">Partners</a></li>
+                        <li><a href="/admin/offers">Offers</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
+                        <li><a href="/admin/games">Games</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
+                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                        <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                     </ul>
                 </nav>
             </header>

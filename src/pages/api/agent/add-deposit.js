@@ -8,32 +8,31 @@ const handler = async (req, res) => {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  // Agent details are securely taken from the verified token
   const { uid: agentId, name: agentName } = req.decodedToken;
-  const { username, amount, method, transactionId } = req.body;
+  // THE FIX: Added 'game' to the destructured request body
+  const { username, amount, method, transactionId, game } = req.body;
 
-  if (!username || !amount || !method || !transactionId || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+  if (!username || !amount || !method || !transactionId || !game || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
     return res.status(400).json({ message: 'All fields are required, and the amount must be a valid number.' });
   }
 
   try {
-    const orderRef = db.collection('orders').doc(); // Create a new document reference
+    const orderRef = db.collection('orders').doc();
 
-    // Create a new order document that mirrors your other paid deposits
     await orderRef.set({
       orderId: orderRef.id,
       username: username.toLowerCase().trim(),
       amount: parseFloat(amount),
-      method: method.toLowerCase(), // 'chime' or 'cashapp'
-      game: 'N/A (Manual Deposit)', // Set a default game value
+      method: method.toLowerCase(),
+      game: game, // THE FIX: Save the selected game to the database
       status: 'paid',
       created: Timestamp.now(),
       paidAt: Timestamp.now(),
-      read: false, // Mark as unread for admin dashboard
+      read: false,
       paymentGateway: 'Manual',
       addedByAgentId: agentId,
       addedByAgentName: agentName,
-      transactionId: transactionId.trim(), // The crucial reference ID
+      transactionId: transactionId.trim(),
     });
 
     res.status(201).json({ success: true, message: 'Deposit added successfully!', id: orderRef.id });
