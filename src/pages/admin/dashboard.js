@@ -39,7 +39,8 @@ export default function AdminDashboard() {
     const router = useRouter();
     const [orders, setOrders] = useState([]);
     const [customers, setCustomers] = useState({});
-    const [stats, setStats] = useState({ totalRevenue: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
+    // THE FIX: Renamed totalRevenue to totalDeposits for clarity
+    const [stats, setStats] = useState({ totalDeposits: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
     const [error, setError] = useState('');
     const [orderFilter, setOrderFilter] = useState('completed');
     const [selectedOrder, setSelectedOrder] = useState(null);
@@ -111,12 +112,12 @@ export default function AdminDashboard() {
                 initialLoadDone.current = true;
             }
             
-            let paidCount = 0, pendingCount = 0, revenue = 0;
+            let paidCount = 0, pendingCount = 0, deposits = 0;
             const allOrders = snapshot.docs.map(doc => {
                 const data = doc.data();
                 if (['completed', 'paid', 'unmatched_payment'].includes(data.status)) {
                     paidCount++;
-                    revenue += parseFloat(data.amount || 0);
+                    deposits += parseFloat(data.amount || 0);
                 } else if (data.status === 'pending') {
                     pendingCount++;
                 }
@@ -124,7 +125,8 @@ export default function AdminDashboard() {
             });
 
             setOrders(allOrders);
-            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalRevenue: revenue }));
+            // THE FIX: Save the calculated deposits to the correct state variable
+            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalDeposits: deposits }));
         }, err => { setError('Failed to load orders.'); });
 
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
@@ -193,14 +195,13 @@ export default function AdminDashboard() {
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Facebook', accessor: 'facebookName', sortable: true },
         { header: 'Game', accessor: 'game', sortable: true },
-        // THE FIX: Updated the cell renderer for 'Method'
         { 
             header: 'Method', 
             accessor: 'method', 
             sortable: true, 
             cell: (row) => {
-                const method = row.method || 'lightning'; // Default to lightning if not present
-                const displayName = method.replace('_', ' '); // Make it readable
+                const method = row.method || 'lightning';
+                const displayName = method.replace('_', ' ');
                 return <span className={`method-badge method-${method}`}>{displayName}</span>
             }
         },
@@ -254,9 +255,10 @@ export default function AdminDashboard() {
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
                 <section className="stats-grid">
-                    <StatCard title="Total Revenue" value={`$${(stats.totalRevenue || 0).toFixed(2)}`} icon="💰" color="var(--primary-green)" />
+                    {/* --- THE FIX: Updated Stat Cards --- */}
+                    <StatCard title="Net Revenue" value={`$${(stats.totalDeposits - stats.totalCashouts).toFixed(2)}`} icon="💰" color="var(--primary-blue)" />
+                    <StatCard title="Total Deposits" value={`$${(stats.totalDeposits || 0).toFixed(2)}`} icon="📈" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
-                    <StatCard title="Total Orders" value={stats.totalOrders || 0} icon="📦" color="var(--primary-blue)" />
                     <StatCard title="Paid Orders" value={stats.paidOrders || 0} icon="✅" color="var(--primary-green)" />
                     <StatCard title="Pending Orders" value={stats.pendingOrders || 0} icon="⏳" color="var(--orange)" />
                     <StatCard title="Total Users" value={stats.totalUsers || 0} icon="👥" color="var(--purple)" />
