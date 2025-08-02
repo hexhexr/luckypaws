@@ -31,8 +31,6 @@ export default function AgentDashboard() {
     const [recentDeposits, setRecentDeposits] = useState([]);
     const [agentRequests, setAgentRequests] = useState([]);
     const [copiedTextType, setCopiedTextType] = useState('');
-
-    // --- NEW: State for games list ---
     const [games, setGames] = useState([]);
 
     const [manualDepositForm, setManualDepositForm] = useState({
@@ -40,7 +38,15 @@ export default function AgentDashboard() {
         amount: '',
         method: 'Chime',
         transactionId: '',
-        game: '' // Add game to form state
+        game: ''
+    });
+    
+    // --- State for the cashout form ---
+    const [cashoutForm, setCashoutForm] = useState({
+        username: '',
+        facebookName: '',
+        cashoutAmount: '',
+        cashoutAddress: ''
     });
 
     // --- Authentication & Profile Setup ---
@@ -70,7 +76,7 @@ export default function AgentDashboard() {
         return () => unsubscribeAuth();
     }, [router]);
 
-    // --- NEW: Load games list on component mount ---
+    // --- Load games list on component mount ---
     useEffect(() => {
         const loadGames = async () => {
           try {
@@ -78,7 +84,6 @@ export default function AgentDashboard() {
             const snap = await getDocs(q);
             const gameList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setGames(gameList);
-            // Set the default game in the form if the list is not empty
             if (gameList.length > 0) {
                 setManualDepositForm(prev => ({ ...prev, game: gameList[0].name }));
             }
@@ -151,6 +156,20 @@ export default function AgentDashboard() {
             setManualDepositForm({ username: '', amount: '', method: 'Chime', transactionId: '', game: games.length > 0 ? games[0].name : '' });
         }
     };
+    
+    // --- Handler for submitting cashout requests ---
+    const handleCashoutRequestSubmit = async (e) => {
+        e.preventDefault();
+        const success = await handleApiRequest('/api/agent/submit-cashout-request', cashoutForm, 'Cashout request submitted!');
+        if (success) {
+            setCashoutForm({
+                username: '',
+                facebookName: '',
+                cashoutAmount: '',
+                cashoutAddress: ''
+            });
+        }
+    };
 
     const handleManualDepositFormChange = (e) => {
         const { name, value } = e.target;
@@ -221,7 +240,6 @@ export default function AgentDashboard() {
                                             <option>Cash App</option>
                                         </select>
                                     </div>
-                                    {/* --- NEW GAME SELECTOR --- */}
                                     <div className="form-group">
                                         <label htmlFor="dep_game">Game</label>
                                         <select id="dep_game" name="game" value={manualDepositForm.game} onChange={handleManualDepositFormChange} required className="select">
@@ -242,7 +260,25 @@ export default function AgentDashboard() {
                     <div className="stats-grid mt-lg">
                         <SectionCard title="Recent Deposits"><div className="list-container">{enrichedDeposits.map(dep => (<div key={dep.id} className="list-item"><p><strong>{dep.facebookName}</strong> ({dep.username})</p><p>Deposited ${dep.amount.toFixed(2)} for {dep.game}</p><p className="list-item-footer">{dep.created?.toDate ? dep.created.toDate().toLocaleString() : 'N/A'}</p></div>))}</div></SectionCard>
                         <SectionCard title="My Customers"><div className="list-container">{customers.map(c => (<div key={c.id} className="list-item"><p><strong>{c.facebookName}</strong> ({c.username})</p><a href={c.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="link">View Profile</a></div>))}</div></SectionCard>
-                        <SectionCard title="My Cashout Requests"><div className="list-container">{agentRequests.map(r => (<div key={r.id} className="list-item"><p>${parseFloat(r.amount || 0).toFixed(2)} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p><p>Status: <span className={`status-badge status-${r.status}`}>{r.status}</span></p></div>))}</div></SectionCard>
+                        
+                        {/* --- RESTORED CASHOUT REQUESTS SECTION --- */}
+                        <SectionCard title="My Cashout Requests">
+                            <form onSubmit={handleCashoutRequestSubmit} className="form-stack">
+                                <input name="username" value={cashoutForm.username} onChange={e => setCashoutForm({...cashoutForm, username: e.target.value})} required className="input" placeholder="Game Username"/>
+                                <input name="facebookName" value={cashoutForm.facebookName} onChange={e => setCashoutForm({...cashoutForm, facebookName: e.target.value})} required className="input" placeholder="Facebook Name"/>
+                                <input name="cashoutAmount" value={cashoutForm.cashoutAmount} onChange={e => setCashoutForm({...cashoutForm, cashoutAmount: e.target.value})} required className="input" placeholder="Cashout Amount (USD)" type="number" step="0.01" />
+                                <input name="cashoutAddress" value={cashoutForm.cashoutAddress} onChange={e => setCashoutForm({...cashoutForm, cashoutAddress: e.target.value})} required className="input" placeholder="Cashout Address (LN)"/>
+                                <button type="submit" className="btn btn-success">Submit Request</button>
+                            </form>
+                            <div className="list-container" style={{marginTop: '1rem'}}>
+                                {agentRequests.map(r => (
+                                    <div key={r.id} className="list-item">
+                                        <p>${parseFloat(r.amount || 0).toFixed(2)} for {r.username} requested on {r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleDateString() : 'N/A'}</p>
+                                        <p>Status: <span className={`status-badge status-${r.status}`}>{r.status}</span></p>
+                                    </div>
+                                ))}
+                            </div>
+                        </SectionCard>
                     </div>
                 </main>
             </div>
