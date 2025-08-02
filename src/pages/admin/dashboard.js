@@ -39,8 +39,7 @@ export default function AdminDashboard() {
     const router = useRouter();
     const [orders, setOrders] = useState([]);
     const [customers, setCustomers] = useState({});
-    // THE FIX: Renamed totalRevenue to totalDeposits for clarity
-    const [stats, setStats] = useState({ totalDeposits: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0 });
+    const [stats, setStats] = useState({ totalDeposits: 0, totalCashouts: 0, totalOrders: 0, paidOrders: 0, pendingOrders: 0, totalUsers: 0, chimeDeposits: 0, cashAppDeposits: 0 });
     const [error, setError] = useState('');
     const [orderFilter, setOrderFilter] = useState('completed');
     const [selectedOrder, setSelectedOrder] = useState(null);
@@ -52,6 +51,12 @@ export default function AdminDashboard() {
 
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
+    
+    // --- NEW: State for payment fees ---
+    const [paymentFees, setPaymentFees] = useState({ chimeFee: 25, cashAppFee: 30 });
+    const [isSubmittingFees, setIsSubmittingFees] = useState(false);
+    const [feeMessage, setFeeMessage] = useState('');
+
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -65,7 +70,6 @@ export default function AdminDashboard() {
                         router.replace('/admin');
                     }
                 } catch (e) {
-                    console.error("Error verifying admin status:", e);
                     router.replace('/admin');
                 }
             } else {
@@ -77,18 +81,24 @@ export default function AdminDashboard() {
     }, [router]);
 
     useEffect(() => {
-        if (authLoading || !isAdmin) {
-            return;
-        }
+        if (authLoading || !isAdmin) return;
+
+        // --- NEW: Listener for payment fees ---
+        const feeDocRef = doc(db, 'settings', 'paymentFees');
+        const unsubscribeFees = onSnapshot(feeDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setPaymentFees(docSnap.data());
+            } else {
+                setPaymentFees({ chimeFee: 25, cashAppFee: 30 });
+            }
+        });
 
         const customersQuery = query(collection(db, 'customers'));
         const customerListener = onSnapshot(customersQuery, (snapshot) => {
             const customerMap = {};
             snapshot.forEach(doc => {
                 const data = doc.data();
-                if(data.username) {
-                    customerMap[data.username.toLowerCase()] = data.facebookName || 'N/A';
-                }
+                if(data.username) customerMap[data.username.toLowerCase()] = data.facebookName || 'N/A';
             });
             setCustomers(customerMap);
         });
@@ -99,11 +109,8 @@ export default function AdminDashboard() {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const newOrder = change.doc.data();
-                        if (newOrder.status === 'completed' || newOrder.status === 'paid') {
+                        if (['completed', 'paid'].includes(newOrder.status)) {
                             setNotification({ type: 'success', title: 'New Deposit!', message: `$${newOrder.amount} from ${newOrder.username}` });
-                            audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
-                        } else if (newOrder.status === 'unmatched_payment') {
-                            setNotification({ type: 'warning', title: 'Unmatched Payment!', message: `Received $${newOrder.amount}` });
                             audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
                         }
                     }
@@ -112,12 +119,16 @@ export default function AdminDashboard() {
                 initialLoadDone.current = true;
             }
             
-            let paidCount = 0, pendingCount = 0, deposits = 0;
+            let paidCount = 0, pendingCount = 0, totalDeposits = 0, chimeTotal = 0, cashAppTotal = 0;
             const allOrders = snapshot.docs.map(doc => {
                 const data = doc.data();
                 if (['completed', 'paid', 'unmatched_payment'].includes(data.status)) {
+                    const amount = parseFloat(data.amount || 0);
                     paidCount++;
-                    deposits += parseFloat(data.amount || 0);
+                    totalDeposits += amount;
+                    // --- NEW: Calculate totals for Chime and Cash App ---
+                    if (data.method === 'chime') chimeTotal += amount;
+                    if (data.method === 'cash app') cashAppTotal += amount;
                 } else if (data.status === 'pending') {
                     pendingCount++;
                 }
@@ -125,14 +136,14 @@ export default function AdminDashboard() {
             });
 
             setOrders(allOrders);
-            // THE FIX: Save the calculated deposits to the correct state variable
-            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalDeposits: deposits }));
+            setStats(prev => ({ ...prev, totalOrders: snapshot.size, paidOrders: paidCount, pendingOrders: pendingCount, totalDeposits, chimeDeposits: chimeTotal, cashAppDeposits: cashAppTotal }));
         }, err => { setError('Failed to load orders.'); });
 
         const usersListener = onSnapshot(collection(db, 'users'), (snapshot) => setStats(prev => ({ ...prev, totalUsers: snapshot.size })), err => setError('Failed to load user count.'));
         const cashoutsListener = onSnapshot(query(collection(db, 'cashouts'), where('status', '==', 'completed')), (snapshot) => setStats(prev => ({ ...prev, totalCashouts: snapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data().amountUSD || 0), 0) })), err => setError('Failed to load cashouts.'));
 
         return () => {
+            unsubscribeFees();
             customerListener();
             ordersListener();
             usersListener();
@@ -141,50 +152,24 @@ export default function AdminDashboard() {
 
     }, [authLoading, isAdmin]);
 
-    const handleUsernameHover = async (username, position) => {
-        if (!username || username === 'unknown') { setQuickViewStats(null); return; }
-        if (quickViewStats?.username === username) return;
-
-        if (position) {
-            const adjustedPosition = { x: position.x, y: position.y + window.scrollY };
-            setQuickViewPosition(adjustedPosition);
-        }
-
-        setQuickViewStats({ username, isLoading: true });
+    // --- NEW: Handler to update fees ---
+    const handleUpdateFees = async () => {
+        setIsSubmittingFees(true);
+        setFeeMessage('');
         try {
             const token = await firebaseAuth.currentUser.getIdToken();
-            const res = await fetch(`/api/admin/user-stats/${username}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const data = await res.json();
-            if (res.ok) setQuickViewStats({ ...data, username: username, isLoading: false });
-            else setQuickViewStats(null);
-        } catch (e) {
-            setQuickViewStats(null);
-        }
-    };
-    
-    const handleOpenMergeTool = (unmatchedOrder) => {
-        const pendingOrderId = prompt(`Manual Merge:\n\nEnter the PENDING Order ID to merge with this payment of $${unmatchedOrder.amountReceived} (Memo: ${unmatchedOrder.memo})`);
-        if (pendingOrderId && pendingOrderId.trim() !== '') {
-            if (window.confirm(`Are you sure you want to merge this payment into Order ID: ${pendingOrderId}? THIS CANNOT BE UNDONE.`)) {
-                mergeOrders(unmatchedOrder.id, pendingOrderId.trim());
-            }
-        }
-    };
-    
-    const mergeOrders = async (unmatchedPaymentId, pendingOrderId) => {
-        try {
-            const token = await firebaseAuth.currentUser.getIdToken();
-            const res = await fetch('/api/orders/merge', {
+            const res = await fetch('/api/admin/fees/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ unmatchedPaymentId, pendingOrderId })
+                body: JSON.stringify(paymentFees)
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            alert('Merge successful!');
-            setSelectedOrder(null);
+            setFeeMessage('Fees updated successfully!');
         } catch (err) {
-            alert(`Merge Failed: ${err.message}`);
+            setFeeMessage(`Error: ${err.message}`);
+        } finally {
+            setIsSubmittingFees(false);
         }
     };
 
@@ -254,15 +239,37 @@ export default function AdminDashboard() {
             </header>
             <main className="admin-main-content">
                 {error && <div className="alert alert-danger mb-lg">{error}</div>}
-                <section className="stats-grid">
-                    {/* --- THE FIX: Updated Stat Cards --- */}
+                <section className="stats-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))'}}>
                     <StatCard title="Net Revenue" value={`$${(stats.totalDeposits - stats.totalCashouts).toFixed(2)}`} icon="💰" color="var(--primary-blue)" />
                     <StatCard title="Total Deposits" value={`$${(stats.totalDeposits || 0).toFixed(2)}`} icon="📈" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
-                    <StatCard title="Paid Orders" value={stats.paidOrders || 0} icon="✅" color="var(--primary-green)" />
-                    <StatCard title="Pending Orders" value={stats.pendingOrders || 0} icon="⏳" color="var(--orange)" />
-                    <StatCard title="Total Users" value={stats.totalUsers || 0} icon="👥" color="var(--purple)" />
+                    
+                    {/* --- NEW STAT CARDS --- */}
+                    <StatCard title="Chime Revenue (After Fee)" value={`$${(stats.chimeDeposits * (1 - (paymentFees.chimeFee || 25) / 100)).toFixed(2)}`} icon="🔔" color="#00C16E" />
+                    <StatCard title="Cash App Revenue (After Fee)" value={`$${(stats.cashAppDeposits * (1 - (paymentFees.cashAppFee || 30) / 100)).toFixed(2)}`} icon="💵" color="#00D632" />
                 </section>
+
+                {/* --- NEW FEE MANAGEMENT SECTION --- */}
+                <section className="card mt-lg">
+                    <h2 className="card-header">Manage Manual Deposit Fees</h2>
+                    <div className="card-body">
+                        <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr auto', alignItems: 'flex-end', gap: 'var(--spacing-md)'}}>
+                            <div className="form-group">
+                                <label>Chime Fee (%)</label>
+                                <input type="number" className="input" value={paymentFees.chimeFee || ''} onChange={e => setPaymentFees({...paymentFees, chimeFee: e.target.value})} />
+                            </div>
+                            <div className="form-group">
+                                <label>Cash App Fee (%)</label>
+                                <input type="number" className="input" value={paymentFees.cashAppFee || ''} onChange={e => setPaymentFees({...paymentFees, cashAppFee: e.target.value})} />
+                            </div>
+                            <button className="btn btn-primary" onClick={handleUpdateFees} disabled={isSubmittingFees}>
+                                {isSubmittingFees ? 'Updating...' : 'Update Fees'}
+                            </button>
+                        </div>
+                        {feeMessage && <p className="alert alert-info mt-md">{feeMessage}</p>}
+                    </div>
+                </section>
+                
                 <section className="mt-xl">
                     <h2>Recent Orders</h2>
                     <DataTable 
