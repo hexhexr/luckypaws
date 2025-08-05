@@ -59,11 +59,12 @@ export default function PaymentForm() {
     }
 
     try {
+      // THE FIX: The body now correctly sends the 'form' object, which contains the
+      // correct method selected by the user (e.g., 'lightning'), instead of hardcoding 'card'.
       const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Pass a generic 'card' method to the backend for Paygate
-        body: JSON.stringify({ ...form, method: 'card' }),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
