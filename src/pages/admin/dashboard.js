@@ -52,7 +52,6 @@ export default function AdminDashboard() {
     const [authLoading, setAuthLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     
-    // --- ADDED: State for payment fees ---
     const [paymentFees, setPaymentFees] = useState({ chimeFee: 25, cashAppFee: 30 });
     const [isSubmittingFees, setIsSubmittingFees] = useState(false);
     const [feeMessage, setFeeMessage] = useState('');
@@ -86,7 +85,6 @@ export default function AdminDashboard() {
             return;
         }
 
-        // --- ADDED: Listener for payment fees ---
         const feeDocRef = doc(db, 'settings', 'paymentFees');
         const unsubscribeFees = onSnapshot(feeDocRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -134,7 +132,6 @@ export default function AdminDashboard() {
                     const amount = parseFloat(data.amount || 0);
                     paidCount++;
                     deposits += amount;
-                    // --- ADDED: Logic to calculate totals for Chime and Cash App ---
                     if (data.method === 'chime') chimeTotal += amount;
                     if (data.method === 'cash app') cashAppTotal += amount;
                 } else if (data.status === 'pending') {
@@ -207,7 +204,6 @@ export default function AdminDashboard() {
         }
     };
     
-    // --- ADDED: Handler to update fees ---
     const handleUpdateFees = async () => {
         setIsSubmittingFees(true);
         setFeeMessage('');
@@ -235,14 +231,36 @@ export default function AdminDashboard() {
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Facebook', accessor: 'facebookName', sortable: true },
         { header: 'Game', accessor: 'game', sortable: true },
+        // --- THE FIX: Updated cell renderer for 'Method' with detailed logic ---
         { 
             header: 'Method', 
             accessor: 'method', 
             sortable: true, 
             cell: (row) => {
-                const method = row.method || 'lightning';
-                const displayName = method.replace('_', ' ');
-                return <span className={`method-badge method-${method}`}>{displayName}</span>
+                const method = (row.method || 'lightning').toLowerCase();
+                let displayName = 'Lightning';
+                let styleClass = 'lightning';
+
+                switch (method) {
+                    case 'card':
+                        displayName = 'Paygate';
+                        styleClass = 'paygate'; // You may need to add a CSS class for this
+                        break;
+                    case 'chime':
+                        displayName = 'Chime';
+                        styleClass = 'chime';
+                        break;
+                    case 'cash app':
+                        displayName = 'Cash App';
+                        styleClass = 'cashapp';
+                        break;
+                    case 'pyusd':
+                        displayName = 'PYUSD';
+                        styleClass = 'pyusd';
+                        break;
+                }
+                
+                return <span className={`method-badge method-${styleClass}`}>{displayName}</span>
             }
         },
         { header: 'Memo', accessor: 'memo', sortable: true },
@@ -299,12 +317,10 @@ export default function AdminDashboard() {
                     <StatCard title="Total Deposits" value={`$${(stats.totalDeposits || 0).toFixed(2)}`} icon="📈" color="var(--primary-green)" />
                     <StatCard title="Total Cashouts" value={`$${(stats.totalCashouts || 0).toFixed(2)}`} icon="💸" color="var(--red-alert)" />
                     <StatCard title="Paid Orders" value={stats.paidOrders || 0} icon="✅" color="var(--primary-green)" />
-                    {/* --- ADDED: New Stat Cards --- */}
                     <StatCard title="Chime Revenue (After Fee)" value={`$${(stats.chimeDeposits * (1 - (paymentFees.chimeFee || 25) / 100)).toFixed(2)}`} icon="🔔" color="#00C16E" />
                     <StatCard title="Cash App Revenue (After Fee)" value={`$${(stats.cashAppDeposits * (1 - (paymentFees.cashAppFee || 30) / 100)).toFixed(2)}`} icon="💵" color="#00D632" />
                 </section>
                 
-                {/* --- ADDED: New Fee Management Section --- */}
                 <section className="card mt-lg">
                     <h2 className="card-header">Manage Manual Deposit Fees</h2>
                     <div className="card-body">
