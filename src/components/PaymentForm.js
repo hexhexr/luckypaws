@@ -118,7 +118,7 @@ export default function PaymentForm() {
                       <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">⚡</span> <span className="method-card-title">Lightning</span> <span className="method-card-desc">Instant & Anonymous</span>
+                              <span className="method-card-icon">⚡</span> <span className="method-card-title">Bitcoin Lightning</span> <span className="method-card-desc">Cash App, Coinbase, Strike or Kraken</span>
                           </div>
                       </label>
                        <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
