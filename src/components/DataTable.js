@@ -1,7 +1,6 @@
 // src/components/DataTable.js
 import React, { useState, useMemo, useCallback } from 'react';
 
-// FIX: Added sort icon and improved styling for header
 const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     const isCurrent = column.accessor === sortConfig.key;
     const sortIcon = isCurrent ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ' ↕';
@@ -14,8 +13,7 @@ const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     );
 };
 
-// FIX: The controls are now styled via the classes defined in globals.css
-const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, onUsernameHover }) => {
+const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, onUsernameHover, expandedRows, renderRowSubComponent }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: defaultSortField, direction: 'desc' });
     const [currentPage, setCurrentPage] = useState(1);
@@ -87,17 +85,24 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
                         </thead>
                         <tbody>
                             {paginatedData.map((row, rowIndex) => (
-                                <tr key={rowIndex} onClick={() => onRowClick && onRowClick(row)} style={{ cursor: onRowClick ? 'pointer' : 'default' }}>
-                                    {columns.map(col => (
-                                        <td
-                                            key={col.accessor}
-                                            onMouseEnter={(e) => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(row.username, { x: e.clientX, y: e.clientY }); }}
-                                            onMouseLeave={() => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(null, null); }}
-                                        >
-                                            {col.cell ? col.cell(row) : row[col.accessor]}
-                                        </td>
-                                    ))}
-                                </tr>
+                                <React.Fragment key={rowIndex}>
+                                    <tr onClick={() => onRowClick && onRowClick(row)} style={{ cursor: onRowClick ? 'pointer' : 'default' }}>
+                                        {columns.map(col => (
+                                            <td
+                                                key={col.accessor}
+                                                onMouseEnter={(e) => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(row.username, { x: e.clientX, y: e.clientY }); }}
+                                                onMouseLeave={() => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(null, null); }}
+                                            >
+                                                {col.cell ? col.cell(row) : row[col.accessor]}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                    {expandedRows && expandedRows[row.id] && (
+                                        <tr>
+                                            {renderRowSubComponent({ row: { original: row } })}
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>
