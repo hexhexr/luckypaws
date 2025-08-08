@@ -9,7 +9,6 @@ import { onSnapshot, collection, query, orderBy, doc, getDoc } from 'firebase/fi
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
-import SubExpenseModal from '../../components/SubExpenseModal'; // ADDED: Import for the new feature
 
 const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
@@ -55,13 +54,13 @@ export default function AdminExpenses() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
-    const [viewingSubExpenses, setViewingSubExpenses] = useState(null); // ADDED: State for the new modal
 
+    // FIX: Updated authentication flow to prevent premature redirects
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
                 try {
-                    const idTokenResult = await user.getIdTokenResult(true);
+                    const idTokenResult = await user.getIdTokenResult(true); // Force refresh of token
                     if (idTokenResult.claims.admin) {
                         setIsAdmin(true);
                     } else {
@@ -80,20 +79,27 @@ export default function AdminExpenses() {
     }, [router]);
 
     useEffect(() => {
+        // Data fetching now waits for isAdmin to be true
         if (!isAdmin) return;
+
         const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
         const expensesUnsubscribe = onSnapshot(expensesQuery, (snapshot) => {
             const expenseData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setExpenses(expenseData);
-        }, (err) => setError("Failed to load expense data."));
+        }, (err) => {
+            setError("Failed to load expense data.");
+        });
 
         const partnersQuery = query(collection(db, "partners"), orderBy("name"));
         const partnersUnsubscribe = onSnapshot(partnersQuery, (snapshot) => {
             setPartners(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        return () => { expensesUnsubscribe(); partnersUnsubscribe(); };
-    }, [isAdmin]);
+        return () => {
+            expensesUnsubscribe();
+            partnersUnsubscribe();
+        };
+    }, [isAdmin]); // This effect runs only after isAdmin is confirmed
 
     const handleNewExpenseChange = (e) => {
         const { name, value } = e.target;
@@ -225,8 +231,6 @@ export default function AdminExpenses() {
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrencyValue(row.amount, row.currency || 'USD') },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                {/* ADDED: "Details" button to open the sub-expense modal */}
-                <button className="btn btn-primary btn-small" onClick={() => setViewingSubExpenses(row)}>Details</button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
@@ -244,24 +248,21 @@ export default function AdminExpenses() {
                     onSave={handleSaveExpense}
                 />
             )}
-            {/* ADDED: Render the new sub-expense modal when needed */}
-            {viewingSubExpenses && <SubExpenseModal expense={viewingSubExpenses} onClose={() => setViewingSubExpenses(null)} />}
-            
             <div className="admin-dashboard-container">
                 <Head><title>Admin - Expenses</title></Head>
                 <header className="admin-header">
                     <h1>Manage Expenses</h1>
                     <nav>
                         <ul className="admin-nav">
-                            <li><a href="/admin/dashboard">Dashboard</a></li>
-                            <li><a href="/admin/expenses">Expenses</a></li>
-                            <li><a href="/admin/partners">Partners</a></li>
-                            <li><a href="/admin/offers">Offers</a></li>
-                            <li><a href="/admin/cashouts">Cashouts</a></li>
-                            <li><a href="/admin/games">Games</a></li>
-                            <li><a href="/admin/agents">Personnel</a></li>
-                            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
-                            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+            <li><a href="/admin/dashboard">Dashboard</a></li>
+            <li><a href="/admin/expenses">Expenses</a></li>
+            <li><a href="/admin/partners">Partners</a></li>
+            <li><a href="/admin/offers">Offers</a></li> {/* Add this link */}
+            <li><a href="/admin/cashouts">Cashouts</a></li>
+            <li><a href="/admin/games">Games</a></li>
+            <li><a href="/admin/agents">Personnel</a></li>
+            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
                         </ul>
                     </nav>
                 </header>
@@ -273,13 +274,48 @@ export default function AdminExpenses() {
                         <div className="card-body">
                             <form onSubmit={handleNewExpenseSubmit}>
                                 <div className="expense-form-grid">
-                                    <div className="form-group"><label>Paid By</label><select name="paidByPartnerId" className="select" value={newExpense.paidByPartnerId} onChange={handleNewExpenseChange}><option value="">Office Account</option>{partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                                    <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={newExpense.date} onChange={handleNewExpenseChange} required /></div>
-                                    <div className="form-group"><label>Category</label><select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required><option>General</option><option>Salary</option><option>Wages</option><option>Office Supplies</option><option>Rent</option><option>Utilities</option><option>Marketing</option><option>Other</option></select></div>
-                                    <div className="form-group"><label>Currency</label><select name="currency" className="select" value={newExpense.currency} onChange={handleNewExpenseChange} required><option value="USD">USD</option><option value="PKR">PKR</option></select></div>
-                                    <div className="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/></div>
-                                    <div className="form-group expense-form-description"><label>Description</label><textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required placeholder="Provide a detailed description..." rows="4"></textarea></div>
-                                    <div className="form-group expense-form-submit"><button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Expense'}</button></div>
+                                    <div className="form-group">
+                                        <label>Paid By</label>
+                                        <select name="paidByPartnerId" className="select" value={newExpense.paidByPartnerId} onChange={handleNewExpenseChange}>
+                                            <option value="">Office Account</option>
+                                            {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Date</label>
+                                        <input type="date" name="date" className="input" value={newExpense.date} onChange={handleNewExpenseChange} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Category</label>
+                                        <select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required>
+                                            <option>General</option>
+                                            <option>Salary</option>
+                                            <option>Wages</option>
+                                            <option>Office Supplies</option>
+                                            <option>Rent</option>
+                                            <option>Utilities</option>
+                                            <option>Marketing</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Currency</label>
+                                        <select name="currency" className="select" value={newExpense.currency} onChange={handleNewExpenseChange} required>
+                                            <option value="USD">USD</option>
+                                            <option value="PKR">PKR</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Amount</label>
+                                        <input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/>
+                                    </div>
+                                    <div className="form-group expense-form-description">
+                                        <label>Description</label>
+                                        <textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required placeholder="Provide a detailed description..." rows="4"></textarea>
+                                    </div>
+                                    <div className="form-group expense-form-submit">
+                                        <button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Expense'}</button>
+                                    </div>
                                 </div>
                             </form>
                         </div>
