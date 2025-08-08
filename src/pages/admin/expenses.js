@@ -1,5 +1,5 @@
 // File: src/pages/admin/expenses.js
-// Description: The main UI page for managing all expenses.
+// Description: The main UI page for managing all expenses with integrated sub-expense management.
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
@@ -9,7 +9,7 @@ import { onSnapshot, collection, query, orderBy, doc, getDoc } from 'firebase/fi
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
-import SubExpenseModal from '../../components/SubExpenseModal'; // ADDED: Import for the new feature
+import SubExpenseDetail from '../../components/SubExpenseDetail'; // UPDATED: Import the new detail component
 
 const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
@@ -55,7 +55,6 @@ export default function AdminExpenses() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
-    const [viewingSubExpenses, setViewingSubExpenses] = useState(null); // ADDED: State for the new modal
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -225,13 +224,19 @@ export default function AdminExpenses() {
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrencyValue(row.amount, row.currency || 'USD') },
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                {/* ADDED: "Details" button to open the sub-expense modal */}
-                <button className="btn btn-primary btn-small" onClick={() => setViewingSubExpenses(row)}>Details</button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
         )}
     ], [handleDeleteExpense]);
+    
+    const renderRowSubComponent = useCallback(({ row }) => {
+        return (
+            <td colSpan={columns.length}>
+                <SubExpenseDetail expense={row.original} />
+            </td>
+        );
+    }, [columns.length]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
@@ -244,8 +249,6 @@ export default function AdminExpenses() {
                     onSave={handleSaveExpense}
                 />
             )}
-            {/* ADDED: Render the new sub-expense modal when needed */}
-            {viewingSubExpenses && <SubExpenseModal expense={viewingSubExpenses} onClose={() => setViewingSubExpenses(null)} />}
             
             <div className="admin-dashboard-container">
                 <Head><title>Admin - Expenses</title></Head>
@@ -323,7 +326,7 @@ export default function AdminExpenses() {
                                     ))}
                                 </div>
                             )}
-                            {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" />}
+                            {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" renderRowSubComponent={renderRowSubComponent} />}
                         </div>
                     </section>
                 </main>
