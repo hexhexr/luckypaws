@@ -50,10 +50,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.receipt) {
-            setError("A receipt image is required.");
-            return;
-        }
+        // REMOVED: Validation that required a receipt
         setIsSubmitting(true);
         setError('');
 
@@ -62,7 +59,9 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
         formData.append('date', form.date);
         formData.append('amount', form.amount);
         formData.append('description', form.description);
-        formData.append('receipt', form.receipt);
+        if (form.receipt) { // Only append receipt if it exists
+            formData.append('receipt', form.receipt);
+        }
 
         try {
             const token = await firebaseAuth.currentUser.getIdToken();
@@ -76,7 +75,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
             
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', description: '', receipt: null });
             if (e.target) e.target.reset();
-            if (onFormSubmitSuccess) onFormSubmitSuccess(); // Notify parent to close the form
+            if (onFormSubmitSuccess) onFormSubmitSuccess();
             
         } catch (err) {
             setError(err.message);
@@ -98,7 +97,8 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                                     <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={form.date} onChange={handleFormChange} required /></div>
                                     <div className="form-group"><label>Amount ({expense.currency})</label><input type="number" step="0.01" name="amount" className="input" value={form.amount} onChange={handleFormChange} required /></div>
                                     <div className="form-group"><label>Description</label><input type="text" name="description" className="input" value={form.description} onChange={handleFormChange} required /></div>
-                                    <div className="form-group"><label>Receipt</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleFormChange} required /></div>
+                                    {/* --- THIS IS THE CHANGE --- */}
+                                    <div className="form-group"><label>Receipt (Optional)</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleFormChange} /></div>
                                     <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</button>
                                 </div>
                                  {error && <div className="alert alert-danger mt-md">{error}</div>}
@@ -120,9 +120,11 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                                             <td>{formatCurrency(se.amount, expense.currency)}</td>
                                             <td>{se.recordedBy}</td>
                                             <td>
-                                                <button onClick={() => setViewingReceipt(se.receiptUrl)} className="btn btn-secondary btn-xsmall">
-                                                    View
-                                                </button>
+                                                {se.receiptUrl ? (
+                                                    <button onClick={() => setViewingReceipt(se.receiptUrl)} className="btn btn-secondary btn-xsmall">
+                                                        View
+                                                    </button>
+                                                ) : 'N/A'}
                                             </td>
                                         </tr>
                                     ))}

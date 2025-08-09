@@ -33,27 +33,31 @@ const handler = async (req, res) => {
     const { mainExpenseId, date, amount, description } = fields;
     const { receipt } = files;
 
-    if (!mainExpenseId || !date || !amount || !description || !receipt) {
-      return res.status(400).json({ message: 'Missing required fields or receipt file.' });
+    if (!mainExpenseId || !date || !amount || !description) {
+      return res.status(400).json({ message: 'Missing required fields.' });
     }
 
     const expenseAmount = parseFloat(amount[0]);
-    const receiptFile = receipt[0];
+    let receiptUrl = null; // Default to null
 
-    // 1. Upload the file to Cloudinary
-    const uploadResult = await cloudinary.uploader.upload(receiptFile.filepath, {
-        folder: `receipts/${mainExpenseId[0]}`, // Organize uploads in folders
-        resource_type: "auto"
-    });
+    // --- THIS IS THE CHANGE ---
+    // Only upload a file if a receipt was actually provided in the form
+    if (receipt && receipt[0]) {
+        const receiptFile = receipt[0];
 
-    // Clean up the temporary file created by formidable
-    fs.unlinkSync(receiptFile.filepath);
+        const uploadResult = await cloudinary.uploader.upload(receiptFile.filepath, {
+            folder: `receipts/${mainExpenseId[0]}`,
+            resource_type: "auto"
+        });
+        
+        fs.unlinkSync(receiptFile.filepath);
 
-    if (!uploadResult.secure_url) {
-        throw new Error("File upload to Cloudinary failed.");
+        if (!uploadResult.secure_url) {
+            throw new Error("File upload to Cloudinary failed.");
+        }
+        receiptUrl = uploadResult.secure_url;
     }
 
-    // 2. Save the sub-expense data to Firestore
     const subExpenseRef = db.collection('subExpenses').doc();
     
     await subExpenseRef.set({
@@ -62,7 +66,7 @@ const handler = async (req, res) => {
         date: new Date(date[0]),
         amount: expenseAmount,
         description: description[0],
-        receiptUrl: uploadResult.secure_url,
+        receiptUrl: receiptUrl, // Will be null if no receipt was uploaded
         recordedBy: req.decodedToken.email,
         createdAt: Timestamp.now(),
     });
