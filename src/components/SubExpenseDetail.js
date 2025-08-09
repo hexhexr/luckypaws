@@ -11,7 +11,7 @@ export default function SubExpenseDetail({ expense }) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showAddForm, setShowAddForm] = useState(false); // State to toggle the form
+    const [showAddForm, setShowAddForm] = useState(false);
     
     const [form, setForm] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -34,7 +34,9 @@ export default function SubExpenseDetail({ expense }) {
                 setIsLoading(false);
             },
             (err) => {
-                setError("Failed to load sub-expenses.");
+                // THIS IS THE FIX: Log the original error to the console
+                console.error("Firebase Error:", err); 
+                setError("Failed to load sub-expenses. Check the developer console (F12) for an index creation link.");
                 setIsLoading(false);
             }
         );
@@ -74,7 +76,7 @@ export default function SubExpenseDetail({ expense }) {
             
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', description: '', receipt: null });
             e.target.reset();
-            setShowAddForm(false); // Hide form on successful submission
+            setShowAddForm(false);
             
         } catch (err) {
             setError(err.message);
