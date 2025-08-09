@@ -1,5 +1,6 @@
 // src/components/DataTable.js
 import React, { useState, useMemo, useCallback } from 'react';
+import SubExpenseSummary from './SubExpenseSummary'; // Import the new summary component
 
 const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     const isCurrent = column.accessor === sortConfig.key;
@@ -86,17 +87,23 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
                         <tbody>
                             {paginatedData.map((row, rowIndex) => (
                                 <React.Fragment key={rowIndex}>
+                                    {/* Main Expense Row */}
                                     <tr onClick={() => onRowClick && onRowClick(row)} style={{ cursor: onRowClick ? 'pointer' : 'default' }}>
                                         {columns.map(col => (
-                                            <td
-                                                key={col.accessor}
-                                                onMouseEnter={(e) => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(row.username, { x: e.clientX, y: e.clientY }); }}
-                                                onMouseLeave={() => { if (col.accessor === 'username' && onUsernameHover) onUsernameHover(null, null); }}
-                                            >
+                                            <td key={col.accessor}>
                                                 {col.cell ? col.cell(row) : row[col.accessor]}
                                             </td>
                                         ))}
                                     </tr>
+                                    
+                                    {/* Always-Visible Summary Row */}
+                                    <tr>
+                                        <td colSpan={columns.length} style={{ padding: '0 8px 8px 8px', backgroundColor: '#f8f9fa' }}>
+                                            <SubExpenseSummary expense={row} />
+                                        </td>
+                                    </tr>
+                                    
+                                    {/* Conditionally-Visible Detail Row */}
                                     {expandedRows && expandedRows[row.id] && (
                                         <tr>
                                             {renderRowSubComponent({ row: { original: row } })}

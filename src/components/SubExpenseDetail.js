@@ -34,9 +34,8 @@ export default function SubExpenseDetail({ expense }) {
                 setIsLoading(false);
             },
             (err) => {
-                // THIS IS THE FIX: Log the original error to the console
-                console.error("Firebase Error:", err); 
-                setError("Failed to load sub-expenses. Check the developer console (F12) for an index creation link.");
+                console.error("Firebase Error:", err);
+                setError("Failed to load sub-expenses. Check console (F12) for an index creation link.");
                 setIsLoading(false);
             }
         );
@@ -85,20 +84,11 @@ export default function SubExpenseDetail({ expense }) {
         }
     };
 
-    const totalSubExpense = subExpenses.reduce((sum, se) => sum + parseFloat(se.amount || 0), 0);
-    const remainingBudget = parseFloat(expense.amount || 0) - totalSubExpense;
-
     return (
         <div className="sub-expense-container">
-            <div className="sub-expense-summary">
-                <div className="summary-item"><strong>Total Budget:</strong> {formatCurrency(expense.amount, expense.currency)}</div>
-                <div className="summary-item"><strong>Amount Spent:</strong> {formatCurrency(totalSubExpense, expense.currency)}</div>
-                <div className="summary-item"><strong>Remaining:</strong> {formatCurrency(remainingBudget, expense.currency)}</div>
-            </div>
-
             <div className="sub-expense-actions">
                 <button className="btn btn-success btn-small" onClick={() => setShowAddForm(!showAddForm)}>
-                    {showAddForm ? 'Cancel' : 'Add Sub-Expense'}
+                    {showAddForm ? 'Cancel' : '+ Add Sub-Expense'}
                 </button>
             </div>
 
@@ -106,7 +96,7 @@ export default function SubExpenseDetail({ expense }) {
                 <div className="card sub-expense-form-card">
                     <div className="card-body">
                         <form onSubmit={handleSubmit}>
-                            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr 2fr auto', alignItems: 'flex-end', gap: 'var(--spacing-md)'}}>
+                            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr 2fr auto auto', alignItems: 'flex-end', gap: 'var(--spacing-md)'}}>
                                 <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={form.date} onChange={handleFormChange} required /></div>
                                 <div className="form-group"><label>Amount ({expense.currency})</label><input type="number" step="0.01" name="amount" className="input" value={form.amount} onChange={handleFormChange} required /></div>
                                 <div className="form-group"><label>Description</label><input type="text" name="description" className="input" value={form.description} onChange={handleFormChange} required /></div>
@@ -142,19 +132,9 @@ export default function SubExpenseDetail({ expense }) {
             
             <style jsx>{`
                 .sub-expense-container {
-                    background-color: #f0f2f5;
                     padding: var(--spacing-md);
-                    border-top: 2px solid var(--primary-blue);
+                    background-color: #e9ecef; /* A slightly darker background to stand out */
                 }
-                .sub-expense-summary {
-                    display: flex;
-                    gap: var(--spacing-lg);
-                    margin-bottom: var(--spacing-md);
-                    padding: var(--spacing-sm);
-                    background: var(--bg-medium-light);
-                    border-radius: var(--border-radius);
-                }
-                .summary-item { font-size: 0.9rem; }
                 .sub-expense-actions { margin-bottom: var(--spacing-md); }
                 .sub-expense-form-card { margin-bottom: var(--spacing-md); }
                 .form-group { margin-bottom: 0; }
