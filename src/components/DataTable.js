@@ -1,6 +1,5 @@
 // src/components/DataTable.js
 import React, { useState, useMemo, useCallback } from 'react';
-import SubExpenseSummary from './SubExpenseSummary'; // Import the new summary component
 
 const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     const isCurrent = column.accessor === sortConfig.key;
@@ -14,7 +13,8 @@ const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     );
 };
 
-const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, onUsernameHover, expandedRows, renderRowSubComponent }) => {
+// Simplified to always render the sub-component if the function is provided
+const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, renderRowSubComponent }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: defaultSortField, direction: 'desc' });
     const [currentPage, setCurrentPage] = useState(1);
@@ -60,7 +60,7 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
     return (
         <div>
             <div className="table-controls-header">
-                <div className="custom-filters">{filterControls}</div>
+                {filterControls}
                 <div className="search-pagination-controls">
                     <div className="filter-group">
                         <label htmlFor="tableSearch">Search:</label>
@@ -87,24 +87,15 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
                         <tbody>
                             {paginatedData.map((row, rowIndex) => (
                                 <React.Fragment key={rowIndex}>
-                                    {/* Main Expense Row */}
-                                    <tr onClick={() => onRowClick && onRowClick(row)} style={{ cursor: onRowClick ? 'pointer' : 'default' }}>
+                                    <tr onClick={() => onRowClick && onRowClick(row)}>
                                         {columns.map(col => (
                                             <td key={col.accessor}>
                                                 {col.cell ? col.cell(row) : row[col.accessor]}
                                             </td>
                                         ))}
                                     </tr>
-                                    
-                                    {/* Always-Visible Summary Row */}
-                                    <tr>
-                                        <td colSpan={columns.length} style={{ padding: '0 8px 8px 8px', backgroundColor: '#f8f9fa' }}>
-                                            <SubExpenseSummary expense={row} />
-                                        </td>
-                                    </tr>
-                                    
-                                    {/* Conditionally-Visible Detail Row */}
-                                    {expandedRows && expandedRows[row.id] && (
+                                    {/* Always render the sub-component row if the function is provided */}
+                                    {renderRowSubComponent && (
                                         <tr>
                                             {renderRowSubComponent({ row: { original: row } })}
                                         </tr>

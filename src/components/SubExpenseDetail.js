@@ -2,22 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth as firebaseAuth } from '../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-
-// NEW: A simple, reusable modal for displaying the receipt image
-const ReceiptModal = ({ imageUrl, onClose }) => (
-    <div className="modal-overlay" onClick={onClose}>
-        <div className="modal receipt-modal" onClick={(e) => e.stopPropagation()}>
-            <button onClick={onClose} className="modal-close-btn">&times;</button>
-            <img src={imageUrl} alt="Expense Receipt" style={{ width: '100%', height: 'auto', borderRadius: '8px' }} />
-        </div>
-        <style jsx>{`
-            .receipt-modal {
-                max-width: 600px; /* Or your preferred max-width */
-                padding: var(--spacing-md);
-            }
-        `}</style>
-    </div>
-);
+import ImageViewerModal from './ImageViewerModal'; // CORRECTED IMPORT
 
 const formatCurrency = (amount, currency) => `$${parseFloat(amount || 0).toFixed(2)} ${currency || 'USD'}`;
 const formatDate = (timestamp) => timestamp?.toDate ? timestamp.toDate().toLocaleDateString() : 'N/A';
@@ -28,7 +13,7 @@ export default function SubExpenseDetail({ expense }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
-    const [viewingReceipt, setViewingReceipt] = useState(null); // State for the receipt modal
+    const [viewingReceipt, setViewingReceipt] = useState(null);
     
     const [form, setForm] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -103,7 +88,7 @@ export default function SubExpenseDetail({ expense }) {
 
     return (
         <>
-            {viewingReceipt && <ReceiptModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
+            {viewingReceipt && <ImageViewerModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
 
             <div className="sub-expense-container">
                 <div className="sub-expense-actions">

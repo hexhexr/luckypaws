@@ -1,5 +1,5 @@
 // File: src/pages/admin/expenses.js
-// Description: The main UI page for managing all expenses with an interactive, inline sub-expense management system.
+// Description: Uses the new ImageViewerModal for main expense receipts.
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
@@ -11,6 +11,7 @@ import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
 import SubExpenseDetail from '../../components/SubExpenseDetail';
 import SubExpenseSummary from '../../components/SubExpenseSummary';
+import ImageViewerModal from '../../components/ImageViewerModal'; // CORRECTED IMPORT
 
 const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
@@ -49,31 +50,25 @@ export default function AdminExpenses() {
         amount: '', 
         description: '',
         paidByPartnerId: '',
-        currency: 'USD'
+        currency: 'USD',
+        receipt: null
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
-    const [expandedRows, setExpandedRows] = useState({});
+    const [viewingReceipt, setViewingReceipt] = useState(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
             if (user) {
                 try {
                     const idTokenResult = await user.getIdTokenResult(true);
-                    if (idTokenResult.claims.admin) {
-                        setIsAdmin(true);
-                    } else {
-                        router.replace('/admin');
-                    }
-                } catch (e) {
-                    router.replace('/admin');
-                }
-            } else {
-                router.replace('/admin');
-            }
+                    if (idTokenResult.claims.admin) setIsAdmin(true);
+                    else router.replace('/admin');
+                } catch (e) { router.replace('/admin'); }
+            } else { router.replace('/admin'); }
             setAuthLoading(false);
         });
         return () => unsubscribe();
@@ -95,24 +90,33 @@ export default function AdminExpenses() {
     }, [isAdmin]);
 
     const handleNewExpenseChange = (e) => {
-        const { name, value } = e.target;
-        setNewExpense(prev => ({ ...prev, [name]: value }));
+        const { name, value, files } = e.target;
+        setNewExpense(prev => ({ ...prev, [name]: files ? files[0] : value }));
     };
 
     const handleNewExpenseSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setError('');
+        
+        const formData = new FormData();
+        Object.entries(newExpense).forEach(([key, value]) => {
+            if (value) formData.append(key, value);
+        });
+
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
             const res = await fetch('/api/admin/expenses/add', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
-                body: JSON.stringify({ ...newExpense, date: new Date(newExpense.date) })
+                headers: { 'Authorization': `Bearer ${adminIdToken}` },
+                body: formData
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD' });
+            
+            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD', receipt: null });
+            if(e.target) e.target.reset();
+
         } catch (err) {
             setError(err.message);
         } finally {
@@ -130,8 +134,7 @@ export default function AdminExpenses() {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
                 body: JSON.stringify(updatedExpense)
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
+            if (!res.ok) throw new Error((await res.json()).message);
             setEditingExpense(null);
         } catch (err) {
             setError(err.message);
@@ -178,23 +181,26 @@ export default function AdminExpenses() {
             return acc;
         }, {});
     }, [filteredExpenses]);
-
+    
     const partnerExpenseTotals = useMemo(() => {
-        return filteredExpenses.reduce((acc, expense) => {
+        const partnerTotals = {};
+        filteredExpenses.forEach(expense => {
             if (expense.paidByPartnerId) {
                 const partnerId = expense.paidByPartnerId;
                 const currency = expense.currency || 'USD';
                 const amount = parseFloat(expense.amount || 0);
-                if (!acc[partnerId]) {
-                    acc[partnerId] = { name: expense.paidByPartnerName, totals: {} };
-                }
-                acc[partnerId].totals[currency] = (acc[partnerId].totals[currency] || 0) + amount;
-            }
-            return acc;
-        }, {});
-    }, [filteredExpenses]);
 
-    const toggleRow = (id) => setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+                if (!partnerTotals[partnerId]) {
+                    partnerTotals[partnerId] = { name: expense.paidByPartnerName, totals: {} };
+                }
+                if (!partnerTotals[partnerId].totals[currency]) {
+                    partnerTotals[partnerId].totals[currency] = 0;
+                }
+                partnerTotals[partnerId].totals[currency] += amount;
+            }
+        });
+        return Object.values(partnerTotals);
+    }, [filteredExpenses]);
 
     const columns = useMemo(() => [
         { header: 'Date', accessor: 'date', sortable: true, cell: (row) => formatDate(row.date) },
@@ -202,50 +208,48 @@ export default function AdminExpenses() {
         { header: 'Description', accessor: 'description', sortable: true },
         { header: 'Paid By', accessor: 'paidByPartnerName', sortable: true, cell: (row) => row.paidByPartnerName || 'Office' },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrencyValue(row.amount, row.currency || 'USD') },
+        { header: 'Receipt', accessor: 'receiptUrl', sortable: false, cell: (row) => (
+            row.receiptUrl ? 
+            <button className="btn btn-secondary btn-xsmall" onClick={() => setViewingReceipt(row.receiptUrl)}>View</button> 
+            : 'N/A'
+        )},
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                <button className="btn btn-primary btn-small" onClick={() => toggleRow(row.id)}>
-                    {expandedRows[row.id] ? 'Hide' : 'Manage'}
-                </button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
         )}
-    ], [handleDeleteExpense, expandedRows]);
+    ], [handleDeleteExpense]);
 
-    // This function now renders BOTH the summary and the details component
-    const renderRowSubComponent = useCallback(({ row }) => {
-        return (
-            <td colSpan={columns.length} style={{ padding: '0', backgroundColor: '#f8f9fa' }}>
-                <SubExpenseSummary expense={row.original} />
-                {expandedRows[row.original.id] && <SubExpenseDetail expense={row.original} />}
-            </td>
-        );
-    }, [columns.length, expandedRows]);
-    
+    const renderRowSubComponent = useCallback(({ row }) => (
+        <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
+            <SubExpenseSummary expense={row.original} />
+            <SubExpenseDetail expense={row.original} />
+        </td>
+    ), [columns.length]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
     return (
         <>
             {editingExpense && <EditExpenseModal expense={editingExpense} onClose={() => setEditingExpense(null)} onSave={handleSaveExpense} />}
+            {viewingReceipt && <ImageViewerModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
+            
             <div className="admin-dashboard-container">
                 <Head><title>Admin - Expenses</title></Head>
                 <header className="admin-header">
                     <h1>Manage Expenses</h1>
-                    <nav>
-                        <ul className="admin-nav">
-                            <li><a href="/admin/dashboard">Dashboard</a></li>
-                            <li><a href="/admin/expenses">Expenses</a></li>
-                            <li><a href="/admin/partners">Partners</a></li>
-                            <li><a href="/admin/offers">Offers</a></li>
-                            <li><a href="/admin/cashouts">Cashouts</a></li>
-                            <li><a href="/admin/games">Games</a></li>
-                            <li><a href="/admin/agents">Personnel</a></li>
-                            <li><a href="/admin/profit-loss">Profit/Loss</a></li>
-                            <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
-                        </ul>
-                    </nav>
+                    <nav><ul className="admin-nav">
+                        <li><a href="/admin/dashboard">Dashboard</a></li>
+                        <li><a href="/admin/expenses">Expenses</a></li>
+                        <li><a href="/admin/partners">Partners</a></li>
+                        <li><a href="/admin/offers">Offers</a></li>
+                        <li><a href="/admin/cashouts">Cashouts</a></li>
+                        <li><a href="/admin/games">Games</a></li>
+                        <li><a href="/admin/agents">Personnel</a></li>
+                        <li><a href="/admin/profit-loss">Profit/Loss</a></li>
+                        <li><button onClick={logout} className="btn btn-secondary">Logout</button></li>
+                    </ul></nav>
                 </header>
                 <main className="admin-main-content">
                     {error && <div className="alert alert-danger mb-lg">{error}</div>}
@@ -256,10 +260,11 @@ export default function AdminExpenses() {
                                 <div className="expense-form-grid">
                                     <div className="form-group"><label>Paid By</label><select name="paidByPartnerId" className="select" value={newExpense.paidByPartnerId} onChange={handleNewExpenseChange}><option value="">Office Account</option>{partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                                     <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={newExpense.date} onChange={handleNewExpenseChange} required /></div>
-                                    <div className="form-group"><label>Category</label><select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required><option>General</option><option>Salary</option><option>Wages</option><option>Office Supplies</option><option>Rent</option><option>Utilities</option><option>Marketing</option><option>Other</option></select></div>
+                                    <div className="form-group"><label>Category</label><select name="category" className="select" value={newExpense.category} onChange={handleNewExpenseChange} required><option>General</option><option>Salary</option><option>Wages</option></select></div>
                                     <div className="form-group"><label>Currency</label><select name="currency" className="select" value={newExpense.currency} onChange={handleNewExpenseChange} required><option value="USD">USD</option><option value="PKR">PKR</option></select></div>
-                                    <div className="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required placeholder="e.g., 150.75"/></div>
-                                    <div className="form-group expense-form-description"><label>Description</label><textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required placeholder="Provide a detailed description..." rows="4"></textarea></div>
+                                    <div className="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required /></div>
+                                    <div className="form-group"><label>Receipt (Optional)</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleNewExpenseChange} /></div>
+                                    <div className="form-group expense-form-description"><label>Description</label><textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required rows="2"></textarea></div>
                                     <div className="form-group expense-form-submit"><button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Expense'}</button></div>
                                 </div>
                             </form>
@@ -280,7 +285,7 @@ export default function AdminExpenses() {
                                     </div>
                                 ))}
                             </div>
-                            {Object.keys(partnerExpenseTotals).length > 0 && (
+                            {Object.values(partnerExpenseTotals).length > 0 && (
                                 <div className="mt-lg">
                                     <h4>Expenses by Partner</h4>
                                     {Object.values(partnerExpenseTotals).map(partner => (
@@ -295,7 +300,7 @@ export default function AdminExpenses() {
                                     ))}
                                 </div>
                             )}
-                            {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" expandedRows={expandedRows} renderRowSubComponent={renderRowSubComponent} />}
+                            {authLoading ? <LoadingSkeleton /> : <DataTable columns={columns} data={filteredExpenses} defaultSortField="date" renderRowSubComponent={renderRowSubComponent} />}
                         </div>
                     </section>
                 </main>
