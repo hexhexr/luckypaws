@@ -5,11 +5,12 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { db, auth as firebaseAuth } from '../../lib/firebaseClient';
-import { onSnapshot, collection, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
 import SubExpenseDetail from '../../components/SubExpenseDetail';
+import SubExpenseSummary from '../../components/SubExpenseSummary';
 
 const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
@@ -212,11 +213,16 @@ export default function AdminExpenses() {
         )}
     ], [handleDeleteExpense, expandedRows]);
 
-    const renderRowSubComponent = useCallback(({ row }) => (
-        <td colSpan={columns.length}>
-            <SubExpenseDetail expense={row.original} />
-        </td>
-    ), [columns.length]);
+    // This function now renders BOTH the summary and the details component
+    const renderRowSubComponent = useCallback(({ row }) => {
+        return (
+            <td colSpan={columns.length} style={{ padding: '0', backgroundColor: '#f8f9fa' }}>
+                <SubExpenseSummary expense={row.original} />
+                {expandedRows[row.original.id] && <SubExpenseDetail expense={row.original} />}
+            </td>
+        );
+    }, [columns.length, expandedRows]);
+    
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 

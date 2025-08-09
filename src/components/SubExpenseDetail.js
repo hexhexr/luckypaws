@@ -3,6 +3,22 @@ import React, { useState, useEffect } from 'react';
 import { db, auth as firebaseAuth } from '../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 
+// NEW: A simple, reusable modal for displaying the receipt image
+const ReceiptModal = ({ imageUrl, onClose }) => (
+    <div className="modal-overlay" onClick={onClose}>
+        <div className="modal receipt-modal" onClick={(e) => e.stopPropagation()}>
+            <button onClick={onClose} className="modal-close-btn">&times;</button>
+            <img src={imageUrl} alt="Expense Receipt" style={{ width: '100%', height: 'auto', borderRadius: '8px' }} />
+        </div>
+        <style jsx>{`
+            .receipt-modal {
+                max-width: 600px; /* Or your preferred max-width */
+                padding: var(--spacing-md);
+            }
+        `}</style>
+    </div>
+);
+
 const formatCurrency = (amount, currency) => `$${parseFloat(amount || 0).toFixed(2)} ${currency || 'USD'}`;
 const formatDate = (timestamp) => timestamp?.toDate ? timestamp.toDate().toLocaleDateString() : 'N/A';
 
@@ -12,6 +28,7 @@ export default function SubExpenseDetail({ expense }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [viewingReceipt, setViewingReceipt] = useState(null); // State for the receipt modal
     
     const [form, setForm] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -35,7 +52,7 @@ export default function SubExpenseDetail({ expense }) {
             },
             (err) => {
                 console.error("Firebase Error:", err);
-                setError("Failed to load sub-expenses. Check console (F12) for an index creation link.");
+                setError("Failed to load sub-expenses. Ensure Firestore index is created.");
                 setIsLoading(false);
             }
         );
@@ -74,7 +91,7 @@ export default function SubExpenseDetail({ expense }) {
             if (!res.ok) throw new Error(data.message);
             
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', description: '', receipt: null });
-            e.target.reset();
+            if (e.target) e.target.reset();
             setShowAddForm(false);
             
         } catch (err) {
@@ -85,61 +102,69 @@ export default function SubExpenseDetail({ expense }) {
     };
 
     return (
-        <div className="sub-expense-container">
-            <div className="sub-expense-actions">
-                <button className="btn btn-success btn-small" onClick={() => setShowAddForm(!showAddForm)}>
-                    {showAddForm ? 'Cancel' : '+ Add Sub-Expense'}
-                </button>
-            </div>
+        <>
+            {viewingReceipt && <ReceiptModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
 
-            {showAddForm && (
-                <div className="card sub-expense-form-card">
-                    <div className="card-body">
-                        <form onSubmit={handleSubmit}>
-                            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr 2fr auto auto', alignItems: 'flex-end', gap: 'var(--spacing-md)'}}>
-                                <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={form.date} onChange={handleFormChange} required /></div>
-                                <div className="form-group"><label>Amount ({expense.currency})</label><input type="number" step="0.01" name="amount" className="input" value={form.amount} onChange={handleFormChange} required /></div>
-                                <div className="form-group"><label>Description</label><input type="text" name="description" className="input" value={form.description} onChange={handleFormChange} required /></div>
-                                <div className="form-group"><label>Receipt</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleFormChange} required /></div>
-                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</button>
-                            </div>
-                             {error && <div className="alert alert-danger mt-md">{error}</div>}
-                        </form>
-                    </div>
+            <div className="sub-expense-container">
+                <div className="sub-expense-actions">
+                    <button className="btn btn-success btn-small" onClick={() => setShowAddForm(!showAddForm)}>
+                        {showAddForm ? 'Cancel' : '+ Add Sub-Expense'}
+                    </button>
                 </div>
-            )}
 
-            <div className="sub-expense-log">
-                {isLoading ? <p>Loading details...</p> : subExpenses.length === 0 ? <p className="no-items-message">No sub-expenses recorded yet.</p> : (
-                    <div className="table-responsive">
-                        <table>
-                            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Recorded By</th><th>Receipt</th></tr></thead>
-                            <tbody>
-                                {subExpenses.map(se => (
-                                    <tr key={se.id}>
-                                        <td>{formatDate(se.date)}</td>
-                                        <td>{se.description}</td>
-                                        <td>{formatCurrency(se.amount, expense.currency)}</td>
-                                        <td>{se.recordedBy}</td>
-                                        <td><a href={se.receiptUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-xsmall">View</a></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                {showAddForm && (
+                    <div className="card sub-expense-form-card">
+                        <div className="card-body">
+                            <form onSubmit={handleSubmit}>
+                                <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr 2fr auto auto', alignItems: 'flex-end', gap: 'var(--spacing-md)'}}>
+                                    <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={form.date} onChange={handleFormChange} required /></div>
+                                    <div className="form-group"><label>Amount ({expense.currency})</label><input type="number" step="0.01" name="amount" className="input" value={form.amount} onChange={handleFormChange} required /></div>
+                                    <div className="form-group"><label>Description</label><input type="text" name="description" className="input" value={form.description} onChange={handleFormChange} required /></div>
+                                    <div className="form-group"><label>Receipt</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleFormChange} required /></div>
+                                    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</button>
+                                </div>
+                                 {error && <div className="alert alert-danger mt-md">{error}</div>}
+                            </form>
+                        </div>
                     </div>
                 )}
+
+                <div className="sub-expense-log">
+                    {isLoading ? <p>Loading details...</p> : subExpenses.length === 0 ? <p className="no-items-message">No sub-expenses recorded yet.</p> : (
+                        <div className="table-responsive">
+                            <table>
+                                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Recorded By</th><th>Receipt</th></tr></thead>
+                                <tbody>
+                                    {subExpenses.map(se => (
+                                        <tr key={se.id}>
+                                            <td>{formatDate(se.date)}</td>
+                                            <td>{se.description}</td>
+                                            <td>{formatCurrency(se.amount, expense.currency)}</td>
+                                            <td>{se.recordedBy}</td>
+                                            <td>
+                                                <button onClick={() => setViewingReceipt(se.receiptUrl)} className="btn btn-secondary btn-xsmall">
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                
+                <style jsx>{`
+                    .sub-expense-container {
+                        padding: var(--spacing-md);
+                        background-color: #e9ecef;
+                    }
+                    .sub-expense-actions { margin-bottom: var(--spacing-md); }
+                    .sub-expense-form-card { margin-bottom: var(--spacing-md); }
+                    .form-group { margin-bottom: 0; }
+                    .no-items-message { color: var(--text-light); text-align: center; padding: var(--spacing-md); }
+                `}</style>
             </div>
-            
-            <style jsx>{`
-                .sub-expense-container {
-                    padding: var(--spacing-md);
-                    background-color: #e9ecef; /* A slightly darker background to stand out */
-                }
-                .sub-expense-actions { margin-bottom: var(--spacing-md); }
-                .sub-expense-form-card { margin-bottom: var(--spacing-md); }
-                .form-group { margin-bottom: 0; }
-                .no-items-message { color: var(--text-light); text-align: center; padding: var(--spacing-md); }
-            `}</style>
-        </div>
+        </>
     );
 }
