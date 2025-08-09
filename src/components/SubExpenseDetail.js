@@ -2,17 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth as firebaseAuth } from '../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import ImageViewerModal from './ImageViewerModal'; // CORRECTED IMPORT
+import ImageViewerModal from './ImageViewerModal';
 
 const formatCurrency = (amount, currency) => `$${parseFloat(amount || 0).toFixed(2)} ${currency || 'USD'}`;
 const formatDate = (timestamp) => timestamp?.toDate ? timestamp.toDate().toLocaleDateString() : 'N/A';
 
-export default function SubExpenseDetail({ expense }) {
+export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuccess }) {
     const [subExpenses, setSubExpenses] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showAddForm, setShowAddForm] = useState(false);
     const [viewingReceipt, setViewingReceipt] = useState(null);
     
     const [form, setForm] = useState({
@@ -77,7 +76,7 @@ export default function SubExpenseDetail({ expense }) {
             
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', description: '', receipt: null });
             if (e.target) e.target.reset();
-            setShowAddForm(false);
+            if (onFormSubmitSuccess) onFormSubmitSuccess(); // Notify parent to close the form
             
         } catch (err) {
             setError(err.message);
@@ -91,12 +90,6 @@ export default function SubExpenseDetail({ expense }) {
             {viewingReceipt && <ImageViewerModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
 
             <div className="sub-expense-container">
-                <div className="sub-expense-actions">
-                    <button className="btn btn-success btn-small" onClick={() => setShowAddForm(!showAddForm)}>
-                        {showAddForm ? 'Cancel' : '+ Add Sub-Expense'}
-                    </button>
-                </div>
-
                 {showAddForm && (
                     <div className="card sub-expense-form-card">
                         <div className="card-body">
@@ -144,7 +137,6 @@ export default function SubExpenseDetail({ expense }) {
                         padding: var(--spacing-md);
                         background-color: #e9ecef;
                     }
-                    .sub-expense-actions { margin-bottom: var(--spacing-md); }
                     .sub-expense-form-card { margin-bottom: var(--spacing-md); }
                     .form-group { margin-bottom: 0; }
                     .no-items-message { color: var(--text-light); text-align: center; padding: var(--spacing-md); }

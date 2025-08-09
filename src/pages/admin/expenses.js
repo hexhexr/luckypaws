@@ -1,5 +1,5 @@
 // File: src/pages/admin/expenses.js
-// Description: Uses the new ImageViewerModal for main expense receipts.
+// Description: The main UI page for managing all expenses. The "+ Add Sub-Expense" button is now in the Actions column.
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
@@ -11,7 +11,7 @@ import DataTable from '../../components/DataTable';
 import EditExpenseModal from '../../components/EditExpenseModal';
 import SubExpenseDetail from '../../components/SubExpenseDetail';
 import SubExpenseSummary from '../../components/SubExpenseSummary';
-import ImageViewerModal from '../../components/ImageViewerModal'; // CORRECTED IMPORT
+import ImageViewerModal from '../../components/ImageViewerModal';
 
 const formatCurrencyValue = (amount, currency) => {
     const numAmount = parseFloat(amount);
@@ -59,6 +59,7 @@ export default function AdminExpenses() {
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
     const [viewingReceipt, setViewingReceipt] = useState(null);
+    const [showAddSubExpenseForms, setShowAddSubExpenseForms] = useState({}); // State to control sub-expense forms
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -183,24 +184,23 @@ export default function AdminExpenses() {
     }, [filteredExpenses]);
     
     const partnerExpenseTotals = useMemo(() => {
-        const partnerTotals = {};
-        filteredExpenses.forEach(expense => {
+        return filteredExpenses.reduce((acc, expense) => {
             if (expense.paidByPartnerId) {
                 const partnerId = expense.paidByPartnerId;
                 const currency = expense.currency || 'USD';
                 const amount = parseFloat(expense.amount || 0);
-
-                if (!partnerTotals[partnerId]) {
-                    partnerTotals[partnerId] = { name: expense.paidByPartnerName, totals: {} };
+                if (!acc[partnerId]) {
+                    acc[partnerId] = { name: expense.paidByPartnerName, totals: {} };
                 }
-                if (!partnerTotals[partnerId].totals[currency]) {
-                    partnerTotals[partnerId].totals[currency] = 0;
-                }
-                partnerTotals[partnerId].totals[currency] += amount;
+                acc[partnerId].totals[currency] = (acc[partnerId].totals[currency] || 0) + amount;
             }
-        });
-        return Object.values(partnerTotals);
+            return acc;
+        }, {});
     }, [filteredExpenses]);
+
+    const toggleAddSubExpenseForm = (expenseId) => {
+        setShowAddSubExpenseForms(prev => ({ ...prev, [expenseId]: !prev[expenseId] }));
+    };
 
     const columns = useMemo(() => [
         { header: 'Date', accessor: 'date', sortable: true, cell: (row) => formatDate(row.date) },
@@ -215,6 +215,9 @@ export default function AdminExpenses() {
         )},
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
+                <button className="btn btn-success btn-small" onClick={() => toggleAddSubExpenseForm(row.id)}>
+                    + Add
+                </button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
@@ -224,9 +227,13 @@ export default function AdminExpenses() {
     const renderRowSubComponent = useCallback(({ row }) => (
         <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
             <SubExpenseSummary expense={row.original} />
-            <SubExpenseDetail expense={row.original} />
+            <SubExpenseDetail 
+                expense={row.original} 
+                showAddForm={!!showAddSubExpenseForms[row.original.id]}
+                onFormSubmitSuccess={() => toggleAddSubExpenseForm(row.original.id)}
+            />
         </td>
-    ), [columns.length]);
+    ), [columns.length, showAddSubExpenseForms]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
