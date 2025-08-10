@@ -16,11 +16,8 @@ export default function PaymentForm() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
-  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
-
-  const pollingRef = useRef(null);
 
   useEffect(() => {
     const loadGames = async () => {
@@ -40,52 +37,70 @@ export default function PaymentForm() {
     setLoading(true);
     setError('');
 
-    if (form.method === 'card' && !form.email) {
-        setError('Email address is required for this payment method.');
-        setLoading(false);
-        return;
-    }
-
-    let apiEndpoint;
-    switch (form.method) {
-        case 'lightning': apiEndpoint = '/api/create-payment'; break;
-        case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
-        case 'card': apiEndpoint = '/api/paygate/create-payment'; break;
-        case 'coinbase': apiEndpoint = '/api/coinbase/create-charge'; break; // ADDED
-        default:
-            setError('Please select a valid payment method.');
-            setLoading(false);
-            return;
-    }
-
-    try {
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
-
-      if (form.method === 'coinbase') {
-        // Redirect to the separate checkout website
-        window.location.href = `https://your-coinbase-checkout-site.com/checkout?chargeCode=${data.chargeCode}`;
-      } else if (form.method === 'card') {
-        // Original Paygate logic
-        window.location.href = data.paymentUrl;
-      } else {
-        // Original Lightning and PYUSD logic
-        if (form.method === 'lightning') {
-            setOrder({ ...form, ...data, status: 'pending' });
-            setModals({ invoice: true });
-        } else { // PYUSD
-            setOrder({ ...form, ...data, status: 'pending' });
-            setModals({ pyusdInvoice: true });
+    if (form.method !== 'coinbase') {
+        let apiEndpoint;
+        switch (form.method) {
+            case 'lightning': apiEndpoint = '/api/create-payment'; break;
+            case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
+            case 'card': apiEndpoint = '/api/paygate/create-payment'; break;
+            default:
+                setError('Please select a valid payment method.');
+                setLoading(false);
+                return;
         }
-      }
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
+
+        try {
+            const res = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
+
+            if (form.method === 'card') {
+                window.location.href = data.paymentUrl;
+            } else {
+                if (form.method === 'lightning') {
+                    setOrder({ ...form, ...data, status: 'pending' });
+                    setModals({ invoice: true });
+                } else { // PYUSD
+                    setOrder({ ...form, ...data, status: 'pending' });
+                    setModals({ pyusdInvoice: true });
+                }
+            }
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        }
+    } else {
+        // Logic for Coinbase: Create a pending order and redirect
+        try {
+            const res = await fetch('/api/orders/create-pending', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: form.username,
+                    game: form.game,
+                    amount: form.amount,
+                    method: 'coinbase'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            // Construct the URL and redirect to the checkout site
+            const checkoutUrl = new URL(process.env.NEXT_PUBLIC_CHECKOUT_WEBSITE_URL + '/checkout');
+            checkoutUrl.searchParams.append('orderId', data.orderId);
+            checkoutUrl.searchParams.append('amount', form.amount);
+            checkoutUrl.searchParams.append('username', form.username);
+            
+            window.location.href = checkoutUrl.toString();
+
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        }
     }
   };
 
@@ -157,12 +172,11 @@ export default function PaymentForm() {
           {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      {/* --- ALL MODALS REMAIN UNCHANGED --- */}
-      {modals.invoice && (<InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={() => setModals({invoice: false})} />)}
-      {modals.expired && <ExpiredModal resetModals={() => setModals({expired: false})} />}
-      {modals.receipt && <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />}
-      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
-      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />)}
+      <InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={() => setModals({invoice: false})} />
+      <ExpiredModal resetModals={() => setModals({expired: false})} />
+      <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />
+      <PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />
+      <PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />
     </>
   );
 }
