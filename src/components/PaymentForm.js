@@ -16,8 +16,11 @@ export default function PaymentForm() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [modals, setModals] = useState({ invoice: false, receipt: false, expired: false, pyusdInvoice: false, pyusdReceipt: false });
+
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     const loadGames = async () => {
@@ -74,7 +77,6 @@ export default function PaymentForm() {
             setLoading(false);
         }
     } else {
-        // Logic for Coinbase: Create a pending order and redirect
         try {
             const res = await fetch('/api/orders/create-pending', {
                 method: 'POST',
@@ -89,7 +91,6 @@ export default function PaymentForm() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
 
-            // Construct the URL and redirect to the checkout site
             const checkoutUrl = new URL(process.env.NEXT_PUBLIC_CHECKOUT_WEBSITE_URL + '/checkout');
             checkoutUrl.searchParams.append('orderId', data.orderId);
             checkoutUrl.searchParams.append('amount', form.amount);
@@ -172,11 +173,12 @@ export default function PaymentForm() {
           {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      <InvoiceModal order={order} expiresAt={order.expiresAt} resetModals={() => setModals({invoice: false})} />
-      <ExpiredModal resetModals={() => setModals({expired: false})} />
-      <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />
-      <PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />
-      <PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />
+      {/* --- THIS IS THE FIX --- */}
+      {modals.invoice && (<InvoiceModal order={order} expiresAt={order?.expiresAt} resetModals={() => setModals({invoice: false})} />)}
+      {modals.expired && <ExpiredModal resetModals={() => setModals({expired: false})} />}
+      {modals.receipt && <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />}
+      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
+      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />)}
     </>
   );
 }
