@@ -12,6 +12,7 @@ import PYUSDReceiptModal from './PYUSDReceiptModal';
 
 export default function PaymentForm() {
   const router = useRouter();
+  // The 'card' value now represents all Paygate.to methods
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning', email: '' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,8 +51,7 @@ export default function PaymentForm() {
     switch (form.method) {
         case 'lightning': apiEndpoint = '/api/create-payment'; break;
         case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
-        case 'card': apiEndpoint = '/api/paygate/create-payment'; break;
-        case 'coinbase': apiEndpoint = '/api/coinbase/create-charge'; break; // ADDED
+        case 'card': apiEndpoint = '/api/paygate/create-payment'; break; // Updated to use 'card'
         default:
             setError('Please select a valid payment method.');
             setLoading(false);
@@ -59,6 +59,8 @@ export default function PaymentForm() {
     }
 
     try {
+      // THE FIX: The body now correctly sends the 'form' object, which contains the
+      // correct method selected by the user (e.g., 'lightning'), instead of hardcoding 'card'.
       const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,21 +69,16 @@ export default function PaymentForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
 
-      if (form.method === 'coinbase') {
-        // Redirect to the separate checkout website
-        window.location.href = `https://your-coinbase-checkout-site.com/checkout?chargeCode=${data.chargeCode}`;
-      } else if (form.method === 'card') {
-        // Original Paygate logic
-        window.location.href = data.paymentUrl;
-      } else {
-        // Original Lightning and PYUSD logic
+      if (form.method === 'lightning' || form.method === 'pyusd') {
         if (form.method === 'lightning') {
             setOrder({ ...form, ...data, status: 'pending' });
             setModals({ invoice: true });
-        } else { // PYUSD
+        } else {
             setOrder({ ...form, ...data, status: 'pending' });
             setModals({ pyusdInvoice: true });
         }
+      } else {
+        window.location.href = data.paymentUrl;
       }
     } catch (err) {
       setError(err.message);
@@ -108,6 +105,7 @@ export default function PaymentForm() {
                   </div>
               </div>
               
+              {/* This will now show if the single 'card' option is selected */}
               {form.method === 'card' && (
                 <div className="form-group">
                     <label htmlFor="email">Your Email</label>
@@ -121,7 +119,7 @@ export default function PaymentForm() {
                       <label className={`payment-method-card ${form.method === 'lightning' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="lightning" checked={form.method === 'lightning'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">⚡</span> <span className="method-card-title">Bitcoin Lightning</span> <span className="method-card-desc">Cash App, etc.</span>
+                              <span className="method-card-icon">⚡</span> <span className="method-card-title">Bitcoin Lightning</span> <span className="method-card-desc">Cash App, Coinbase, Strike or Kraken</span>
                           </div>
                       </label>
                        <label className={`payment-method-card ${form.method === 'pyusd' ? 'selected' : ''}`}>
@@ -130,16 +128,11 @@ export default function PaymentForm() {
                               <span className="method-card-icon">🅿️</span> <span className="method-card-title">PYUSD</span> <span className="method-card-desc">PayPal / Venmo</span>
                           </div>
                       </label>
+                      {/* --- NEW UNIFIED CARD OPTION --- */}
                       <label className={`payment-method-card ${form.method === 'card' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="card" checked={form.method === 'card'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
-                              <span className="method-card-icon">💳</span> <span className="method-card-title">Card / Wallets</span> <span className="method-card-desc">Paygate</span>
-                          </div>
-                      </label>
-                      <label className={`payment-method-card ${form.method === 'coinbase' ? 'selected' : ''}`}>
-                          <input type="radio" name="method" value="coinbase" checked={form.method === 'coinbase'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                          <div className="method-card-content">
-                              <span className="method-card-icon"> G</span> <span className="method-card-title">Apple/Google Pay</span> <span className="method-card-desc">via Coinbase</span>
+                              <span className="method-card-icon">💳</span> <span className="method-card-title">Card / Wallets</span> <span className="method-card-desc">Google & Apple Pay</span>
                           </div>
                       </label>
                   </div>
