@@ -146,6 +146,9 @@ export default function PaymentForm() {
                               <span className="method-card-icon">🅿️</span> <span className="method-card-title">PYUSD</span> <span className="method-card-desc">PayPal / Venmo</span>
                           </div>
                       </label>
+                      
+                      {/* --- PAYGATE AND COINBASE OPTIONS ARE HIDDEN --- */}
+                      {/*
                       <label className={`payment-method-card ${form.method === 'card' ? 'selected' : ''}`}>
                           <input type="radio" name="method" value="card" checked={form.method === 'card'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
@@ -158,6 +161,7 @@ export default function PaymentForm() {
                               <span className="method-card-icon"> G</span> <span className="method-card-title">Apple/Google Pay</span> <span className="method-card-desc">via Coinbase</span>
                           </div>
                       </label>
+                      */}
                   </div>
               </div>
 
@@ -173,12 +177,11 @@ export default function PaymentForm() {
           {error && <div className="alert alert-danger mt-md">{error}</div>}
       </div>
 
-      {/* --- THIS IS THE FIX --- */}
-      {modals.invoice && (<InvoiceModal order={order} expiresAt={order?.expiresAt} resetModals={() => setModals({invoice: false})} />)}
-      {modals.expired && <ExpiredModal resetModals={() => setModals({expired: false})} />}
-      {modals.receipt && <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />}
-      {modals.pyusdInvoice && (<PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />)}
-      {modals.pyusdReceipt && (<PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />)}
+      <InvoiceModal order={order} expiresAt={order?.expiresAt} resetModals={() => setModals({invoice: false})} />
+      <ExpiredModal resetModals={() => setModals({expired: false})} />
+      <ReceiptModal order={order} resetModals={() => setModals({receipt: false})} />
+      <PYUSDInvoiceModal order={order} resetModals={() => setModals({pyusdInvoice: false})} onPaymentSuccess={() => { setModals({ pyusdInvoice: false, pyusdReceipt: true }); setStatus('completed'); }} />
+      <PYUSDReceiptModal order={order} resetModals={() => setModals({pyusdReceipt: false})} />
     </>
   );
 }
