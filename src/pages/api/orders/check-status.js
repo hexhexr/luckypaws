@@ -39,6 +39,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error(`Error checking status for order ${id}:`, err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 }
