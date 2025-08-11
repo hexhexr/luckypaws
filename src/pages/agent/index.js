@@ -238,6 +238,7 @@ export default function AgentDashboard() {
                                         <select id="dep_method" name="method" value={manualDepositForm.method} onChange={handleManualDepositFormChange} required className="select">
                                             <option>Chime</option>
                                             <option>Cash App</option>
+                                            <option>Apple Pay</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
