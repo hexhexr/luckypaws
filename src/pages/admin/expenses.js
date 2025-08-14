@@ -60,8 +60,7 @@ export default function AdminExpenses() {
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
     const [viewingReceipt, setViewingReceipt] = useState(null);
-    const [visibleDetails, setVisibleDetails] = useState({});
-    const [showAddExpenseForm, setShowAddExpenseForm] = useState(false); // State for collapsible form
+    const [showAddExpenseForm, setShowAddExpenseForm] = useState(false); 
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -123,7 +122,7 @@ export default function AdminExpenses() {
             
             setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD', receipt: null, isFinalized: false });
             if(e.target) e.target.reset();
-            setShowAddExpenseForm(false); // Hide form after successful submission
+            setShowAddExpenseForm(false);
 
         } catch (err) {
             setError(err.message);
@@ -219,10 +218,6 @@ export default function AdminExpenses() {
         return Object.values(partnerTotals);
     }, [filteredExpenses]);
 
-    const toggleDetails = (expenseId) => {
-        setVisibleDetails(prev => ({ ...prev, [expenseId]: !prev[expenseId] }));
-    };
-
     const columns = useMemo(() => [
         { header: 'Date', accessor: 'date', sortable: true, cell: (row) => formatDate(row.date) },
         { header: 'Category', accessor: 'category', sortable: true },
@@ -239,9 +234,6 @@ export default function AdminExpenses() {
         )},
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                <button className="btn btn-secondary btn-small" onClick={() => toggleDetails(row.id)} disabled={row.isFinalized}>
-                    Details
-                </button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
@@ -249,18 +241,16 @@ export default function AdminExpenses() {
     ], [handleDeleteExpense]);
 
     const renderRowSubComponent = useCallback(({ row }) => {
-        if (row.original.isFinalized || !visibleDetails[row.original.id]) {
+        if (row.original.isFinalized) {
             return null;
         }
         return (
             <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
                 <SubExpenseSummary expense={row.original} />
-                <SubExpenseDetail 
-                    expense={row.original} 
-                />
+                <SubExpenseDetail expense={row.original} />
             </td>
         );
-    }, [columns.length, visibleDetails]);
+    }, [columns.length]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
