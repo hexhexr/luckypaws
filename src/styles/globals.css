@@ -1121,8 +1121,8 @@ table tbody tr:hover { background-color: var(--input-bg); }
     padding: var(--spacing-lg) var(--spacing-xl);
     box-shadow: var(--shadow-lg);
     position: relative;
-    max-width: 90%;
-    width: 500px;
+    width: 90%;
+    max-width: 500px; /* Set a max-width for larger screens */
     text-align: left;
     animation: slideInUp-v4 0.4s ease-out forwards;
 }
