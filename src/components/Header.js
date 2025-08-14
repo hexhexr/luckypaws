@@ -13,8 +13,8 @@ export default function Header() {
           <Image 
             src="/logo.png"
             alt="Lucky Paw's Fishing Room Logo"
-            width={48}
-            height={48}
+            width={40}
+            height={40}
             className="logo-icon"
             priority
           />
@@ -48,7 +48,7 @@ export default function Header() {
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: var(--spacing-md) 0;
+            padding: var(--spacing-sm) 0;
         }
         .header-content {
           display: flex;
@@ -63,8 +63,8 @@ export default function Header() {
         }
         .logo-text {
             color: var(--text-white);
-            font-weight: 700;
-            font-size: 1.2rem;
+            font-weight: 600;
+            font-size: 1.1rem;
             white-space: nowrap;
         }
         
