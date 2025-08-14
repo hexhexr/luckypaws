@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth as firebaseAuth } from '../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import ImageViewerModal from './ImageViewerModal';
+import EditSubExpenseModal from './EditSubExpenseModal'; // Import the new modal
 
 const formatCurrency = (amount, currency) => `$${parseFloat(amount || 0).toFixed(2)} ${currency || 'USD'}`;
 const formatDate = (timestamp) => timestamp?.toDate ? timestamp.toDate().toLocaleDateString() : 'N/A';
@@ -13,6 +14,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewingReceipt, setViewingReceipt] = useState(null);
+    const [editingSubExpense, setEditingSubExpense] = useState(null); // State for the edit modal
     
     const [form, setForm] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -47,10 +49,24 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
         const { name, value, files } = e.target;
         setForm(prev => ({ ...prev, [name]: files ? files[0] : value }));
     };
+    
+    const handleSaveSubExpense = async (updatedSubExpense) => {
+        try {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/expenses/update-sub-expense', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(updatedSubExpense),
+            });
+            if (!res.ok) throw new Error((await res.json()).message);
+            setEditingSubExpense(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // REMOVED: Validation that required a receipt
         setIsSubmitting(true);
         setError('');
 
@@ -59,7 +75,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
         formData.append('date', form.date);
         formData.append('amount', form.amount);
         formData.append('description', form.description);
-        if (form.receipt) { // Only append receipt if it exists
+        if (form.receipt) {
             formData.append('receipt', form.receipt);
         }
 
@@ -87,6 +103,13 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
     return (
         <>
             {viewingReceipt && <ImageViewerModal imageUrl={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
+            {editingSubExpense && (
+                <EditSubExpenseModal 
+                    subExpense={editingSubExpense}
+                    onClose={() => setEditingSubExpense(null)}
+                    onSave={handleSaveSubExpense}
+                />
+            )}
 
             <div className="sub-expense-container">
                 {showAddForm && (
@@ -97,7 +120,6 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                                     <div className="form-group"><label>Date</label><input type="date" name="date" className="input" value={form.date} onChange={handleFormChange} required /></div>
                                     <div className="form-group"><label>Amount ({expense.currency})</label><input type="number" step="0.01" name="amount" className="input" value={form.amount} onChange={handleFormChange} required /></div>
                                     <div className="form-group"><label>Description</label><input type="text" name="description" className="input" value={form.description} onChange={handleFormChange} required /></div>
-                                    {/* --- THIS IS THE CHANGE --- */}
                                     <div className="form-group"><label>Receipt (Optional)</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleFormChange} /></div>
                                     <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</button>
                                 </div>
@@ -111,7 +133,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                     {isLoading ? <p>Loading details...</p> : subExpenses.length === 0 ? <p className="no-items-message">No sub-expenses recorded yet.</p> : (
                         <div className="table-responsive">
                             <table>
-                                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Recorded By</th><th>Receipt</th></tr></thead>
+                                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Recorded By</th><th>Receipt</th><th>Actions</th></tr></thead>
                                 <tbody>
                                     {subExpenses.map(se => (
                                         <tr key={se.id}>
@@ -125,6 +147,11 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                                                         View
                                                     </button>
                                                 ) : 'N/A'}
+                                            </td>
+                                            <td>
+                                                <button onClick={() => setEditingSubExpense(se)} className="btn btn-info btn-xsmall">
+                                                    Edit
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
