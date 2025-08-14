@@ -60,7 +60,7 @@ export default function AdminExpenses() {
     const [endDate, setEndDate] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
     const [viewingReceipt, setViewingReceipt] = useState(null);
-    const [showAddSubExpenseForms, setShowAddSubExpenseForms] = useState({});
+    const [visibleDetails, setVisibleDetails] = useState({});
     const [showAddExpenseForm, setShowAddExpenseForm] = useState(false); // State for collapsible form
 
     useEffect(() => {
@@ -219,8 +219,8 @@ export default function AdminExpenses() {
         return Object.values(partnerTotals);
     }, [filteredExpenses]);
 
-    const toggleAddSubExpenseForm = (expenseId) => {
-        setShowAddSubExpenseForms(prev => ({ ...prev, [expenseId]: !prev[expenseId] }));
+    const toggleDetails = (expenseId) => {
+        setVisibleDetails(prev => ({ ...prev, [expenseId]: !prev[expenseId] }));
     };
 
     const columns = useMemo(() => [
@@ -239,8 +239,8 @@ export default function AdminExpenses() {
         )},
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                <button className="btn btn-success btn-small" onClick={() => toggleAddSubExpenseForm(row.id)} disabled={row.isFinalized}>
-                    + Add
+                <button className="btn btn-secondary btn-small" onClick={() => toggleDetails(row.id)} disabled={row.isFinalized}>
+                    Details
                 </button>
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
@@ -249,20 +249,18 @@ export default function AdminExpenses() {
     ], [handleDeleteExpense]);
 
     const renderRowSubComponent = useCallback(({ row }) => {
-        if (row.original.isFinalized) {
-            return null; // Don't render sub-component for finalized expenses
+        if (row.original.isFinalized || !visibleDetails[row.original.id]) {
+            return null;
         }
         return (
             <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
                 <SubExpenseSummary expense={row.original} />
                 <SubExpenseDetail 
                     expense={row.original} 
-                    showAddForm={!!showAddSubExpenseForms[row.original.id]}
-                    onFormSubmitSuccess={() => toggleAddSubExpenseForm(row.original.id)}
                 />
             </td>
         );
-    }, [columns.length, showAddSubExpenseForms]);
+    }, [columns.length, visibleDetails]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 

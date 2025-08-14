@@ -3,18 +3,19 @@ import React, { useState, useEffect } from 'react';
 import { db, auth as firebaseAuth } from '../lib/firebaseClient';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import ImageViewerModal from './ImageViewerModal';
-import EditSubExpenseModal from './EditSubExpenseModal'; // Import the new modal
+import EditSubExpenseModal from './EditSubExpenseModal';
 
 const formatCurrency = (amount, currency) => `$${parseFloat(amount || 0).toFixed(2)} ${currency || 'USD'}`;
 const formatDate = (timestamp) => timestamp?.toDate ? timestamp.toDate().toLocaleDateString() : 'N/A';
 
-export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuccess }) {
+export default function SubExpenseDetail({ expense }) {
     const [subExpenses, setSubExpenses] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewingReceipt, setViewingReceipt] = useState(null);
-    const [editingSubExpense, setEditingSubExpense] = useState(null); // State for the edit modal
+    const [editingSubExpense, setEditingSubExpense] = useState(null);
+    const [showAddForm, setShowAddForm] = useState(false);
     
     const [form, setForm] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -91,7 +92,7 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
             
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', description: '', receipt: null });
             if (e.target) e.target.reset();
-            if (onFormSubmitSuccess) onFormSubmitSuccess();
+            setShowAddForm(false);
             
         } catch (err) {
             setError(err.message);
@@ -112,6 +113,13 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
             )}
 
             <div className="sub-expense-container">
+                <div className="sub-expense-header">
+                    <h4>Breakdown</h4>
+                    <button className="btn btn-success btn-small" onClick={() => setShowAddForm(prev => !prev)}>
+                        {showAddForm ? 'Cancel' : '+ Add Sub-Expense'}
+                    </button>
+                </div>
+
                 {showAddForm && (
                     <div className="card sub-expense-form-card">
                         <div className="card-body">
@@ -165,6 +173,17 @@ export default function SubExpenseDetail({ expense, showAddForm, onFormSubmitSuc
                     .sub-expense-container {
                         padding: var(--spacing-md);
                         background-color: #e9ecef;
+                    }
+                    .sub-expense-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: var(--spacing-md);
+                    }
+                    .sub-expense-header h4 {
+                        margin: 0;
+                        font-size: 1rem;
+                        font-weight: 600;
                     }
                     .sub-expense-form-card { margin-bottom: var(--spacing-md); }
                     .form-group { margin-bottom: 0; }
