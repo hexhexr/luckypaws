@@ -12,7 +12,6 @@ import PYUSDReceiptModal from './PYUSDReceiptModal';
 
 export default function PaymentForm() {
   const router = useRouter();
-  // The 'card' value now represents all Paygate.to methods
   const [form, setForm] = useState({ username: '', game: '', amount: '', method: 'lightning', email: '' });
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,17 +40,10 @@ export default function PaymentForm() {
     setLoading(true);
     setError('');
 
-    if (form.method === 'card' && !form.email) {
-        setError('Email address is required for this payment method.');
-        setLoading(false);
-        return;
-    }
-
     let apiEndpoint;
     switch (form.method) {
         case 'lightning': apiEndpoint = '/api/create-payment'; break;
         case 'pyusd': apiEndpoint = '/api/pyusd/create-deposit'; break;
-        case 'card': apiEndpoint = '/api/paygate/create-payment'; break; // Updated to use 'card'
         default:
             setError('Please select a valid payment method.');
             setLoading(false);
@@ -59,8 +51,6 @@ export default function PaymentForm() {
     }
 
     try {
-      // THE FIX: The body now correctly sends the 'form' object, which contains the
-      // correct method selected by the user (e.g., 'lightning'), instead of hardcoding 'card'.
       const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,16 +59,12 @@ export default function PaymentForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate payment details.');
 
-      if (form.method === 'lightning' || form.method === 'pyusd') {
-        if (form.method === 'lightning') {
-            setOrder({ ...form, ...data, status: 'pending' });
-            setModals({ invoice: true });
-        } else {
-            setOrder({ ...form, ...data, status: 'pending' });
-            setModals({ pyusdInvoice: true });
-        }
+      if (form.method === 'lightning') {
+          setOrder({ ...form, ...data, status: 'pending' });
+          setModals({ invoice: true });
       } else {
-        window.location.href = data.paymentUrl;
+          setOrder({ ...form, ...data, status: 'pending' });
+          setModals({ pyusdInvoice: true });
       }
     } catch (err) {
       setError(err.message);
@@ -105,14 +91,6 @@ export default function PaymentForm() {
                   </div>
               </div>
               
-              {/* This will now show if the single 'card' option is selected */}
-              {form.method === 'card' && (
-                <div className="form-group">
-                    <label htmlFor="email">Your Email</label>
-                    <input id="email" className="input" name="email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required placeholder="Required for card payments"/>
-                </div>
-              )}
-
               <div className="form-group">
                   <label>Payment Method</label>
                   <div className="payment-method-group">
@@ -126,13 +104,6 @@ export default function PaymentForm() {
                           <input type="radio" name="method" value="pyusd" checked={form.method === 'pyusd'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
                           <div className="method-card-content">
                               <span className="method-card-icon">🅿️</span> <span className="method-card-title">PYUSD</span> <span className="method-card-desc">PayPal / Venmo</span>
-                          </div>
-                      </label>
-                      {/* --- NEW UNIFIED CARD OPTION --- */}
-                      <label className={`payment-method-card ${form.method === 'card' ? 'selected' : ''}`}>
-                          <input type="radio" name="method" value="card" checked={form.method === 'card'} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} />
-                          <div className="method-card-content">
-                              <span className="method-card-icon">💳</span> <span className="method-card-title">Card / Wallets</span> <span className="method-card-desc">Google & Apple Pay</span>
                           </div>
                       </label>
                   </div>
