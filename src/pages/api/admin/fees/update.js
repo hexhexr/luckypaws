@@ -19,25 +19,18 @@ const handler = async (req, res) => {
   try {
     const settingsRef = db.collection('settings').doc('paymentFees');
     
-    // THE FIX: Changed from .set() to .update() for more reliable updates.
-    await settingsRef.update({
+    // THE DEFINITIVE FIX: Using .set() with the { merge: true } option is the most
+    // robust way to handle this. It will create the document if it doesn't exist,
+    // or update it if it does, preventing the error you were seeing.
+    await settingsRef.set({
       chimeFee: parsedChimeFee,
       cashAppFee: parsedCashAppFee,
       lastUpdated: new Date().toISOString(),
-    });
+    }, { merge: true });
 
     res.status(200).json({ success: true, message: 'Fee percentages updated successfully.' });
   } catch (error) {
     console.error('Error updating fees:', error);
-    // If the document doesn't exist, create it.
-    if (error.code === 5) { // Firestore 'NOT_FOUND' error code
-        await db.collection('settings').doc('paymentFees').set({
-            chimeFee: parsedChimeFee,
-            cashAppFee: parsedCashAppFee,
-            lastUpdated: new Date().toISOString(),
-        });
-        return res.status(200).json({ success: true, message: 'Fee settings created and saved successfully.' });
-    }
     res.status(500).json({ message: 'Failed to update fees.' });
   }
 };
