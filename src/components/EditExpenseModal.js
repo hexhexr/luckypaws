@@ -5,24 +5,34 @@ import React, { useState, useEffect } from 'react';
 
 export default function EditExpenseModal({ expense, onClose, onSave }) {
     const [formData, setFormData] = useState(expense);
+    const [newReceipt, setNewReceipt] = useState(null);
 
     useEffect(() => {
         const date = expense.date.toDate ? expense.date.toDate() : new Date(expense.date);
         setFormData({
             ...expense,
             date: date.toISOString().split('T')[0],
-            currency: expense.currency || 'USD' // Default to USD if not set
+            currency: expense.currency || 'USD',
+            isFinalized: expense.isFinalized || false
         });
     }, [expense]);
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        if (type === 'checkbox') {
+            setFormData(prev => ({ ...prev, [name]: checked }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+    
+    const handleFileChange = (e) => {
+        setNewReceipt(e.target.files[0]);
     };
 
     const handleSave = (e) => {
         e.preventDefault();
-        onSave(formData);
+        onSave(formData, newReceipt);
     };
 
     if (!expense) return null;
@@ -64,6 +74,16 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
                     <div className="form-group">
                         <label>Description</label>
                         <input type="text" name="description" className="input" value={formData.description} onChange={handleChange} required />
+                    </div>
+                    <div className="form-group">
+                        <label>Update Receipt (Optional)</label>
+                        <input type="file" name="receipt" className="input" accept="image/*" onChange={handleFileChange} />
+                    </div>
+                    <div className="form-group">
+                        <label>
+                            <input type="checkbox" name="isFinalized" checked={formData.isFinalized} onChange={handleChange} />
+                            Finalize Expense (no more sub-expenses can be added)
+                        </label>
                     </div>
                     <div className="modal-actions">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>

@@ -51,7 +51,8 @@ export default function AdminExpenses() {
         description: '',
         paidByPartnerId: '',
         currency: 'USD',
-        receipt: null
+        receipt: null,
+        isFinalized: false
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -92,8 +93,12 @@ export default function AdminExpenses() {
     }, [isAdmin]);
 
     const handleNewExpenseChange = (e) => {
-        const { name, value, files } = e.target;
-        setNewExpense(prev => ({ ...prev, [name]: files ? files[0] : value }));
+        const { name, value, type, checked, files } = e.target;
+        if (type === 'checkbox') {
+            setNewExpense(prev => ({ ...prev, [name]: checked }));
+        } else {
+            setNewExpense(prev => ({ ...prev, [name]: files ? files[0] : value }));
+        }
     };
 
     const handleNewExpenseSubmit = async (e) => {
@@ -116,7 +121,7 @@ export default function AdminExpenses() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
             
-            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD', receipt: null });
+            setNewExpense({ date: new Date().toISOString().split('T')[0], category: 'General', amount: '', description: '', paidByPartnerId: '', currency: 'USD', receipt: null, isFinalized: false });
             if(e.target) e.target.reset();
             setShowAddExpenseForm(false); // Hide form after successful submission
 
@@ -129,18 +134,43 @@ export default function AdminExpenses() {
     
     const handleEditExpense = (expense) => setEditingExpense(expense);
 
-    const handleSaveExpense = async (updatedExpense) => {
+    const handleSaveExpense = async (updatedExpense, newReceipt) => {
         try {
             const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
+            const formData = new FormData();
+            
+            for (const key in updatedExpense) {
+                formData.append(key, updatedExpense[key]);
+            }
+            if (newReceipt) {
+                formData.append('receipt', newReceipt);
+            }
+
             const res = await fetch('/api/admin/expenses/update', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
-                body: JSON.stringify(updatedExpense)
+                headers: { 'Authorization': `Bearer ${adminIdToken}` },
+                body: formData,
             });
             if (!res.ok) throw new Error((await res.json()).message);
             setEditingExpense(null);
         } catch (err) {
             setError(err.message);
+        }
+    };
+    
+    const handleFinalizeExpense = async (expenseId) => {
+        if (window.confirm('Are you sure you want to finalize this expense? You will not be able to add sub-expenses after this.')) {
+            try {
+                const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
+                const res = await fetch('/api/admin/expenses/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
+                    body: JSON.stringify({ id: expenseId, isFinalized: true })
+                });
+                if (!res.ok) throw new Error((await res.json()).message);
+            } catch (err) {
+                setError(err.message);
+            }
         }
     };
 
@@ -215,6 +245,9 @@ export default function AdminExpenses() {
         { header: 'Description', accessor: 'description', sortable: true },
         { header: 'Paid By', accessor: 'paidByPartnerName', sortable: true, cell: (row) => row.paidByPartnerName || 'Office' },
         { header: 'Amount', accessor: 'amount', sortable: true, cell: (row) => formatCurrencyValue(row.amount, row.currency || 'USD') },
+        { header: 'Status', accessor: 'isFinalized', sortable: true, cell: (row) => (
+            row.isFinalized ? <span title="Finalized">🔒</span> : <span title="Open">✅</span>
+        )},
         { header: 'Receipt', accessor: 'receiptUrl', sortable: false, cell: (row) => (
             row.receiptUrl ? 
             <button className="btn btn-secondary btn-xsmall" onClick={() => setViewingReceipt(row.receiptUrl)}>View</button> 
@@ -222,14 +255,17 @@ export default function AdminExpenses() {
         )},
         { header: 'Actions', accessor: 'actions', sortable: false, cell: (row) => (
             <div className="action-buttons">
-                <button className="btn btn-success btn-small" onClick={() => toggleAddSubExpenseForm(row.id)}>
+                <button className="btn btn-success btn-small" onClick={() => toggleAddSubExpenseForm(row.id)} disabled={row.isFinalized}>
                     + Add
                 </button>
+                {!row.isFinalized && (
+                    <button className="btn btn-warning btn-small" onClick={() => handleFinalizeExpense(row.id)}>Finalize</button>
+                )}
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
         )}
-    ], [handleDeleteExpense]);
+    ], [handleDeleteExpense, handleFinalizeExpense]);
 
     const renderRowSubComponent = useCallback(({ row }) => (
         <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
@@ -287,6 +323,7 @@ export default function AdminExpenses() {
                                         <div className="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" className="input" value={newExpense.amount} onChange={handleNewExpenseChange} required /></div>
                                         <div className="form-group"><label>Receipt (Optional)</label><input type="file" name="receipt" className="input" accept="image/*" onChange={handleNewExpenseChange} /></div>
                                         <div className="form-group expense-form-description"><label>Description</label><textarea name="description" className="input" value={newExpense.description} onChange={handleNewExpenseChange} required rows="2"></textarea></div>
+                                        <div className="form-group"><label><input type="checkbox" name="isFinalized" checked={newExpense.isFinalized} onChange={handleNewExpenseChange} /> Finalize Expense</label></div>
                                         <div className="form-group expense-form-submit"><button type="submit" className="btn btn-primary btn-full-width" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Expense'}</button></div>
                                     </div>
                                 </form>
