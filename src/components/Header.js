@@ -10,16 +10,14 @@ export default function Header() {
     <header className="main-header">
       <div className="container header-content">
         <Link href="/" className="logo-link">
-          <div className="logo-image-container">
-            <Image 
-              src="/logo.png"
-              alt="Lucky Paw's Fishing Room Logo"
-              width={40}
-              height={40}
-              className="logo-icon"
-              priority
-            />
-          </div>
+          <Image 
+            src="/logo.png"
+            alt="Lucky Paw's Fishing Room Logo"
+            width={40}
+            height={40}
+            className="logo-icon"
+            priority
+          />
           <span className="logo-text">Lucky Paw's Fishing Room</span>
         </Link>
         <button 
@@ -55,27 +53,20 @@ export default function Header() {
         .header-content {
           display: flex;
           align-items: center;
-          height: 48px; /* Set a fixed height for vertical alignment */
         }
         .logo-link {
           display: flex;
-          align-items: center;
-          gap: var(--spacing-md); /* Increased gap for better spacing */
+          align-items: center; /* This is the key rule for vertical alignment */
+          gap: var(--spacing-sm);
           z-index: 10; 
           flex-shrink: 0;
-        }
-        /* Use a container for the image to control its size */
-        .logo-image-container {
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         .logo-text {
             color: var(--text-white);
             font-weight: 600;
-            font-size: 1.1rem; /* Adjusted font size */
+            font-size: 1.1rem;
             white-space: nowrap;
+            line-height: 1; /* Ensures text doesn't add extra vertical space */
         }
         
         /* Desktop Navigation */
@@ -119,13 +110,13 @@ export default function Header() {
         .menu-toggle {
           display: none; 
           position: relative;
-          z-index: 1001;
+          z-index: 1001; /* Must be on top of the mobile nav */
           width: 30px;
           height: 25px;
           background: none;
           border: none;
           cursor: pointer;
-          margin-left: auto;
+          margin-left: auto; /* Push it to the right on mobile */
         }
         .menu-toggle span {
           display: block;
