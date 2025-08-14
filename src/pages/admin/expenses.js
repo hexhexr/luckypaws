@@ -157,22 +157,6 @@ export default function AdminExpenses() {
             setError(err.message);
         }
     };
-    
-    const handleFinalizeExpense = async (expenseId) => {
-        if (window.confirm('Are you sure you want to finalize this expense? You will not be able to add sub-expenses after this.')) {
-            try {
-                const adminIdToken = await firebaseAuth.currentUser.getIdToken(true);
-                const res = await fetch('/api/admin/expenses/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminIdToken}` },
-                    body: JSON.stringify({ id: expenseId, isFinalized: true })
-                });
-                if (!res.ok) throw new Error((await res.json()).message);
-            } catch (err) {
-                setError(err.message);
-            }
-        }
-    };
 
     const handleDeleteExpense = useCallback(async (expenseId) => {
         if (window.confirm('Are you sure you want to permanently delete this expense?')) {
@@ -258,25 +242,27 @@ export default function AdminExpenses() {
                 <button className="btn btn-success btn-small" onClick={() => toggleAddSubExpenseForm(row.id)} disabled={row.isFinalized}>
                     + Add
                 </button>
-                {!row.isFinalized && (
-                    <button className="btn btn-warning btn-small" onClick={() => handleFinalizeExpense(row.id)}>Finalize</button>
-                )}
                 <button className="btn btn-info btn-small" onClick={() => handleEditExpense(row)}>Edit</button>
                 <button className="btn btn-danger btn-small" onClick={() => handleDeleteExpense(row.id)}>Delete</button>
             </div>
         )}
-    ], [handleDeleteExpense, handleFinalizeExpense]);
+    ], [handleDeleteExpense]);
 
-    const renderRowSubComponent = useCallback(({ row }) => (
-        <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
-            <SubExpenseSummary expense={row.original} />
-            <SubExpenseDetail 
-                expense={row.original} 
-                showAddForm={!!showAddSubExpenseForms[row.original.id]}
-                onFormSubmitSuccess={() => toggleAddSubExpenseForm(row.original.id)}
-            />
-        </td>
-    ), [columns.length, showAddSubExpenseForms]);
+    const renderRowSubComponent = useCallback(({ row }) => {
+        if (row.original.isFinalized) {
+            return null; // Don't render sub-component for finalized expenses
+        }
+        return (
+            <td colSpan={columns.length} style={{ padding: '0', borderBottom: '2px solid var(--primary-blue)' }}>
+                <SubExpenseSummary expense={row.original} />
+                <SubExpenseDetail 
+                    expense={row.original} 
+                    showAddForm={!!showAddSubExpenseForms[row.original.id]}
+                    onFormSubmitSuccess={() => toggleAddSubExpenseForm(row.original.id)}
+                />
+            </td>
+        );
+    }, [columns.length, showAddSubExpenseForms]);
 
     if (authLoading) return <div className="loading-screen">Authenticating...</div>;
 
