@@ -231,7 +231,6 @@ export default function AdminDashboard() {
         { header: 'Username', accessor: 'username', sortable: true },
         { header: 'Facebook', accessor: 'facebookName', sortable: true },
         { header: 'Game', accessor: 'game', sortable: true },
-        // --- THE FIX: Updated cell renderer for 'Method' with detailed logic ---
         { 
             header: 'Method', 
             accessor: 'method', 
@@ -244,7 +243,7 @@ export default function AdminDashboard() {
                 switch (method) {
                     case 'card':
                         displayName = 'Paygate';
-                        styleClass = 'paygate'; // You may need to add a CSS class for this
+                        styleClass = 'paygate';
                         break;
                     case 'chime':
                         displayName = 'Chime';
@@ -253,6 +252,10 @@ export default function AdminDashboard() {
                     case 'cash app':
                         displayName = 'Cash App';
                         styleClass = 'cashapp';
+                        break;
+                    case 'apple pay':
+                        displayName = 'Apple Pay';
+                        styleClass = 'applepay';
                         break;
                     case 'pyusd':
                         displayName = 'PYUSD';

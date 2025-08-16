@@ -17,10 +17,39 @@ const formatTimestamp = (timestamp) => {
 // SVG Icon for the external link
 const ExplorerIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>;
 
-
-// FINAL FIX: This version perfects the spacing, alignment, and typography.
 export default function OrderDetailsModal({ order, onClose, onMerge }) {
     if (!order) return null;
+
+    const renderMethodBadge = () => {
+        const method = (order.method || 'lightning').toLowerCase();
+        let displayName = 'Lightning';
+        let styleClass = 'lightning';
+
+        switch (method) {
+            case 'card':
+                displayName = 'Paygate';
+                styleClass = 'paygate';
+                break;
+            case 'chime':
+                displayName = 'Chime';
+                styleClass = 'chime';
+                break;
+            case 'cash app':
+                displayName = 'Cash App';
+                styleClass = 'cashapp';
+                break;
+            case 'apple pay':
+                displayName = 'Apple Pay';
+                styleClass = 'applepay';
+                break;
+            case 'pyusd':
+                displayName = 'PYUSD';
+                styleClass = 'pyusd';
+                break;
+        }
+        
+        return <span className={`method-badge method-${styleClass}`}>{displayName}</span>
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -55,7 +84,7 @@ export default function OrderDetailsModal({ order, onClose, onMerge }) {
                         <div className="details-row">
                             <span className="details-label">Method</span>
                             <span className="details-value">
-                                 <span className={`method-badge method-${order.method || 'lightning'}`}>{order.method === 'pyusd' ? 'PYUSD' : 'Lightning'}</span>
+                                 {renderMethodBadge()}
                             </span>
                         </div>
                         <div className="details-row">

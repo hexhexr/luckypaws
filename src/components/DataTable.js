@@ -13,12 +13,12 @@ const SortableTableHeader = ({ column, sortConfig, onSort }) => {
     );
 };
 
-// Simplified to always render the sub-component if the function is provided
-const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, renderRowSubComponent }) => {
+const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick, renderRowSubComponent, onUsernameHover }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: defaultSortField, direction: 'desc' });
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [hoverTimeout, setHoverTimeout] = useState(null);
 
     const handleSort = useCallback((key) => {
         let direction = 'asc';
@@ -57,6 +57,20 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
     const totalPages = Math.ceil(sortedData.length / itemsPerPage);
     const paginatedData = useMemo(() => sortedData.slice((currentPage - 1) * itemsPerPage, (currentPage - 1) * itemsPerPage + itemsPerPage), [sortedData, currentPage, itemsPerPage]);
 
+    const handleMouseLeave = () => {
+        if (onUsernameHover) {
+            const timeout = setTimeout(() => onUsernameHover(null, null), 200);
+            setHoverTimeout(timeout);
+        }
+    };
+
+    const handleMouseEnter = (row, e) => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        if (onUsernameHover) {
+            onUsernameHover(row.username, e.currentTarget.getBoundingClientRect());
+        }
+    };
+
     return (
         <div>
             <div className="table-controls-header">
@@ -89,12 +103,15 @@ const DataTable = ({ columns, data, defaultSortField, filterControls, onRowClick
                                 <React.Fragment key={rowIndex}>
                                     <tr onClick={() => onRowClick && onRowClick(row)}>
                                         {columns.map(col => (
-                                            <td key={col.accessor}>
+                                            <td 
+                                                key={col.accessor}
+                                                onMouseEnter={(e) => col.accessor === 'username' ? handleMouseEnter(row, e) : null}
+                                                onMouseLeave={() => col.accessor === 'username' ? handleMouseLeave() : null}
+                                            >
                                                 {col.cell ? col.cell(row) : row[col.accessor]}
                                             </td>
                                         ))}
                                     </tr>
-                                    {/* Always render the sub-component row if the function is provided */}
                                     {renderRowSubComponent && (
                                         <tr>
                                             {renderRowSubComponent({ row: { original: row } })}
